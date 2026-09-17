@@ -1,0 +1,48 @@
+# ac-52w r2 scenario 1 — sprite reachable with the daemon socket open; archive, then release, then pause.
+# Head 3296637. All times UTC, 2026-09-17. Sprite trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4,
+# machine e05184ae, daemon connected 12:07:14.399.
+#
+# NOTE ON "AWAKE": this sprite pauses 0.6-1.5 s after every release, so there is no steady awake-and-idle
+# state to fire into. Both runs below were fired while Hub still held the daemon socket (presence=connected);
+# the sprite itself was warm and woke on the hold. Scenario 2 is the daemon-offline case.
+
+== run qa-r2-run-1, execution b4fb15da (first fire after enrollment)
+fire 12:08:10
+12:08:11.413  hub  INFO sprite hold     executionId=b4fb15da-3c9d-5acc-8482-e3b85cbb25e4
+                                        sprite=trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4
+                                        task=b4fb15da-3c9d-5acc-8482-e3b85cbb25e4
+12:08:11.170  db   agent_executions.started_at
+12:08:12.956  db   exec b4fb15da running
+12:10:13.515  db   exec b4fb15da TERMINAL (failed, step_idle_timeout)
+12:10:13.988  db   exec b4fb15da hub_action_completed_at  <- archive completed, terminal +473 ms
+12:10:14.244  hub  INFO sprite release  executionId=b4fb15da-... task=b4fb15da-...  <- archive +256 ms
+12:10:14Z     sprite last_warming_at (paused); GET saw status=warm at 12:10:15.560
+   terminal -> archive 473 ms | archive -> release 256 ms | terminal -> release 729 ms | release -> pause <1.4 s
+
+== run qa-r2-run-2, execution a999f849 (scenario 1 proper, hold task sampled every ~1.35 s)
+sprite GET before fire: 12:11:02.488 status=warm last_warming_at=2026-09-17T12:10:14Z
+fire 12:11:02
+12:11:03.517  hub  INFO sprite hold     executionId=a999f849-df8d-58c8-8fe2-983b781763e7
+                                        sprite=trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4
+                                        task=a999f849-df8d-58c8-8fe2-983b781763e7
+12:11:03.225  db   agent_executions.started_at
+12:11:03.915  sprite GET status=running last_warming_at=null   <- the hold woke it
+12:11:03.686  task  first sample showing the hold:
+              12:11:03.686 {"tasks":[{"name":"a999f849-df8d-58c8-8fe2-983b781763e7","started_at":"2026-09-17T12:11:03Z","expires_at":"2026-09-17T13:11:03Z"}]}
+              ... 90 further samples, all listing the same task (12:11:05.005 .. 12:13:05.791) ...
+12:13:05.462  db   exec a999f849 TERMINAL (failed, step_idle_timeout)
+12:13:05.791  task last sample showing the hold:
+              12:13:05.791 {"tasks":[{"name":"a999f849-df8d-58c8-8fe2-983b781763e7","started_at":"2026-09-17T12:11:03Z","expires_at":"2026-09-17T13:11:03Z"}]}
+12:13:05.901  db   exec a999f849 hub_action_completed_at  <- archive completed, terminal +439 ms
+12:13:06.202  hub  INFO sprite release  executionId=a999f849-... task=a999f849-...  <- archive +301 ms
+12:13:07.124  task first sample with the hold gone:
+              12:13:07.124 {"tasks":[]}
+12:13:06Z     sprite last_warming_at (paused); GET saw status=warm at 12:13:06.785  <- release +~0.6 s
+   terminal -> archive 439 ms | archive -> release 301 ms | terminal -> release 740 ms | release -> pause ~0.6 s
+
+== assertions
+hub_action_completed_at (12:13:05.901) BEFORE the sprite release line (12:13:06.202)       PASS
+no 'daemon.execution.hub-action failed' in the whole Hub log                                PASS (grep -c = 0)
+hold task still listed after terminal, gone only after the release line                     PASS
+   (1.35 s sampling brackets it: present 12:13:05.791, absent 12:13:07.124, release 12:13:06.202)
+pause follows the release                                                                   PASS
