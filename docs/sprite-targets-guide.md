@@ -16,14 +16,14 @@ enabled for this organization." Read [`SECURITY.md`](../SECURITY.md#sprite-targe
 `run.target` takes a `kind`. Omitting it, or `kind: daemon`, keeps the `{ daemon, cwd, worktree }`
 target described in the other trigger docs. `kind: sprite` takes these fields:
 
-| Field       | Required | Meaning                                                                                                                                                                                                                                                                               |
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kind`      | yes      | `sprite`.                                                                                                                                                                                                                                                                             |
-| `bootstrap` | yes      | Shell script run once after the sprite is created, as the `sprite` user. It installs the agent CLIs and populates `cwd`. Hub installs the Paseo CLI before it and enrolls the daemon after it. A non-zero exit fails the sprite.                                                      |
-| `cwd`       | yes      | Absolute directory on the sprite. `bootstrap` makes it exist and makes it a git checkout; Hub does not clone.                                                                                                                                                                         |
-| `memory`    | no       | Memory limit in MB. Defaults to the organization's configured default memory, which is 8192 MB unless the organization changed it in its Sprites configuration. It is the only shape setting; Sprites offers no CPU or region choice.                                                 |
-| `env`       | no       | Environment of the daemon service, set once when Hub writes the service and kept on the sprite. Not a per-execution lease. Connection templates resolve only for connection kinds Hub has; other provider keys are literal values (see [Credentials](#credentials-and-continuation)). |
-| `worktree`  | no       | Same schema and behaviour as on a daemon target.                                                                                                                                                                                                                                      |
+| Field       | Required | Meaning                                                                                                                                                                                                                                             |
+| ----------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`      | yes      | `sprite`.                                                                                                                                                                                                                                           |
+| `bootstrap` | yes      | Shell script run once after the sprite is created, as the `sprite` user. It installs the agent CLIs and populates `cwd`. Hub installs the Paseo CLI before it and enrolls the daemon after it. A non-zero exit fails the sprite.                    |
+| `cwd`       | yes      | Absolute directory on the sprite. `bootstrap` makes it exist and makes it a git checkout; Hub does not clone.                                                                                                                                       |
+| `memory`    | no       | Memory limit in MB. Defaults to the organization's configured default memory, which is 8192 MB unless the organization changed it in its Sprites configuration. It is the only shape setting; Sprites offers no CPU or region choice.               |
+| `env`       | no       | Per-trigger, non-secret values for the daemon service environment. Never secrets: provider credentials go in the organization's daemon environment (see [Credentials](#credentials-and-continuation)). A connection template here fails activation. |
+| `worktree`  | no       | Same schema and behaviour as on a daemon target.                                                                                                                                                                                                    |
 
 ```yaml
 name: review
@@ -41,8 +41,6 @@ run:
       git clone https://github.com/acme/project.git /home/sprite/workspace/project
     cwd: /home/sprite/workspace/project
     memory: 16384
-    env:
-      ANTHROPIC_API_KEY: sk-ant-...
     worktree:
       mode: branch-off
       newBranch: trigger-${{ paseo.execution.id }}
@@ -109,8 +107,6 @@ run:
       node "$(npm prefix -g)/lib/node_modules/@anthropic-ai/claude-code/install.cjs"
       git clone https://github.com/acme/project.git /home/sprite/workspace/project
     cwd: /home/sprite/workspace/project
-    env:
-      ANTHROPIC_API_KEY: sk-ant-...
   agent: { provider: claude, mode: bypassPermissions }
   continuation: { mode: conversation }
   prompt: |
@@ -132,22 +128,26 @@ A trigger with a leased credential, either `run.github` or a connection template
 an agent only while one of its executions is active. After every execution finishes, the next event starts
 a new agent. This is Hub's rule for every target.
 
-Connection templates such as `${{ paseo.connections.<slug>.<value> }}` in the target's `env` resolve only
-for connection kinds Hub has, in practice a GitHub connection's token. Hub resolves them once, when it
-writes the daemon service. Any other provider key, such as `ANTHROPIC_API_KEY`, is written as a literal
-value. A literal value is stored in the trigger's YAML and therefore in every saved revision of it. Rotate
-it by saving a new revision, and treat the trigger's revision history as holding the key.
+Provider credentials for sprites go in **Settings → Sprites → daemon environment**, for example
+`CLAUDE_CODE_OAUTH_TOKEN` with the Claude subscription token from `claude setup-token`. Values there are
+write-only. Hub writes this environment into the daemon service of every sprite in the organization,
+beneath the target's `env`; on a clash the target's value wins. Saving the settings rewrites the service on
+every live sprite, which restarts its daemon. Nothing secret enters trigger YAML.
 
-Credentials in the target's `env` are not leases. They live in the daemon service for the life of the
+The target's `env` holds only per-trigger, non-secret values. A `${{ paseo.connections.<slug>.<value> }}`
+template there fails activation with a message naming the key, because every connection kind Hub has needs
+an execution lease.
+
+Credentials in the daemon environment are not leases. They live in the daemon service for the life of the
 sprite and every agent on it inherits them, so an agent keeps its memory across idle days. A reviewer that
-must remember a pull request from one day to the next puts provider keys in the target's `env`, omits
-`run.github`, and relies on a GitHub credential placed on the sprite, for example by `bootstrap`. The
+must remember a pull request from one day to the next takes provider credentials from the daemon
+environment, omits `run.github`, and relies on a GitHub credential placed on the sprite. The
 trigger editor warns when a sprite target with `continuation.mode: conversation` also sets `run.github` or
 a connection template in `run.env`. [`SECURITY.md`](../SECURITY.md#sprite-targets) describes what that
 trade exposes.
 
-Sprites hold no interactive provider logins. A `bootstrap` that needs one is a misconfiguration; pass a key
-or token through `env` instead.
+Sprites hold no interactive provider logins. A `bootstrap` that needs one is a misconfiguration; put the
+token in the daemon environment instead.
 
 ## Bootstrap notes
 
@@ -158,8 +158,8 @@ or token through `env` instead.
   global bin directory on `PATH`, so `npm`, `paseo`, and `~` work inside it. When you try commands yourself
   with `sprite exec`, the shell is non-login and its `PATH` lacks the npm global bin directory, so use
   absolute paths there.
-- **Clone in `bootstrap`.** Hub does not clone. Use a deploy key or token you place in the target's `env`
-  or write to the sprite during `bootstrap`.
+- **Clone in `bootstrap`.** Hub does not clone. `bootstrap` clones, and the credential it uses must not be
+  written into the trigger YAML.
 
 ## Limits
 
