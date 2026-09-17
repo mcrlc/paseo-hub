@@ -132,7 +132,7 @@ Provider credentials for sprites go in **Settings → Sprites → daemon environ
 `CLAUDE_CODE_OAUTH_TOKEN` with the Claude subscription token from `claude setup-token`. Values there are
 write-only. Hub writes this environment into the daemon service of every sprite in the organization,
 beneath the target's `env`; on a clash the target's value wins. `bootstrap` runs with the same variables,
-in the same order. Saving the settings rewrites the service on
+also beneath the target's `env`. Saving the settings rewrites the service on
 every live sprite, which restarts its daemon. Nothing secret enters trigger YAML.
 
 The target's `env` holds only per-trigger, non-secret values. A `${{ paseo.connections.<slug>.<value> }}`
