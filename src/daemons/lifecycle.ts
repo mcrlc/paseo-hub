@@ -24,7 +24,10 @@ import type {
 import {
   DEFAULT_STARTUP_TIMEOUT_MS,
   type LaunchMachineIntent,
+  type SpriteDispatchReadiness,
 } from "../dispatcher/launch-machine-intent.js";
+import type { SpriteActivation, SpriteTarget } from "./sprites/activation.js";
+import { createSpritesClient, type SpritesClient } from "./sprites/client.js";
 import { logger as defaultLogger } from "../logger.js";
 import { reportFailure } from "../failures/index.js";
 import type { TriggerProvider } from "../triggers/index.js";
@@ -106,6 +109,8 @@ export interface DaemonDispatchLifecycleOptions {
   executionAuthority?: ExecutionAuthority;
   publicBaseUrl?: string;
   completionTokenSecret?: string;
+  spriteActivation?: SpriteActivation | null;
+  spriteProvider?: (token: string) => Pick<SpritesClient, "hold" | "release">;
   test?: {
     logger?: Logger;
     dispatchTimeoutMs?: number;
@@ -158,6 +163,8 @@ export class DaemonDispatchLifecycle {
   private readonly reconcilingHubActions = new Map<string, Promise<void>>();
   private readonly daemonRecoveries = new Set<Promise<void>>();
   private readonly executionSubscriptions = new Map<string, () => void>();
+  private readonly heldSpriteExecutions = new Set<string>();
+  private readonly recreatedSpriteExecutions = new Set<string>();
   private stopping = false;
 
   constructor(private readonly options: DaemonDispatchLifecycleOptions) {
@@ -218,6 +225,56 @@ export class DaemonDispatchLifecycle {
     }
     this.startDurableDispatch(prepared, this.notifyDispatchAccepted(intent, true));
     return { execution: prepared.execution };
+  }
+
+  async prepareSpriteDispatch(input: {
+    organizationId: string;
+    projectId: string;
+    executionId: string;
+    target: SpriteTarget;
+  }): Promise<SpriteDispatchReadiness> {
+    const { database } = this.options;
+    const trigger = (await database.listOrganizationTriggers(input.organizationId)).find(
+      (candidate) => candidate.runtimeProjectId === input.projectId,
+    );
+    const machine =
+      trigger === undefined ? undefined : await database.findLiveSpriteMachine(trigger.id);
+    if (trigger === undefined || machine === undefined) {
+      const activation = this.options.spriteActivation;
+      if (
+        trigger !== undefined &&
+        activation != null &&
+        !this.recreatedSpriteExecutions.has(input.executionId)
+      ) {
+        this.recreatedSpriteExecutions.add(input.executionId);
+        try {
+          await activation({ trigger, target: input.target, userId: null });
+          return { status: "deferred" };
+        } catch (error) {
+          this.report(error, "sprites.recreate", { executionId: input.executionId });
+        }
+      }
+      this.forgetSpriteExecution(input.executionId);
+      return { status: "unavailable" };
+    }
+    if (machine.status !== "alive" || machine.source.kind !== "sprite")
+      return { status: "deferred" };
+    const daemon = await database.findDaemonByMachineId(machine.id);
+    if (daemon === undefined) return { status: "deferred" };
+    if (!this.heldSpriteExecutions.has(input.executionId)) {
+      try {
+        const provider = await this.spriteProviderFor(machine.orgId);
+        await provider.hold(machine.source.spriteName, input.executionId, "60m");
+        this.heldSpriteExecutions.add(input.executionId);
+      } catch (error) {
+        this.report(error, "sprites.hold", { executionId: input.executionId });
+        await database.transitionMachine(machine.id, "terminated", {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        return { status: "deferred" };
+      }
+    }
+    return { status: "ready", machineId: machine.id, daemonId: daemon.id };
   }
 
   async notifyWorkflowRunAccepted(
@@ -1376,7 +1433,39 @@ export class DaemonDispatchLifecycle {
     await this.options.database.setAgentExecutionReactionState(execution.id, reactionState);
   }
 
+  private async releaseSpriteHold(execution: AgentExecutionRecord): Promise<void> {
+    this.forgetSpriteExecution(execution.id);
+    if (execution.launchIntent?.environment.machineId === undefined) return;
+    try {
+      const machine = await this.options.database.findMachineById(
+        execution.launchIntent.environment.machineId,
+      );
+      if (machine?.source.kind !== "sprite") return;
+      const provider = await this.spriteProviderFor(machine.orgId);
+      await provider.release(machine.source.spriteName, execution.id);
+    } catch (error) {
+      this.report(error, "sprites.release", { executionId: execution.id });
+    }
+  }
+
+  private forgetSpriteExecution(executionId: string): void {
+    this.heldSpriteExecutions.delete(executionId);
+    this.recreatedSpriteExecutions.delete(executionId);
+  }
+
+  private async spriteProviderFor(
+    organizationId: string,
+  ): Promise<Pick<SpritesClient, "hold" | "release">> {
+    const configuration =
+      await this.options.database.getOrganizationSpritesConfiguration(organizationId);
+    if (configuration === undefined) throw new Error("Sprites are not configured");
+    return (this.options.spriteProvider ?? ((token) => createSpritesClient({ token })))(
+      configuration.token,
+    );
+  }
+
   private async notifyExecutionTerminal(execution: AgentExecutionRecord): Promise<void> {
+    await this.releaseSpriteHold(execution);
     const provider = this.findProviderForTriggerContext(execution.triggerContext);
     if (provider !== undefined) {
       await notifyAgentExecutionTerminal({

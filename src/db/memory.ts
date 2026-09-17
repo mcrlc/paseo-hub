@@ -1605,6 +1605,9 @@ class MemoryDatabase implements Database {
   async findDaemonById(id: string) {
     return this.daemons.get(id);
   }
+  async findDaemonByMachineId(machineId: string) {
+    return Array.from(this.daemons.values()).find((daemon) => daemon.machineId === machineId);
+  }
   async findDaemonForOrganization(organizationId: string, id: string) {
     const daemon = this.daemons.get(id);
     const machine = daemon === undefined ? undefined : this.machines.get(daemon.machineId);

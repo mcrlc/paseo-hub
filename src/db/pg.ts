@@ -1725,6 +1725,13 @@ class PgDatabase implements Database {
     return rows.rows[0] ? toDaemon(rows.rows[0]) : undefined;
   }
 
+  async findDaemonByMachineId(machineId: string): Promise<DaemonRecord | undefined> {
+    const rows = await query<DaemonRow>(this.pool, `select * from daemons where machine_id = $1`, [
+      machineId,
+    ]);
+    return rows.rows[0] ? toDaemon(rows.rows[0]) : undefined;
+  }
+
   async findDaemonForOrganization(
     organizationId: string,
     id: string,
