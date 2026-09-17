@@ -120,6 +120,7 @@ async function createOwnedApplicationRuntime(
       ? {}
       : { daemonConnectionForId: options.daemonConnectionForId }),
     spriteActivation,
+    ...spriteApiKeysFor(options),
   });
   ownership.own(() => application.hub.stop());
   await application.hub.start(registrations.flatMap((registration) => registration.sources));
@@ -389,6 +390,10 @@ function spriteActivationFor(
         connectionsForProject,
         hubOrigin: options.publicBaseUrl,
       });
+}
+
+function spriteApiKeysFor(options: ApplicationCompositionOptions) {
+  return options.auth?.apiKeys === undefined ? {} : { spriteApiKeys: options.auth.apiKeys };
 }
 
 function spritesSettingsFor(

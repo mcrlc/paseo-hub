@@ -43,6 +43,7 @@ export interface DaemonModuleOptions {
   publicBaseUrl?: string;
   completionTokenSecret?: string;
   spriteActivation?: import("./sprites/activation.js").SpriteActivation | null;
+  spriteApiKeys?: import("./lifecycle.js").DaemonDispatchLifecycleOptions["spriteApiKeys"];
   test?: DaemonModuleTestOptions;
 }
 
@@ -69,6 +70,7 @@ export function createDaemonModule(options: DaemonModuleOptions): DaemonModule {
         ? {}
         : { completionTokenSecret: options.completionTokenSecret }),
       ...(options.spriteActivation == null ? {} : { spriteActivation: options.spriteActivation }),
+      ...(options.spriteApiKeys === undefined ? {} : { spriteApiKeys: options.spriteApiKeys }),
       ...(options.test === undefined ? {} : { test: options.test }),
     }),
   };

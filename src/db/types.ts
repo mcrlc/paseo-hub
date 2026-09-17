@@ -1318,6 +1318,7 @@ export interface Database {
   ): Promise<AttachmentRecord | undefined>;
   insertMachine(input: InsertMachineInput): Promise<MachineRecord>;
   findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined>;
+  findSpawningSpriteMachines(): Promise<MachineRecord[]>;
   /** Resolves undefined when a non-terminated sprite machine already exists for the trigger. */
   insertSpriteMachine(input: {
     orgId: string;

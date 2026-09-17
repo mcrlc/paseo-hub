@@ -1,0 +1,48 @@
+# ac-7rt scenario 5: reconcile a `spawning` row to `alive`
+# Target state: a machine row still `spawning` that already has a daemon bound, so
+# reconcileSpawningSprites() takes the `findDaemonByMachineId(...) !== undefined` branch
+# (lifecycle.ts:1010-1012) instead of the terminate branch proved in scenario 4.
+#
+# RESULT: not reachable by racing. Three attempts, then the code shows why.
+
+## three attempts (race-alive.sh): terminate trigger B's row, fire a run to force the recreate
+## path, then poll `machines` joined to `daemons` as fast as docker exec allows and kill -9 the
+## instant the row is still `spawning` with a daemon bound.
+fire 13:53:32.888 qa-ac7rt-sprite-b qa-7rt-s5-attempt1
+MISS timed out
+
+fire 13:54:34.684 qa-ac7rt-sprite-b qa-7rt-s5-attempt2
+MISS 13:55:05.364 row went alive before the poll caught spawning+daemon: 59174af7-7840-4dcd-ae42-d491b3231ba7|alive|1
+
+fire 13:55:44.881 qa-ac7rt-sprite-b qa-7rt-s5-attempt3
+MISS 13:56:17.285 row went alive before the poll caught spawning+daemon: 5064d7fb-8fbb-4b76-baa4-30d8cd824114|alive|1
+
+#   attempt 1  13:53:32  loop bounded at 900 polls, exhausted 4 s before the transition -- no verdict
+#   attempt 2  13:54:34  MISS: the first poll to see the row already read `alive|1`
+#   attempt 3  13:55:44  MISS: same
+#   measured poll interval: 34.4 ms (100 x `docker exec psql -c "select 1"`)
+
+## why it is unreachable, not just unlucky
+#
+# src/db/pg.ts:1599 `async enrollDaemon(input)` wraps its whole body in
+#   1602:  return await this.pool.transaction(async (client) => {
+# and inside that ONE transaction it does, in order:
+#   1622:  update daemon_enrollment_tokens set consumed_at = ...   (consume the enrollment token)
+#   1635:  update machines set status = 'alive' where status = 'spawning' ... returning *
+#   1645:  update organization_api_keys set revoked_at = ...        (revoke the enrollment key)
+#   1660:  insert into daemons (...) values (...)                   (bind the daemon)
+#
+# The row reaches `alive` at 1635 and the daemon is bound at 1660 in the same transaction, so no
+# other connection ever observes `spawning` + a bound daemon. The window the scenario asks for has
+# zero width on Postgres by construction; a faster poller cannot find it.
+#
+# The branch is therefore reachable only if something puts a row back to `spawning` after its daemon
+# enrolled, or if the process dies between two separate writes -- which this schema does not have.
+# Both tests that cover it build the state by hand:
+#   src/daemons/sprites/dispatch.test.ts "marks a spawning sprite alive on restart when its daemon
+#     enrolled" -- enrollSprite() then an explicit transitionMachine(machineId, "spawning")
+#   src/daemons/daemons.test.ts uses hub.spawningSpriteMachine() the same way
+#
+# Not a defect: the branch is a cheap, correct guard and reconciling to `alive` is the safe answer if
+# the state ever occurs. But it is defensive code, not a path the running system produces, and the
+# bead text ("marking it alive when an enrolled daemon exists") reads as though it were. Finding 3.
