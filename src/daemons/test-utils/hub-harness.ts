@@ -472,6 +472,33 @@ export class HubHarness {
     return daemon;
   }
 
+  async spawningSpriteMachine(apiKeyId = HUB_API_KEY_ID): Promise<string> {
+    const machine = await this.requireDatabase().insertSpriteMachine({
+      orgId: HUB_ORGANIZATION_ID,
+      source: { kind: "sprite", triggerId: randomUUID(), spriteName: "sprite", apiKeyId },
+      specs: null,
+    });
+    if (machine === undefined) throw new Error("Sprite machine was not inserted");
+    return machine.id;
+  }
+
+  async machine(id: string) {
+    const machine = await this.requireDatabase().findMachineById(id);
+    if (!machine) throw new Error("Machine does not exist");
+    return machine;
+  }
+
+  async harnessApiKeyRevoked(): Promise<boolean> {
+    if (this.postgres === undefined) throw new Error("Postgres is unavailable");
+    const client = await createPostgresQueryRuntime(this.postgres.getConnectionUri());
+    const rows = await client.query<{ revoked_at: Date | null }>(
+      `select revoked_at from organization_api_keys where id = $1`,
+      [HUB_API_KEY_ID],
+    );
+    await client.close();
+    return rows.rows[0]?.revoked_at !== null;
+  }
+
   async enrollmentPrivacy(): Promise<{
     daemonHasCredential: boolean;
     databaseHasVerifierOnly: boolean;

@@ -7,12 +7,14 @@ import { parseCompiledHubConfig } from "../config/compiler.js";
 import { projectTriggerForm } from "./configuration/editor.js";
 import { OrganizationTriggerStore } from "./store.js";
 import type { EntitlementsService } from "../entitlements/service.js";
+import type { SpriteActivation } from "../daemons/sprites/activation.js";
 
 export class TriggerDashboard {
   constructor(
     private readonly database: Database,
     private readonly auth: AuthServer,
     private readonly entitlements: EntitlementsService | null,
+    private readonly spriteActivation: SpriteActivation | null = null,
   ) {}
 
   async snapshot(request: Request, organizationSlug: string) {
@@ -125,6 +127,7 @@ export class TriggerDashboard {
       this.database,
       tenant.organization.id,
       this.entitlements,
+      this.spriteActivation,
     ).save({
       ...(input.triggerId === undefined ? {} : { triggerId: input.triggerId }),
       yaml: input.yaml,

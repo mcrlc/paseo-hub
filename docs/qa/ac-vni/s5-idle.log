@@ -1,0 +1,25 @@
+# Scenario 5: idle after activation (sprite trigger-f44f3290-..., alive at 09:13:00Z, no executions)
+# GET /v1/sprites/<n> status and Hub daemons.presence sampled every ~10 s. Last Hub-bound activity: services GET at 09:13:14Z.
+09:14:26 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=connected last_seen=09:12:59
+09:14:37 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=connected last_seen=09:12:59
+09:14:47 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=connected last_seen=09:12:59
+09:14:58 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=connected last_seen=09:12:59
+09:15:09 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:15:19 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:15:30 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:15:41 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:15:52 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:16:02 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:16:13 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:16:24 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:16:35 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+09:16:46 sprite=warm last_running_at=2026-09-17T09:12:50Z last_warming_at=2026-09-17T09:13:50Z hub_daemon=offline last_seen=09:12:59
+
+Hub machines/daemons watcher (s4-watch.sh):
+== 09:15:06
+4bbb3355-2e72-4782-8ecb-d08b64f23a44 | alive | trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c | {"memoryMb": 8192, "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0", "bootstrapHash": "749c8595d3529c732fe227545a1dd850d83d177693870c347ccf9e7f0c32f4c0"} |  | trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c | offline
+== 09:17:18
+4bbb3355-2e72-4782-8ecb-d08b64f23a44 | alive | trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c | {"memoryMb": 8192, "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0", "bootstrapHash": "749c8595d3529c732fe227545a1dd850d83d177693870c347ccf9e7f0c32f4c0"} |  | trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c | connected
+
+Wake: sprite exec at 09:17:15Z -> daemons row presence=connected, connected_at 09:17:17.23Z (2 s).
+Hub log has no line for the 09:15:04.8Z socket close (daemons.disconnected_at=09:15:04.799874Z).

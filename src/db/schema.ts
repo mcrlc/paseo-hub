@@ -36,7 +36,15 @@ export const CONNECTION_PROVIDERS = ["github", "slack", "discord", "linear"] as 
 
 export type MachineSource =
   | { kind: "manual"; userId?: string }
-  | { kind: "daemon"; daemonId: string };
+  | { kind: "daemon"; daemonId: string }
+  | SpriteMachineSource;
+
+export interface SpriteMachineSource {
+  kind: "sprite";
+  triggerId: string;
+  spriteName: string;
+  apiKeyId: string;
+}
 
 export const machineStatus = pgEnum("machine_status", MACHINE_STATUSES);
 export const agentExecutionStatus = pgEnum("agent_execution_status", AGENT_EXECUTION_STATUSES);

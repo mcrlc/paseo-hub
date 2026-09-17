@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AgentExecutionStatus, MachineStatus } from "./schema.js";
+import type { AgentExecutionStatus, MachineStatus, SpriteMachineSource } from "./schema.js";
 import { parseCompiledHubConfig, type JsonValue } from "../config/compiler.js";
 import type { LaunchMachineIntent } from "../dispatcher/launch-machine-intent.js";
 import { linearConnectionRequiresReauthorization } from "../providers/linear/client.js";
@@ -1320,12 +1320,34 @@ class MemoryDatabase implements Database {
     return this.machines.get(id);
   }
 
+  async findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined> {
+    return Array.from(this.machines.values()).find(
+      (machine) =>
+        machine.status !== "terminated" &&
+        machine.source.kind === "sprite" &&
+        machine.source.triggerId === triggerId,
+    );
+  }
+
+  async insertSpriteMachine(input: {
+    orgId: string;
+    source: SpriteMachineSource;
+    specs: unknown;
+  }): Promise<MachineRecord | undefined> {
+    if ((await this.findLiveSpriteMachine(input.source.triggerId)) !== undefined) return undefined;
+    return this.insertMachine({ ...input, status: "spawning" });
+  }
+
   async findMachineForOrganization(
     organizationId: string,
     id: string,
   ): Promise<MachineRecord | undefined> {
     const machine = this.machines.get(id);
     return machine?.orgId === organizationId ? machine : undefined;
+  }
+
+  async setMachineSpecs(id: string, specs: unknown): Promise<void> {
+    this.machines.set(id, { ...this.readMachine(id), specs });
   }
 
   async transitionMachine(
@@ -1539,11 +1561,21 @@ class MemoryDatabase implements Database {
       ...token,
       consumedAt: input.now,
     });
-    const machine = await this.insertMachine({
-      orgId: token.organizationId,
-      source: { kind: "daemon", daemonId: input.daemonId },
-      status: "alive",
-    });
+    const sprite = Array.from(this.machines.values()).find(
+      (candidate) =>
+        candidate.status === "spawning" &&
+        candidate.orgId === token.organizationId &&
+        candidate.source.kind === "sprite" &&
+        candidate.source.apiKeyId === token.issuedByApiKeyId,
+    );
+    if (sprite !== undefined) this.machines.set(sprite.id, { ...sprite, status: "alive" });
+    const machine =
+      sprite ??
+      (await this.insertMachine({
+        orgId: token.organizationId,
+        source: { kind: "daemon", daemonId: input.daemonId },
+        status: "alive",
+      }));
     const daemon: DaemonRecord = {
       id: input.daemonId,
       slug,
