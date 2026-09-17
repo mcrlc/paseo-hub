@@ -83,6 +83,8 @@ import type {
   WorkflowDeadlineRecovery,
   ProjectActivityRunListRecord,
   OrganizationEntitlementsRecord,
+  OrganizationSpritesConfigurationRecord,
+  UpsertOrganizationSpritesConfigurationInput,
   OperatorOrganizationRecord,
   StampOrganizationEntitlementsInput,
   OverrideOrganizationEntitlementsInput,
@@ -182,6 +184,10 @@ class MemoryDatabase implements Database {
   private readonly cliAuthorizations = new Map<string, MemoryCliAuthorization>();
   private readonly daemons = new Map<string, DaemonRecord>();
   private readonly organizationEntitlements = new Map<string, OrganizationEntitlementsRecord>();
+  private readonly organizationSpritesConfigurations = new Map<
+    string,
+    OrganizationSpritesConfigurationRecord
+  >();
   private readonly entitlementChanges: EntitlementChangeRecord[] = [];
   private readonly organizationUsage = new Map<string, OrganizationUsageRecord>();
   private readonly billingPlans = new Map<string, BillingPlanRecord>();
@@ -2062,6 +2068,20 @@ class MemoryDatabase implements Database {
     organizationId: string,
   ): Promise<OrganizationEntitlementsRecord | undefined> {
     return this.organizationEntitlements.get(organizationId);
+  }
+
+  async getOrganizationSpritesConfiguration(
+    organizationId: string,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    return this.organizationSpritesConfigurations.get(organizationId);
+  }
+
+  async upsertOrganizationSpritesConfiguration(
+    input: UpsertOrganizationSpritesConfigurationInput,
+  ): Promise<OrganizationSpritesConfigurationRecord> {
+    const record = { ...input, updatedAt: new Date() };
+    this.organizationSpritesConfigurations.set(input.organizationId, record);
+    return record;
   }
 
   async stampOrganizationEntitlements(

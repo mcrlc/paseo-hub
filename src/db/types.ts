@@ -874,6 +874,21 @@ export interface OrganizationEntitlementsRecord {
   updatedAt: Date;
 }
 
+export interface OrganizationSpritesConfigurationRecord {
+  organizationId: string;
+  token: string;
+  memoryMb: number;
+  updatedAt: Date;
+  updatedByUserId: string | null;
+}
+
+export interface UpsertOrganizationSpritesConfigurationInput {
+  organizationId: string;
+  token: string;
+  memoryMb: number;
+  updatedByUserId: string | null;
+}
+
 /** An organization as the instance-operator surface sees it — identity only, no membership. */
 export interface OperatorOrganizationRecord {
   id: string;
@@ -1396,6 +1411,12 @@ export interface Database {
   getOrganizationEntitlements(
     organizationId: string,
   ): Promise<OrganizationEntitlementsRecord | undefined>;
+  getOrganizationSpritesConfiguration(
+    organizationId: string,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined>;
+  upsertOrganizationSpritesConfiguration(
+    input: UpsertOrganizationSpritesConfigurationInput,
+  ): Promise<OrganizationSpritesConfigurationRecord>;
   stampOrganizationEntitlements(
     input: StampOrganizationEntitlementsInput,
   ): Promise<OrganizationEntitlementsRecord>;

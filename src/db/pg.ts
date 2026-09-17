@@ -103,6 +103,8 @@ import type {
   ProjectActivityRunListRecord,
   ProjectActivityRunRecord,
   OrganizationEntitlementsRecord,
+  OrganizationSpritesConfigurationRecord,
+  UpsertOrganizationSpritesConfigurationInput,
   OperatorOrganizationRecord,
   StampOrganizationEntitlementsInput,
   OverrideOrganizationEntitlementsInput,
@@ -2459,6 +2461,38 @@ class PgDatabase implements Database {
     return rows.rows[0] === undefined ? undefined : toOrganizationEntitlementsRecord(rows.rows[0]);
   }
 
+  async getOrganizationSpritesConfiguration(
+    organizationId: string,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const rows = await query<OrganizationSpritesConfigurationRow>(
+      this.pool,
+      `select * from organization_sprites_configuration where organization_id = $1`,
+      [organizationId],
+    );
+    return rows.rows[0] === undefined
+      ? undefined
+      : toOrganizationSpritesConfigurationRecord(rows.rows[0]);
+  }
+
+  async upsertOrganizationSpritesConfiguration(
+    input: UpsertOrganizationSpritesConfigurationInput,
+  ): Promise<OrganizationSpritesConfigurationRecord> {
+    const rows = await query<OrganizationSpritesConfigurationRow>(
+      this.pool,
+      `insert into organization_sprites_configuration
+         (organization_id, token, memory_mb, updated_by_user_id, updated_at)
+       values ($1, $2, $3, $4, clock_timestamp())
+       on conflict (organization_id) do update set
+         token = excluded.token,
+         memory_mb = excluded.memory_mb,
+         updated_by_user_id = excluded.updated_by_user_id,
+         updated_at = excluded.updated_at
+       returning *`,
+      [input.organizationId, input.token, input.memoryMb, input.updatedByUserId],
+    );
+    return toOrganizationSpritesConfigurationRecord(rows.rows[0]!);
+  }
+
   async stampOrganizationEntitlements(
     input: StampOrganizationEntitlementsInput,
   ): Promise<OrganizationEntitlementsRecord> {
@@ -4809,6 +4843,26 @@ function entitlementSnapshot(row: OrganizationEntitlementsRow): {
     overrides: row.overrides,
     planId: row.plan_id,
     planVersion: row.plan_version,
+  };
+}
+
+interface OrganizationSpritesConfigurationRow extends QueryRow {
+  organization_id: string;
+  token: string;
+  memory_mb: number;
+  updated_at: Date;
+  updated_by_user_id: string | null;
+}
+
+function toOrganizationSpritesConfigurationRecord(
+  row: OrganizationSpritesConfigurationRow,
+): OrganizationSpritesConfigurationRecord {
+  return {
+    organizationId: row.organization_id,
+    token: row.token,
+    memoryMb: row.memory_mb,
+    updatedAt: row.updated_at,
+    updatedByUserId: row.updated_by_user_id,
   };
 }
 
