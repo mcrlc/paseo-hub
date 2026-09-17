@@ -1,0 +1,60 @@
+=== the recreateSprite server function on the wire ===
+
+--- member (not a manager) ---
+> POST http://127.0.0.1:3000/_serverFn/0bb0ea8e01d9b86ff50d2aaefe133428e6fc7b52fe98a6e09f2c42acba3503ca  cookie: <session of member>
+> data: {"organizationSlug":"acme-1de4d4d0","triggerId":"3e9b2430-5d24-491d-8aa9-f9f696fdd21f"}
+HTTP/1.1 200 OK
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"You don't have permission to manage triggers."}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+--- owner, a trigger id that does not exist ---
+> POST http://127.0.0.1:3000/_serverFn/0bb0ea8e01d9b86ff50d2aaefe133428e6fc7b52fe98a6e09f2c42acba3503ca  cookie: <session of owner>
+> data: {"organizationSlug":"acme-1de4d4d0","triggerId":"11111111-1111-4111-8111-111111111111"}
+HTTP/1.1 200 OK
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"This trigger no longer exists."}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+--- no session ---
+> POST http://127.0.0.1:3000/_serverFn/0bb0ea8e01d9b86ff50d2aaefe133428e6fc7b52fe98a6e09f2c42acba3503ca  cookie: none
+> data: {"organizationSlug":"acme-1de4d4d0","triggerId":"3e9b2430-5d24-491d-8aa9-f9f696fdd21f"}
+HTTP/1.1 200 OK
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"Hub couldn't recreate this sprite. Reload its status before trying again."}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+--- the same no-session call to saveTrigger: the bare 'unauthenticated' predates this PR ---
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"unauthenticated"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+--- owner, a sprite-target trigger that was never activated (no machine row) ---
+> POST http://127.0.0.1:3000/_serverFn/0bb0ea8e01d9b86ff50d2aaefe133428e6fc7b52fe98a6e09f2c42acba3503ca  cookie: <session of owner>
+> data: {"organizationSlug":"acme-1de4d4d0","triggerId":"d506bd8d-94a9-4fb7-9384-51389da6d03a"}
+HTTP/1.1 200 OK
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["state"],"v":[{"t":1,"s":"complete"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+machines for that trigger after the call: 0
+
+--- owner, a daemon-target trigger (no sprite at all) ---
+> POST http://127.0.0.1:3000/_serverFn/0bb0ea8e01d9b86ff50d2aaefe133428e6fc7b52fe98a6e09f2c42acba3503ca  cookie: <session of owner>
+> data: {"organizationSlug":"acme-1de4d4d0","triggerId":"e133476e-78c1-4f30-b950-9320a6c1fff7"}
+HTTP/1.1 200 OK
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["state"],"v":[{"t":1,"s":"complete"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+
+=== the sentence for each failure, from the handler's own mapping ===
+postgres: relation does not exist
+  -> "Hub couldn't recreate this sprite. Reload its status before trying again."
+provider: sprites API rejected the token
+  -> "Hub couldn't recreate this sprite. Reload its status before trying again."
+network: ECONNREFUSED
+  -> "Hub couldn't recreate this sprite. Reload its status before trying again."
+a thrown string
+  -> "Hub couldn't recreate this sprite. Reload its status before trying again."
+SpriteBusyError(1), same chunk
+  -> "Recreating this sprite destroys it and ends its 1 running execution. Try again once it is idle."
+SpriteBusyError(3), same chunk
+  -> "Recreating this sprite destroys it and ends its 3 running executions. Try again once it is idle."
+SpriteBusyError across the chunk boundary
+  -> "Recreating this sprite destroys it and ends its 2 running executions. Try again once it is idle."
+an unrelated error that happens to be named
+  -> "Hub couldn't recreate this sprite. Reload its status before trying again."

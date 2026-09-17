@@ -1,0 +1,22 @@
+=== stop Hub by PID ===
+hub pid 72724 stopped; port 3000 answers: 000none
+
+=== remove the Postgres container ===
+qa-ac7vf-pg
+qa-ac7vf-pg containers left: 0
+
+=== comparison worktree ===
+~/repos/hub                                              365dbc3 [main]
+~/.paseo/worktrees/01slizkc/sprite-targets-dashboard     1c0c2b3 [sprite-targets/dashboard]
+~/.paseo/worktrees/01slizkc/sprite-targets-docs-security 9d98313 [sprite-targets/docs-security]
+~/.paseo/worktrees/01slizkc/verify-dashboard             1c0c2b3 [sprite-targets/dashboard-1]
+/tmp/ac7vf-base exists: no
+
+=== grep -rF the evidence for every secret this run used ===
+  ac7vf-auth-secret-not-a-real-one-0123456789 -> 0 files
+  ac7vf-owner-password -> docs/qa/ac-7vf/setup-accounts.ts 
+  ac7vf-admin-password -> 0 files
+  ac7vf-member-password -> 0 files
+  ac7vf-fake-sprites-token -> docs/qa/ac-7vf/s2-seed.ts 
+
+browser storage state and temp files: removed /tmp/ac7vf

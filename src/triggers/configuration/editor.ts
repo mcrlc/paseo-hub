@@ -6,6 +6,7 @@ import {
 } from "../schedule/recurrence.js";
 import { ContinuationSchema } from "../continuation.js";
 import { parseDocument, stringify, type Document } from "yaml";
+import { parseConnectionTemplate } from "../../config/connection-template.js";
 import { z } from "zod";
 import { IDENTIFIER, TriggerDocumentSchema, type TriggerDocument } from "./schema.js";
 
@@ -16,6 +17,11 @@ import {
   type QualifierValues,
   type QualifierKey,
 } from "./events.js";
+
+export interface TriggerDocumentWarning {
+  path: readonly string[];
+  message: string;
+}
 
 export interface TriggerFormValue {
   name: string;
@@ -48,6 +54,33 @@ export type TriggerFormProjection =
 
 const ProviderOptionsSchema = z.record(z.string(), z.unknown());
 const GitHubPermissionsSchema = z.record(z.string(), z.enum(["read", "write", "admin"]));
+
+export function triggerDocumentWarnings(yaml: string): readonly TriggerDocumentWarning[] {
+  const parsed = parseEditorDocument(yaml);
+  if (!parsed.success) return [];
+  const { run } = parsed.data;
+  if (run.target.kind !== "sprite" || run.continuation.mode !== "conversation") return [];
+  const leased =
+    run.github !== undefined ||
+    Object.values(run.env ?? {}).some((value) => connectionTemplated(value));
+  return leased
+    ? [
+        {
+          path: ["run", "continuation", "mode"],
+          message:
+            "Conversation continuation and leased credentials cancel each other: run.github and connection templates in run.env are revoked when an execution reaches terminal, which clears the session and gives the next arrival a new agent. Put the credentials in run.target.env, which lives on the sprite and is not a lease.",
+        },
+      ]
+    : [];
+}
+
+function connectionTemplated(value: string): boolean {
+  try {
+    return parseConnectionTemplate(value).length > 0;
+  } catch {
+    return false;
+  }
+}
 
 export function projectTriggerForm(yaml: string): TriggerFormProjection {
   const parsed = parseEditorDocument(yaml);

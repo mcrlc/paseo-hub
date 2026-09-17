@@ -1,0 +1,39 @@
+--- alive, no execution yet ---
+[alive-no-run] Sprite section present: true
+[alive-no-run] description: "The machine Hub creates for this trigger and pauses when it is idle."
+[alive-no-run] rows: [["Status","Alive"],["Sprite","trigger-3e9b2430-5d24-491d-8aa9-f9f696fdd21f"],["Memory","16384 MB"],["Last run","Never"]]
+[alive-no-run] pill {"text":"Alive","className":"bg-success-surface text-success"}
+[alive-no-run] Sprite actions kebab: 1
+[alive-no-run] badge elements in section: 0
+[alive-no-run] geometry: {"marginTop":"0px","marginBottom":"0px","parentGap":"24px","parentDisplay":"grid","previousTag":"form","gapAbove":24,"isLastChild":true}
+[alive-no-run] gap above at 390: 24
+--- alive, with a last run ---
+{"executionId":"5cd9b17d-c46a-4ef6-8b8e-f99d28ed1449","revisionId":"f02d79e6-bc81-4809-bace-985ad0d4d3d2"}
+[alive-with-run] Sprite section present: true
+[alive-with-run] description: "The machine Hub creates for this trigger and pauses when it is idle."
+[alive-with-run] rows: [["Status","Alive"],["Sprite","trigger-3e9b2430-5d24-491d-8aa9-f9f696fdd21f"],["Memory","16384 MB"],["Last run","2 hours ago"]]
+[alive-with-run] pill {"text":"Alive","className":"bg-success-surface text-success"}
+[alive-with-run] Sprite actions kebab: 1
+[alive-with-run] badge elements in section: 0
+[alive-with-run] geometry: {"marginTop":"0px","marginBottom":"0px","parentGap":"24px","parentDisplay":"grid","previousTag":"form","gapAbove":24,"isLastChild":true}
+[alive-with-run] gap above at 390: 24
+--- terminated ---
+[terminated] Sprite section present: true
+[terminated] description: "The machine Hub creates for this trigger and pauses when it is idle."
+[terminated] rows: [["Status","Terminated"],["Sprite","trigger-3e9b2430-5d24-491d-8aa9-f9f696fdd21f"],["Memory","16384 MB"],["Last run","2 hours ago"]]
+[terminated] pill {"text":"Terminated","className":"bg-neutral-surface text-neutral"}
+[terminated] Sprite actions kebab: 0
+[terminated] badge elements in section: 0
+[terminated] geometry: {"marginTop":"0px","marginBottom":"0px","parentGap":"24px","parentDisplay":"grid","previousTag":"form","gapAbove":24,"isLastChild":true}
+[terminated] gap above at 390: 24
+--- no machine row at all ---
+[not-created] Sprite section present: true
+[not-created] description: "The machine Hub creates for this trigger and pauses when it is idle."
+[not-created] rows: [["Status","Not created"],["Sprite","—"],["Memory","—"],["Last run","Never"]]
+[not-created] pill {"text":"Not created","className":"bg-neutral-surface text-neutral"}
+[not-created] Sprite actions kebab: 0
+[not-created] badge elements in section: 0
+[not-created] geometry: {"marginTop":"0px","marginBottom":"0px","parentGap":"24px","parentDisplay":"grid","previousTag":"form","gapAbove":24,"isLastChild":true}
+[not-created] gap above at 390: 24
+--- daemon target ---
+[daemon-target] Sprite section present: false

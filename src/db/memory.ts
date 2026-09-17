@@ -84,6 +84,7 @@ import type {
   WorkflowDeadlineRecovery,
   ProjectActivityRunListRecord,
   OrganizationEntitlementsRecord,
+  OrganizationSpriteRecord,
   OrganizationSpritesConfigurationRecord,
   UpsertOrganizationSpritesConfigurationInput,
   SetOrganizationSpritesEnvInput,
@@ -1330,6 +1331,46 @@ class MemoryDatabase implements Database {
         machine.source.kind === "sprite" &&
         machine.source.triggerId === triggerId,
     );
+  }
+
+  async listOrganizationSprites(organizationId: string): Promise<OrganizationSpriteRecord[]> {
+    const sprites = Array.from(this.machines.values())
+      .filter((machine) => machine.orgId === organizationId && machine.source.kind === "sprite")
+      .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime());
+    return sprites.flatMap((machine) => {
+      if (machine.source.kind !== "sprite") return [];
+      const trigger = this.organizationTriggers.get(machine.source.triggerId);
+      if (trigger === undefined) return [];
+      const runs = Array.from(this.agentExecutions.values())
+        .filter((execution) => execution.machineId === machine.id)
+        .map((execution) => execution.startedAt.getTime());
+      return [
+        {
+          machine,
+          triggerName: trigger.name,
+          daemonId:
+            Array.from(this.daemons.values()).find((daemon) => daemon.machineId === machine.id)
+              ?.id ?? null,
+          lastRunAt: runs.length === 0 ? null : new Date(Math.max(...runs)),
+        },
+      ];
+    });
+  }
+
+  async listSpriteRunStatuses(
+    organizationId: string,
+    triggerRunIds: readonly string[],
+  ): Promise<{ triggerRunId: string; status: MachineStatus }[]> {
+    const wanted = new Set(triggerRunIds);
+    return Array.from(this.workflowStepRuns.values()).flatMap((step) => {
+      if (!wanted.has(step.triggerRunId) || step.agentExecutionId === null) return [];
+      const machineId = this.agentExecutions.get(step.agentExecutionId)?.machineId;
+      const machine =
+        machineId === undefined || machineId === null ? undefined : this.machines.get(machineId);
+      return machine?.orgId === organizationId && machine.source.kind === "sprite"
+        ? [{ triggerRunId: step.triggerRunId, status: machine.status }]
+        : [];
+    });
   }
 
   async findSpawningSpriteMachines(): Promise<MachineRecord[]> {

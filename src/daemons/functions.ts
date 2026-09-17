@@ -15,6 +15,12 @@ const daemonSchema = z.object({
   lastSeenAt: z.string().datetime(),
   registeredAt: z.string().datetime(),
   permissions: z.array(z.string()),
+  sprite: z
+    .object({
+      triggerName: z.string(),
+      machineStatus: z.enum(["spawning", "alive", "terminated"]),
+    })
+    .nullable(),
 });
 const daemonListSchema = z.object({
   daemons: z.array(daemonSchema),

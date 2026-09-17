@@ -109,6 +109,7 @@ import type {
   ProjectActivityRunListRecord,
   ProjectActivityRunRecord,
   OrganizationEntitlementsRecord,
+  OrganizationSpriteRecord,
   OrganizationSpritesConfigurationRecord,
   UpsertOrganizationSpritesConfigurationInput,
   SetOrganizationSpritesEnvInput,
@@ -279,6 +280,59 @@ class PgDatabase implements Database {
     try {
       const rows = await query<MachineRow>(this.pool, LIVE_SPRITE_MACHINE_SQL, [triggerId]);
       return rows.rows[0] === undefined ? undefined : toMachineRecord(rows.rows[0]);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async listOrganizationSprites(organizationId: string): Promise<OrganizationSpriteRecord[]> {
+    try {
+      const rows = await query<MachineRow & OrganizationSpriteColumns>(
+        this.pool,
+        `select machines.*, triggers.name as trigger_name_owner, daemons.id as daemon_id,
+                runs.last_run_at
+         from machines
+         join organization_triggers triggers
+           on triggers.id = (machines.source->>'triggerId')::uuid
+         left join daemons on daemons.machine_id = machines.id
+         left join lateral (
+           select max(started_at) as last_run_at
+           from agent_executions
+           where agent_executions.machine_id = machines.id
+         ) runs on true
+         where machines.org_id = $1 and machines.source->>'kind' = 'sprite'
+         order by machines.started_at desc, machines.id`,
+        [organizationId],
+      );
+      return rows.rows.map((row) => ({
+        machine: toMachineRecord(row),
+        triggerName: row.trigger_name_owner,
+        daemonId: row.daemon_id,
+        lastRunAt: row.last_run_at,
+      }));
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async listSpriteRunStatuses(
+    organizationId: string,
+    triggerRunIds: readonly string[],
+  ): Promise<{ triggerRunId: string; status: MachineStatus }[]> {
+    if (triggerRunIds.length === 0) return [];
+    try {
+      const rows = await query<{ trigger_run_id: string; status: MachineStatus }>(
+        this.pool,
+        `select steps.trigger_run_id, machines.status
+         from workflow_step_runs steps
+         join agent_executions on agent_executions.id = steps.agent_execution_id
+         join machines on machines.id = agent_executions.machine_id
+         where machines.org_id = $1
+           and machines.source->>'kind' = 'sprite'
+           and steps.trigger_run_id = any($2::uuid[])`,
+        [organizationId, [...triggerRunIds]],
+      );
+      return rows.rows.map((row) => ({ triggerRunId: row.trigger_run_id, status: row.status }));
     } catch (error) {
       throw toDatabaseError(error);
     }
@@ -4785,6 +4839,12 @@ export interface MachineRow extends QueryRow {
   trigger_name: string | null;
   trigger_context: unknown;
   specs: unknown;
+}
+
+interface OrganizationSpriteColumns extends QueryRow {
+  trigger_name_owner: string;
+  daemon_id: string | null;
+  last_run_at: Date | null;
 }
 
 export interface AgentExecutionRow extends QueryRow {
