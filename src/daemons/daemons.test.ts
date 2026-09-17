@@ -125,6 +125,7 @@ describe("daemon enrollment and execution", () => {
     const enrollment = await hub.enrollDaemon("sprite-host");
 
     assert.equal((await hub.daemon(enrollment.daemonId)).machineId, machineId);
+    assert.equal(enrollment.slug, "nightly-deploy");
     assert.equal((await hub.machine(machineId)).status, "alive");
     assert.equal(await hub.harnessApiKeyRevoked(), true);
   });
@@ -139,8 +140,20 @@ describe("daemon enrollment and execution", () => {
     assert.equal(machine.shutdownReason, "hub restarted during activation");
   });
 
+  it("suffixes a sprite daemon slug the organization already uses", async () => {
+    const occupant = await hub.enrollDaemon("Nightly deploy");
+    await hub.spawningSpriteMachine();
+    const enrollment = await hub.enrollDaemon("sprite-host");
+
+    assert.equal(occupant.slug, "nightly-deploy");
+    assert.equal(enrollment.slug, `nightly-deploy-${enrollment.daemonId.slice(0, 8)}`);
+  });
+
   it("gives a daemon enrolled with an unrelated key a fresh machine", async () => {
-    const machineId = await hub.spawningSpriteMachine("00000000-0000-4000-8000-0000000000bb");
+    const machineId = await hub.spawningSpriteMachine(
+      "nightly_deploy",
+      "00000000-0000-4000-8000-0000000000bb",
+    );
     const enrollment = await hub.enrollDaemon("devbox");
     const daemon = await hub.daemon(enrollment.daemonId);
 
@@ -150,6 +163,7 @@ describe("daemon enrollment and execution", () => {
       daemonId: enrollment.daemonId,
     });
     assert.equal((await hub.machine(machineId)).status, "spawning");
+    assert.equal(enrollment.slug, "devbox");
     assert.equal(await hub.harnessApiKeyRevoked(), false);
   });
 

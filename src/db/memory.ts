@@ -3,6 +3,7 @@ import type { AgentExecutionStatus, MachineStatus, SpriteMachineSource } from ".
 import { parseCompiledHubConfig, type JsonValue } from "../config/compiler.js";
 import type { LaunchMachineIntent } from "../dispatcher/launch-machine-intent.js";
 import { linearConnectionRequiresReauthorization } from "../providers/linear/client.js";
+import { slugify } from "../slug.js";
 import type {
   AgentExecutionRecord,
   AgentExecutionOutputAttempt,
@@ -1551,7 +1552,20 @@ class MemoryDatabase implements Database {
     if (replay) return replay;
     const token = this.enrollmentTokens.get(input.tokenVerifier);
     if (!token || token.consumedAt || token.expiresAt <= input.now) return undefined;
-    const suggestedSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+    const sprite = Array.from(this.machines.values()).find(
+      (candidate) =>
+        candidate.status === "spawning" &&
+        candidate.orgId === token.organizationId &&
+        candidate.source.kind === "sprite" &&
+        candidate.source.apiKeyId === token.issuedByApiKeyId,
+    );
+    const hostnameSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+    const triggerName =
+      sprite?.source.kind === "sprite"
+        ? this.organizationTriggers.get(sprite.source.triggerId)?.name
+        : undefined;
+    const suggestedSlug =
+      triggerName === undefined ? hostnameSlug : slugify(triggerName, hostnameSlug);
     const suggestedSlugTaken = Array.from(this.daemons.values()).some(
       (daemon) =>
         daemon.slug === suggestedSlug &&
@@ -1569,13 +1583,6 @@ class MemoryDatabase implements Database {
       ...token,
       consumedAt: input.now,
     });
-    const sprite = Array.from(this.machines.values()).find(
-      (candidate) =>
-        candidate.status === "spawning" &&
-        candidate.orgId === token.organizationId &&
-        candidate.source.kind === "sprite" &&
-        candidate.source.apiKeyId === token.issuedByApiKeyId,
-    );
     if (sprite !== undefined) this.machines.set(sprite.id, { ...sprite, status: "alive" });
     const machine =
       sprite ??

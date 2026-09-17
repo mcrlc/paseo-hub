@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { describe, it } from "vitest";
 import { createMemoryDatabase } from "./memory.js";
+import { OrganizationTriggerStore } from "../triggers/store.js";
+import type { DaemonRecord } from "./types.js";
 
 describe("machine model database contract", () => {
   it("inserts, selects, and transitions machines and agent executions", async () => {
@@ -88,4 +90,82 @@ describe("machine model database contract", () => {
       reason: "daemon_disconnected",
     });
   });
+
+  it("names a sprite daemon after its trigger, suffixing a slug the organization already uses", async () => {
+    const database = createMemoryDatabase({ organizationIds: ["org"] });
+    const store = new OrganizationTriggerStore(database, "org");
+    const devbox = await enrollDaemon(database, { daemonId: "daemon-devbox", slug: "devbox" });
+    const underscored = await store.save({ yaml: triggerYaml("nightly_deploy"), userId: null });
+    const dashed = await store.save({ yaml: triggerYaml("nightly-deploy"), userId: null });
+    await insertSpriteMachine(database, underscored.id, "key-1");
+    const first = await enrollDaemon(database, {
+      daemonId: "daemon-sprite-one",
+      slug: "trigger-host",
+      apiKeyId: "key-1",
+    });
+    await insertSpriteMachine(database, dashed.id, "key-2");
+    const second = await enrollDaemon(database, {
+      daemonId: "daemon-sprite-two",
+      slug: "trigger-host",
+      apiKeyId: "key-2",
+    });
+
+    assert.equal(devbox.slug, "devbox");
+    assert.equal(first.slug, "nightly-deploy");
+    assert.equal(second.slug, `nightly-deploy-${second.id.slice(0, 8)}`);
+  });
 });
+
+function triggerYaml(name: string): string {
+  return `name: ${name}
+enabled: true
+on:
+  manual.run: {}
+run:
+  target: { daemon: devbox, cwd: /workspace }
+  agent: { provider: test, mode: full-access }
+  prompt: Handle it
+  max_runtime: 1h
+  idle_timeout: 5m
+`;
+}
+
+async function insertSpriteMachine(
+  database: ReturnType<typeof createMemoryDatabase>,
+  triggerId: string,
+  apiKeyId: string,
+): Promise<void> {
+  await database.insertSpriteMachine({
+    orgId: "org",
+    source: { kind: "sprite", triggerId, spriteName: `trigger-${triggerId}`, apiKeyId },
+    specs: null,
+  });
+}
+
+async function enrollDaemon(
+  database: ReturnType<typeof createMemoryDatabase>,
+  input: { daemonId: string; slug: string; apiKeyId?: string },
+): Promise<DaemonRecord> {
+  const verifier = `${input.daemonId}-verifier`;
+  await database.issueEnrollmentToken({
+    id: verifier,
+    verifier,
+    organizationId: "org",
+    issuedByApiKeyId: input.apiKeyId ?? null,
+    expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+    consumedAt: null,
+  });
+  const enrolled = await database.enrollDaemon({
+    daemonId: input.daemonId,
+    idempotencyKey: `${input.daemonId}-key`,
+    suggestedSlug: input.slug,
+    tokenVerifier: verifier,
+    serverId: "server",
+    daemonPublicKey: "public-key",
+    credentialVerifier: `${input.daemonId}-credential`,
+    permissions: ["hub.execute"],
+    now: new Date("2026-09-17T00:00:00.000Z"),
+  });
+  assert.ok(enrolled !== undefined && enrolled.status !== "slug_conflict");
+  return enrolled;
+}
