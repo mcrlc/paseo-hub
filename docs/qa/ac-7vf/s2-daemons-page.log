@@ -1,0 +1,52 @@
+[sprite row] cells: ["nightly-deploy\nnightly-deploy","eec1f1b5","Connected\nAlive","Hub automations","just now","1 hour ago",""]
+[sprite row] pills: [
+ {
+  "text": "Connected",
+  "className": "inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs whitespace-nowrap bg-success-surface text-success",
+  "colour": "rgb(74, 222, 128)",
+  "background": "rgba(74, 222, 128, 0.12)"
+ },
+ {
+  "text": "Alive",
+  "className": "inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs whitespace-nowrap bg-success-surface text-success",
+  "colour": "rgb(74, 222, 128)",
+  "background": "rgba(74, 222, 128, 0.12)"
+ }
+]
+[plain row] cells: ["devbox","58c6d136","Connected","Hub automations","just now","2 days ago",""]
+[plain row] pills: [
+ {
+  "text": "Connected",
+  "className": "inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs whitespace-nowrap bg-success-surface text-success",
+  "colour": "rgb(74, 222, 128)",
+  "background": "rgba(74, 222, 128, 0.12)"
+ }
+]
+[dom] badge elements on the page: 0
+[sprite actions] [{"label":"Rename","disabled":"true"},{"label":"Revoke","disabled":null}]
+[daemon actions] [{"label":"Rename","disabled":null},{"label":"Revoke","disabled":null}]
+[spawning] {"text":"Connected","className":"bg-success-surface text-success","colour":"rgb(74, 222, 128)"}
+[spawning] {"text":"Spawning","className":"bg-warning-surface text-warning","colour":"rgb(251, 191, 36)"}
+[terminated] {"text":"Connected","className":"bg-success-surface text-success","colour":"rgb(74, 222, 128)"}
+[terminated] {"text":"Terminated","className":"bg-neutral-surface text-neutral","colour":"rgb(212, 212, 216)"}
+[alive] {"text":"Connected","className":"bg-success-surface text-success","colour":"rgb(74, 222, 128)"}
+[alive] {"text":"Alive","className":"bg-success-surface text-success","colour":"rgb(74, 222, 128)"}
+
+devbox: row height 44px
+nightly-deploy: row height 47px
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+  - waiting for getByRole('row').filter({ hasText: 'nightly-deploy' }).first() to be visible
+
+    at <anonymous> (/Users/mic/.paseo/worktrees/01slizkc/verify-dashboard/docs/qa/ac-7vf/measure-rows.ts:13:75) {
+  log: [
+    "  - waiting for getByRole('row').filter({ hasText: 'nightly-deploy' }).first() to be visible"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.16.0

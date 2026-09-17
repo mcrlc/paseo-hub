@@ -1,0 +1,18 @@
+=== Hub log: the one Recreate that reached the provider on this head ===
+The organization's Sprites token is a fake one, so the provider destroy fails. destroyBestEffort
+swallows it, the row is still marked terminated, and the browser is told the recreate succeeded.
+
+[2026-09-17 19:59:55.678 +0300] WARN: sprites.destroy failed
+    failureKind: "authentication"
+    requestId: "43435a9a-e811-425b-8001-d842cc05aaa2"
+    operation: "sprites.destroy"
+    component: "sprites"
+    organizationId: "1de4d4d0-edc3-4e21-9668-44e37b4c5848"
+    err: {
+      "type": "SpritesError",
+    }
+[2026-09-17 19:59:55.681 +0300] INFO: sprite retired
+[2026-09-17 19:59:55.681 +0300] INFO: sprite retired
+    machineId: "aa33d345-0d49-4a1d-b5c2-3276225d5cd6"
+    reason: "recreated from the dashboard"
+[2026-09-17 20:00:36.753 +0300] WARN: trigger.sprite.recreate failed
