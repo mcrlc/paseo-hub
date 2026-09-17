@@ -42,12 +42,27 @@ function row(daemon: BrowserDaemon): string {
 }
 
 describe("daemon row", () => {
-  it("names the owning trigger and the sprite's machine status", () => {
+  it("shows the sprite's machine status beside the daemon's own", () => {
     const html = row(SPRITE);
 
     assert.match(html, />pr-reviewer</u);
     assert.match(html, />Alive</u);
     assert.match(html, />Connected</u);
+  });
+
+  it("says the slug once when the trigger is already called that", () => {
+    assert.equal(row(SPRITE).match(/>pr-reviewer</gu)?.length, 1);
+  });
+
+  it("names the owning trigger only when the slug is not already its name", () => {
+    const suffixed = row({
+      ...SPRITE,
+      slug: "pr-reviewer-4f21a8c3",
+      sprite: { triggerName: "pr-reviewer", machineStatus: "alive" },
+    });
+
+    assert.match(suffixed, />pr-reviewer-4f21a8c3</u);
+    assert.match(suffixed, />pr-reviewer</u);
   });
 
   it("says nothing about a sprite for a daemon somebody enrolled by hand", () => {

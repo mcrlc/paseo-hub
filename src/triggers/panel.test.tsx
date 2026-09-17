@@ -12,9 +12,16 @@ const LIVE: TriggerSprite = {
 
 const ignore = () => undefined;
 
-function section(sprite: TriggerSprite, error?: string): string {
+function section(sprite: TriggerSprite, error?: string, retired = false): string {
   return renderToStaticMarkup(
-    <SpriteSection sprite={sprite} canManage busy={false} error={error} onRecreate={ignore} />,
+    <SpriteSection
+      sprite={sprite}
+      canManage
+      busy={false}
+      retired={retired}
+      error={error}
+      onRecreate={ignore}
+    />,
   );
 }
 
@@ -47,6 +54,14 @@ describe("trigger sprite section", () => {
       section(LIVE, "Recreating this sprite destroys it and ends its 1 running execution."),
       /ends its 1 running execution/u,
     );
+  });
+
+  it("says a recreation happened, in a live region, and only after one has", () => {
+    const retired = section({ ...LIVE, status: "terminated" }, undefined, true);
+
+    assert.match(retired, /role="status"/u);
+    assert.match(retired, /Sprite retired\. The next run creates a new one\./u);
+    assert.doesNotMatch(section(LIVE), /Sprite retired/u);
   });
 });
 

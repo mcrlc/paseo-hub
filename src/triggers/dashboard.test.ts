@@ -6,6 +6,7 @@ import { enrollTestDaemon, TEST_DAEMON_SLUG } from "../test-utils/project-config
 import { UNLIMITED_TEMPLATE } from "../entitlements/catalog.js";
 import { EntitlementsService } from "../entitlements/service.js";
 import { createSpriteActivation, type SpriteProvider } from "../daemons/sprites/activation.js";
+import { projectCommandErrorCode } from "../projects/command-error.js";
 import { TriggerDashboard } from "./dashboard.js";
 import { OrganizationTriggerStore } from "./store.js";
 
@@ -81,15 +82,15 @@ run:
   prompt: Handle it
 `;
 
-function accountAuth(): AuthServer {
+function accountAuth(userId = "user-1"): AuthServer {
   return {
     handle: () => Promise.resolve(new Response()),
     resources: () => Promise.reject(new Error("unused")),
     resolveOrganizationAccess: () => Promise.reject(new Error("unused")),
     resolveAccount: () =>
       Promise.resolve({
-        session: { id: "session-1", activeOrganizationId: "org-1" },
-        account: { id: "user-1", name: "User", email: "user@example.test" },
+        session: { id: `session-${userId}`, activeOrganizationId: "org-1" },
+        account: { id: userId, name: "User", email: `${userId}@example.test` },
         isInstanceOperator: false,
       }),
     rejectCookieMutation: () => undefined,
@@ -119,6 +120,22 @@ describe("sprite triggers on the dashboard", () => {
     assert.equal(after.triggers[0]?.sprite?.status, "terminated");
     assert.equal(await hub.database.findLiveSpriteMachine(trigger.id), undefined);
     assert.equal((await hub.database.findDaemonByMachineId(machine.machine.id))?.status, "revoked");
+    assert.equal(
+      (await hub.database.findMachineById(machine.machine.id))?.shutdownReason,
+      "recreated from the dashboard",
+    );
+  });
+
+  it("refuses a member, who cannot manage the organization's resources", async () => {
+    const hub = await spriteHub();
+    const trigger = await hub.store.save({ yaml: spriteYaml, userId: "user-1" });
+    await hub.settled();
+
+    await assert.rejects(
+      hub.memberDashboard.recreateSprite(hub.request, "acme", trigger.id),
+      (error: unknown) => projectCommandErrorCode(error) === "forbidden",
+    );
+    assert.equal((await hub.database.findLiveSpriteMachine(trigger.id))?.status, "alive");
   });
 
   it("refuses to recreate a sprite that is still running an execution", async () => {
@@ -172,6 +189,14 @@ async function spriteHub() {
         membershipId: "membership-1",
         role: "owner",
       },
+      {
+        userId: "user-2",
+        organizationId: "org-1",
+        organizationName: "Acme",
+        organizationSlug: "acme",
+        membershipId: "membership-2",
+        role: "member",
+      },
     ],
   });
   const entitlements = new EntitlementsService(database, { seats: async () => 0 });
@@ -220,6 +245,12 @@ async function spriteHub() {
     database,
     store: new OrganizationTriggerStore(database, "org-1", entitlements, spriteActivation),
     dashboard: new TriggerDashboard(database, accountAuth(), entitlements, spriteActivation),
+    memberDashboard: new TriggerDashboard(
+      database,
+      accountAuth("user-2"),
+      entitlements,
+      spriteActivation,
+    ),
     request: new Request("https://hub.test/o/acme/triggers"),
     settled: async () => {
       await Promise.all(jobs);

@@ -187,6 +187,15 @@ export function DaemonsPanel({
   );
 }
 
+/**
+ * Enrollment names a sprite daemon after its trigger, so the two are the same word unless the
+ * name needed slugifying or the slug was taken. Saying it twice is not a second fact.
+ */
+function owningTrigger(daemon: BrowserDaemon) {
+  const triggerName = daemon.sprite?.triggerName;
+  return triggerName === undefined || triggerName === daemon.slug ? {} : { secondary: triggerName };
+}
+
 /** A sprite daemon's slug is its trigger's name, so renaming it happens in the trigger. */
 export function canRenameDaemon(daemon: BrowserDaemon): boolean {
   return daemon.sprite === null;
@@ -215,16 +224,13 @@ export function DaemonRow({
   return (
     <DataRow>
       <DataCell className="min-w-0">
-        <TwoLine
-          primary={daemon.slug}
-          {...(daemon.sprite === null ? {} : { secondary: daemon.sprite.triggerName })}
-        />
+        <TwoLine primary={daemon.slug} {...owningTrigger(daemon)} />
       </DataCell>
       <DataCell muted>
         <span className="font-mono text-xs">{daemon.id.slice(0, 8)}</span>
       </DataCell>
       <DataCell>
-        <span className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1.5">
           <DaemonStatus daemon={daemon} />
           {daemon.sprite === null ? null : (
             <StatusPill tone={machineTone(daemon.sprite.machineStatus)}>

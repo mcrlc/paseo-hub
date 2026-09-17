@@ -77,7 +77,7 @@ export function ActivityRow({ run }: { run: ActivityRun }) {
       <DataCell>{run.provider}</DataCell>
       <DataCell>{run.source}</DataCell>
       <DataCell>
-        <span className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1.5">
           <StatusPill tone={tone(run.status)}>{statusLabel(run.status)}</StatusPill>
           {run.machineStatus === null ? null : (
             <StatusPill tone={machineTone(run.machineStatus)}>

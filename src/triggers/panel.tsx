@@ -13,7 +13,7 @@ import { CheckboxField } from "../components/app/checkbox-field.js";
 import { CopyButton } from "../components/app/copy-field.js";
 import { DataCell, DataRow, DataTable, DataTableSkeleton } from "../components/app/data-table.js";
 import { Disclosure } from "../components/app/disclosure.js";
-import { FailureAlert, WarningAlert } from "../components/app/failure-alert.js";
+import { FailureAlert, NoticeAlert, WarningAlert } from "../components/app/failure-alert.js";
 import { FormActions } from "../components/app/form-actions.js";
 import { FieldSkeleton, FormField } from "../components/app/form-field.js";
 import { LoadingLine, Spinner } from "../components/app/loading.js";
@@ -30,6 +30,7 @@ import { Button } from "../components/ui/button.js";
 import { Textarea } from "../components/ui/textarea.js";
 import { SiteHeaderActions } from "../shell/site-header-actions.js";
 import { ProviderGlyph } from "../connections/provider-glyph.js";
+import { cn } from "../lib/utils.js";
 import { CodeEditor } from "../projects/configuration/code-editor.js";
 import { useRouteTenant } from "../projects/context.js";
 import type { Result } from "../contract/respond.js";
@@ -352,7 +353,7 @@ function TriggerEditor({
         }}
         description={TRIGGER_EDITOR_DESCRIPTION}
       />
-      <div className="grid gap-6">
+      <div className={cn("grid gap-6", trigger?.sprite == null ? undefined : "mb-8")}>
         <TriggerCompatibilityAlert
           legacy={legacy}
           advanced={editor.mode === "yaml" && editor.yamlOnly}
@@ -408,12 +409,12 @@ function TriggerEditor({
             </Button>
           </FormActions>
         </form>
-        <TriggerSpriteSection
-          trigger={trigger}
-          organizationSlug={snapshot.organization.slug}
-          canManage={snapshot.canManage}
-        />
       </div>
+      <TriggerSpriteSection
+        trigger={trigger}
+        organizationSlug={snapshot.organization.slug}
+        canManage={snapshot.canManage}
+      />
     </>
   );
 }
@@ -1027,6 +1028,7 @@ function TriggerSpriteSection({
       sprite={sprite}
       canManage={canManage}
       busy={recreate.isPending}
+      retired={recreate.data?.status === "ok"}
       error={recreate.data?.status === "error" ? recreate.data.error.message : undefined}
       onRecreate={() => recreate.mutate({ data: { organizationSlug, triggerId: trigger.id } })}
     />
@@ -1041,12 +1043,14 @@ export function SpriteSection({
   sprite,
   canManage,
   busy,
+  retired,
   error,
   onRecreate,
 }: {
   sprite: TriggerSprite;
   canManage: boolean;
   busy: boolean;
+  retired: boolean;
   error: string | undefined;
   onRecreate: () => void;
 }) {
@@ -1081,6 +1085,9 @@ export function SpriteSection({
           fallback="Hub couldn't recreate this sprite. Reload its status before trying again."
         />
       )}
+      {retired ? (
+        <NoticeAlert tone="success">Sprite retired. The next run creates a new one.</NoticeAlert>
+      ) : null}
       <SummaryPanel
         label="Sprite"
         rows={[
