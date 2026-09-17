@@ -207,3 +207,26 @@ awake; the hold set and the daemon socket are the truth, as the PRD says.
 
 Consequence for the PRD: the provider is six `fetch` calls and one decoder. No CLI on the Hub
 host, no WebSocket client, no new dependency.
+
+## Spike 7: Sprites connectors, GitHub (`spike7-github-connector.sh`)
+
+Run 2026-09-17 on `hub-spike-7` after Mic added a GitHub OAuth connector (scopes `repo,read:org`, policy
+`allow_all`) in the Sprites dashboard. Connectors are organization-level credentials kept by Sprites; a sprite
+calls `https://api.sprites.dev/v1/gateway/<provider>/<connection_id>/<path>` and the gateway authenticates the
+sprite by Fly's request signature and attaches the stored credential. The sprite never holds a token.
+
+| Check                                              | Result                                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `GET <gateway>/user` from inside the sprite        | 200, the connector's GitHub user, with no token anywhere on the sprite (`env` has none).                      |
+| `GET <gateway>/repos/mcrlc/paseo-hub`              | 200.                                                                                                          |
+| `git ls-remote <gateway>/mcrlc/paseo-hub.git`      | 404 "repository not found". Smart-HTTP `info/refs` via the gateway is 404 too. The gateway proxies REST only. |
+| `git ls-remote https://github.com/mcrlc/paseo-hub` | Works with no credential only because the fork is public. A private repository still needs a git credential.  |
+| `GET <gateway>/repos/.../tarball/main`             | 302 to codeload; not followed. A tarball is a history-less fallback, not a clone.                             |
+| Gateway from outside a sprite                      | 401 without auth and 401 with the org token. A leaked connection id is useless off-sprite.                    |
+| Discovery inside the sprite                        | None: `sprite-env` has no connectors command, the in-sprite API has no connectors path, and the env is empty. |
+
+Consequence for the PRD: a connector covers the agent's GitHub REST access without a credential on the sprite,
+which is the long-lived access that continuation across idle days needs (5.7, 5.9), for tooling that can take
+a base URL (curl, a small wrapper), not `gh`. Cloning and pushing a private repository still need a git
+credential placed by `bootstrap`. The Anthropic connector (API key, gateway with streaming) is the candidate for
+the LLM key; not yet measured.
