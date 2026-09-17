@@ -1,0 +1,63 @@
+# s4: bootstrap change refused while an execution is running   (UTC 2026-09-17)
+
+Starting state: sprite trigger-9803bdab-… on machine 23e8ae24 (created in s3), daemon aa680e0c,
+active revision version 8 (bootstrap ends `echo v2`).
+
+## Fire a run and wait for `running`
+
+$ docs/qa/ac-50k/run.sh qa-s4-run-1
+fire 13:37:20.013   triggerRunId 9b5b2dbf
+13:37:20 exec status=failed (the previous one)
+13:37:22 exec status=spawning
+13:37:24 exec status=running     <- execution db566155
+
+## Save a changed bootstrap while it is running   (trigger-v5-bootstrap.yml, `echo v3`)
+
+$ docs/qa/ac-50k/install.sh trigger-v5-bootstrap.yml
+save 13:37:33.3   HTTP 422   latency 0.305 s
+
+{"type":"https://paseo.sh/problems/invalid-trigger","title":"Invalid trigger","status":422,
+ "detail":"Correct the self-contained trigger YAML and submit it again.","code":"invalid_trigger",
+ "issues":[{"path":["run","target","bootstrap"],
+            "message":"Changing bootstrap recreates the sprite and ends its 1 running execution. Save again once it is idle."}]}
+
+The message is exactly the one the brief expects, at path run.target.bootstrap, and the count is singular.
+
+Immediately after the refusal:
+  machine bb340165 terminated "bootstrap changed"   (s3's old row)
+  machine 23e8ae24 alive -                          <- untouched
+  daemon  a86478c3 revoked offline
+  daemon  aa680e0c active connected                 <- untouched
+  exec    db566155 running                          <- still running
+  GET /v1/sprites/trigger-9803bdab-…  -> HTTP 200   <- sprite untouched
+
+The revision was not written either:
+  select t.name, r.version, yaml like '%echo v2%', yaml like '%echo v3%'  from the active revision
+    qa-ac50k-sprite|8|t|f
+  select version, yaml like '%echo v3%' order by version desc limit 3
+    8|f   7|f   6|f
+  No version 9 exists: the guard runs before saveOrganizationTrigger, so no revision is stored.
+
+## The execution continues to its normal terminal
+
+13:37:45.086 exec db566155 running   action=restored   (the workspace was archived at s3's terminal and
+                                                        restored here; same daemon, so not a reset)
+13:39:24.721 exec db566155 failed {"reason":"step_idle_timeout"}   run failed step_idle_timeout
+
+Fire to terminal 2 m 4 s, the ordinary idle_timeout: 2m shape. The refused save changed nothing about it.
+
+## Save again once idle
+
+$ docs/qa/ac-50k/install.sh trigger-v5-bootstrap.yml
+save 13:41:13.3   HTTP 201 version 9   latency 1.799 s
+
+Hub log:
+  [16:41:15.439 +0300] INFO: sprite retired
+      machineId: "23e8ae24-e519-4a28-9af7-7549b81a847a"
+      reason: "bootstrap changed"
+
+  machine 23e8ae24 terminated "bootstrap changed" terminated_at 13:41:15.436
+  daemon  aa680e0c revoked offline
+  GET /v1/sprites/trigger-9803bdab-…  -> HTTP 404
+
+PASS: refused while running, retired the moment it was idle, same shape as s3.

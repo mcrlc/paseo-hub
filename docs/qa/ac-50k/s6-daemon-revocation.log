@@ -1,0 +1,54 @@
+# s6: daemon revocation destroys the sprite   (UTC 2026-09-17)
+
+The Daemons page revokes through the TanStack server function `revokeDaemon` (src/daemons/functions.ts:153),
+which calls operations.handleOrganizationDaemonRevocation -> DaemonRegistration.revoke
+(src/daemons/registration.ts:68), which does database.revokeDaemon(id) then activeDaemons.revoke(daemon).
+src/app.ts:443 wires registry.onRevoked to
+lifecycle.failPendingExecutionsForDisconnectedMachine(daemon.machineId, "daemon_revoked"), and that is the
+function this PR changed to destroy the sprite.
+
+It was driven through the real page, not a synthetic call. Two cheaper routes were tried first and are
+recorded because they are not reproducible shortcuts:
+  - POST /_serverFn/5032765fc5ca881367c43f47f2c31cdaa723f36bc12b02504a04c33386498ffb with a session cookie
+    and a plain JSON body: 403 "Forbidden" through the tunnel (TanStack's same-origin referer guard sees
+    the request origin as http://127.0.0.1:3001, not the tunnel host), and 500 with a seroval decode error
+    when posted to 127.0.0.1:3001, because the RPC body is not plain JSON. No daemon was revoked by either.
+  - There is no public-API route for revocation; `/organization/daemons/revoke` exists only behind the
+    server function.
+
+## Through the dashboard
+
+Sign in as the bootstrap owner -> forced "Choose a new password" (ac-vni finding 6 again) -> "Set up your
+apps" -> "Do this later" -> /o/qa-ac50k-e2f1be93/daemons.
+
+The Daemons table listed five rows for this trigger, slugs `trigger-<triggerId>` for the first daemon and
+`trigger-<triggerId>-<daemonId[0:8]>` for every later one (ac-vni finding 4 / ac-52w finding 13, unchanged).
+Row 450d02b3 read Status "Offline", Access "Hub automations".
+
+Actions -> Revoke -> "Revoke trigger-…-450d02b3? The daemon will disconnect and its credential cannot
+reconnect." -> Revoke daemon.
+
+Result:
+
+  Hub log:
+    [16:59:03.183 +0300] INFO: sprite destroyed
+        machineId: "b37efbcb-2a56-4225-8a7c-49336f34cbdc"
+        sprite: "trigger-9803bdab-ed94-44cc-938d-484098f54241"
+
+  machine b37efbcb terminated  shutdown_reason "daemon_revoked"  terminated_at 13:59:01.947
+  daemon  450d02b3 revoked offline
+  GET /v1/sprites/trigger-9803bdab-…  -> HTTP 404
+  sprite list -> the name is absent (only two sprites belonging to other verifiers remain)
+
+PASS: `sprite destroyed` logged, 404 at the provider, row terminated with `daemon_revoked`.
+
+## Next run recreates
+
+$ docs/qa/ac-50k/run.sh qa-s6-run-1
+fire 13:59:24.351
+14:00:01.931 machine f1ded2eb alive, daemon 95bc9030, bootstrapHash d6c22065… (unchanged)
+14:00:03.095 exec e7dc46ba action=reset
+14:00:03.676 exec e7dc46ba running
+fire -> alive 37.6 s.
+
+PASS: recreated on the next arrival, with the session reset again.
