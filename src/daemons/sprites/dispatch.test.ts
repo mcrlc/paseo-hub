@@ -19,7 +19,10 @@ import type { AcceptedTriggerProviderMatch, TriggerProvider } from "../../trigge
 import { createDurableWorkflowHandler } from "../../workflows/engine.js";
 import { createDaemonDispatchLifecycle } from "../lifecycle.js";
 import type { DaemonConnection } from "../protocol.js";
-import type { SpriteActivation } from "./activation.js";
+import { AgentSessions } from "../../agent-sessions/index.js";
+import { OutputExecutorRegistry } from "../../execution-capabilities/outputs.js";
+import type { AgentConnection, AgentSnapshot } from "../agents/index.js";
+import { createSpriteActivation, type SpriteActivation } from "./activation.js";
 import { SpritesError } from "./client.js";
 
 const SECRET = "sprite-dispatch-secret";
@@ -166,6 +169,35 @@ describe("sprite dispatch", () => {
     const machine = await hub.database.findMachineById(hub.machineId);
     assert.equal(machine?.status, "terminated");
     assert.equal(machine?.shutdownReason, "daemon_revoked");
+  });
+
+  it("recreates the sprite after a bootstrap change and resets the conversation", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(5);
+    const first = hub.dispatches[0]!;
+    const before = await hub.openSession(first);
+    await hub.database.transitionAgentExecution(first.executionId, "succeeded");
+    const firstDaemonId = hub.daemonId;
+
+    await hub.editBootstrap();
+    assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "terminated");
+
+    await hub.startRun();
+    await hub.claim(3);
+    await hub.enrollSprite();
+    await hub.claim(3);
+
+    const second = hub.dispatches[1]!;
+    assert.notEqual(second.intent.environment.daemonId, firstDaemonId);
+    const after = await hub.openSession(second);
+    assert.equal(after.action, "reset");
+    assert.notEqual(after.agentId, before.agentId);
+    const execution = await hub.database.findAgentExecutionById(second.executionId);
+    assert.equal(execution?.daemonId, second.intent.environment.daemonId);
+    assert.equal(execution?.agentSessionAction, "reset");
   });
 
   it("releases the hold only after the archive completes", async () => {
@@ -356,6 +388,62 @@ async function setup() {
     entitlements,
     activation,
   ).save({ yaml: spriteYaml, userId: null });
+  const unavailable = (): never => {
+    throw new Error("an edit must not provision");
+  };
+  // Edits go through the real activation so a bootstrap change retires the live row.
+  const editStore = new OrganizationTriggerStore(
+    database,
+    "org",
+    entitlements,
+    createSpriteActivation({
+      database,
+      apiKeys: {
+        create: () => {
+          throw new Error("an edit must not mint an enrollment key");
+        },
+        revoke: async () => true,
+      },
+      connectionsForProject: () => (slug, value) => `${slug}.${value}`,
+      hubOrigin: "https://hub.test",
+      provider: () => ({
+        create: unavailable,
+        exec: unavailable,
+        service: unavailable,
+        setMemory: unavailable,
+        async destroy(sprite) {
+          providerCalls.push({ call: "destroy", sprite });
+        },
+      }),
+    }),
+  );
+  const agentSnapshots = new Map<string, AgentSnapshot>();
+  const agents: AgentConnection = {
+    async create() {
+      const agent = { id: randomUUID(), workspaceId: randomUUID(), status: "idle" as const };
+      agentSnapshots.set(agent.id, agent);
+      return agent;
+    },
+    async get(agentId) {
+      const agent = agentSnapshots.get(agentId);
+      if (agent === undefined) throw new Error("agent not found");
+      return agent;
+    },
+    async send() {},
+    async restore() {
+      return true;
+    },
+    async control() {},
+    async watch() {
+      return () => {};
+    },
+  };
+  const sessions = new AgentSessions(
+    database,
+    SECRET,
+    "https://hub.test",
+    new OutputExecutorRegistry(),
+  );
   state.activations = 0;
   const revision = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
   assert.ok(revision);
@@ -442,6 +530,27 @@ async function setup() {
         refreshProviderSnapshot: unused,
       };
       return { called, resolve };
+    },
+    async editBootstrap() {
+      await editStore.save({
+        triggerId: trigger.id,
+        yaml: spriteYaml.replace("echo ready", "echo ready-v2"),
+        userId: null,
+      });
+    },
+    openSession(dispatched: { executionId: string; intent: LaunchMachineIntent }) {
+      return sessions.dispatch({
+        executionId: dispatched.executionId,
+        intent: dispatched.intent,
+        connection: agents,
+        onEvent: () => {},
+        createOptions: async () => ({
+          provider: "test",
+          cwd: "/workspace",
+          env: {},
+          toolPolicy: { preapproved: [] },
+        }),
+      });
     },
     async enrollSprite() {
       await database.issueEnrollmentToken({
@@ -560,6 +669,7 @@ run:
     bootstrap: echo ready
     cwd: /workspace
   agent: { provider: test, mode: full-access }
+  continuation: { mode: key, key: pull-request-1 }
   prompt: Handle it
   max_runtime: 1h
   idle_timeout: 5m

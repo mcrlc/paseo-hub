@@ -79,7 +79,12 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     throw new SpritesError(response.status, await response.text());
   }
 
-  async function exec(name: string, argv: string[], execOptions: ExecOptions = {}) {
+  async function execRequest(
+    name: string,
+    argv: string[],
+    execOptions: ExecOptions,
+    allowNotFound: boolean,
+  ): Promise<Response> {
     const query = new URLSearchParams();
     for (const arg of argv) query.append("cmd", arg);
     for (const [key, value] of Object.entries(execOptions.env ?? {})) {
@@ -87,16 +92,23 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     }
     if (execOptions.dir !== undefined) query.set("dir", execOptions.dir);
     if (execOptions.stdin !== undefined) query.set("stdin", "true");
-    const response = await request(
-      "POST",
-      `${spritePath(name)}/exec?${query}`,
-      execOptions.stdin === undefined ? {} : { body: execOptions.stdin },
-    );
+    return request("POST", `${spritePath(name)}/exec?${query}`, {
+      ...(execOptions.stdin === undefined ? {} : { body: execOptions.stdin }),
+      allowNotFound,
+    });
+  }
+
+  async function exec(name: string, argv: string[], execOptions: ExecOptions = {}) {
+    const response = await execRequest(name, argv, execOptions, false);
     return decodeExec(new Uint8Array(await response.arrayBuffer()));
   }
 
   async function taskRequest(name: string, curlArgs: string[], allowNotFound = false) {
-    const result = await exec(name, ["sprite-env", "curl", "-s", ...curlArgs]);
+    const argv = ["sprite-env", "curl", "-s", ...curlArgs];
+    const response = await execRequest(name, argv, {}, allowNotFound);
+    // A destroyed sprite answers 404 here, which for a release is the same as a missing task.
+    if (response.status === 404) return;
+    const result = decodeExec(new Uint8Array(await response.arrayBuffer()));
     if (result.exitCode === 0) return;
     if (
       allowNotFound &&

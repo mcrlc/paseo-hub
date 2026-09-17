@@ -247,7 +247,13 @@ async function reconcileSprite(
   const memoryMb = target.memory ?? configuration.memoryMb;
   const nextEnvHash = envHash(target.env);
   if (memoryMb === specs.memoryMb && nextEnvHash === specs.envHash) return;
-  if (memoryMb !== specs.memoryMb) await provider.setMemory(machine.source.spriteName, memoryMb);
+  if (memoryMb !== specs.memoryMb) {
+    await provider.setMemory(machine.source.spriteName, memoryMb);
+    logger.info(
+      { triggerId: input.trigger.id, sprite: machine.source.spriteName, memoryMb },
+      "sprite memory updated",
+    );
+  }
   if (nextEnvHash !== specs.envHash) {
     await rewriteSpriteService({
       provider,

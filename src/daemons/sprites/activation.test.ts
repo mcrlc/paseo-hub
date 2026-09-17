@@ -463,6 +463,95 @@ describe("sprite trigger edits", () => {
     assert.deepEqual(hub.calls, [{ call: "destroy", args: [`trigger-${trigger.id}`] }]);
   });
 
+  it("destroys the sprite when the trigger is disabled", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("enabled: true", "enabled: false"),
+      userId: null,
+    });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(machine?.status, "terminated");
+    assert.equal(machine?.shutdownReason, "trigger no longer targets a sprite");
+    assert.deepEqual(hub.calls, [{ call: "destroy", args: [`trigger-${trigger.id}`] }]);
+  });
+
+  it("refuses a disable or a target switch while executions are running on the sprite", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const [machine] = await hub.spriteMachines();
+    await hub.startExecution(trigger.runtimeProjectId, machine!.id);
+    await hub.startExecution(trigger.runtimeProjectId, machine!.id);
+    hub.calls.length = 0;
+
+    await assert.rejects(
+      hub.store.save({
+        triggerId: trigger.id,
+        yaml: spriteYaml().replace("enabled: true", "enabled: false"),
+        userId: null,
+      }),
+      /enabled: Disabling the trigger destroys the sprite and ends its 2 running executions\. Save again once it is idle\./u,
+    );
+    await assert.rejects(
+      hub.store.save({ triggerId: trigger.id, yaml: daemonYaml, userId: null }),
+      /run\.target\.kind: Changing the target destroys the sprite and ends its 2 running executions\. Save again once it is idle\./u,
+    );
+    assert.deepEqual(hub.calls, []);
+    assert.equal((await hub.spriteMachines())[0]?.status, "alive");
+  });
+
+  it("leaves a sprite that is still spawning alone until it is alive", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml()
+        .replace("memory: 16384", "memory: 4096")
+        .replace("LITERAL: plain", "LITERAL: rotated"),
+      userId: null,
+    });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(machine?.status, "spawning");
+    assert.equal(spriteSpecs(machine).memoryMb, 16384);
+    assert.deepEqual(hub.calls, []);
+  });
+
+  it("skips the service rewrite when the sprite has no npm prefix yet", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const [machine] = await hub.spriteMachines();
+    assert.ok(machine);
+    const { npmPrefix, ...specs } = spriteSpecs(machine);
+    assert.equal(npmPrefix, PREFIX);
+    await hub.database.setMachineSpecs(machine.id, specs);
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("LITERAL: plain", "LITERAL: rotated"),
+      userId: null,
+    });
+    await hub.settled();
+
+    assert.deepEqual(hub.calls, []);
+  });
+
   it("recreates the sprite on the next save once the row is terminated", async () => {
     const hub = await setup();
     const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });

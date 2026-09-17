@@ -10,7 +10,6 @@ import {
   bootstrapHash,
   spriteSpecs,
   type SpriteActivation,
-  type SpriteTarget,
 } from "../daemons/sprites/activation.js";
 import { compileTriggerDocument, TriggerDocumentError } from "./configuration/index.js";
 
@@ -52,8 +51,12 @@ export class OrganizationTriggerStore {
     const unchangedLegacyAuthoring = await this.isUnchangedExistingYaml(input);
     const prepared = await this.validate(input.yaml, !unchangedLegacyAuthoring);
     const environment = prepared.compiled.environment;
-    if (input.triggerId !== undefined && environment.kind === "sprite") {
-      await this.requireIdleSpriteForBootstrapChange(input.triggerId, environment);
+    if (input.triggerId !== undefined) {
+      await this.requireIdleSpriteBeforeRetiring(
+        input.triggerId,
+        environment,
+        prepared.compiled.authored.enabled,
+      );
     }
     const recurrence = prepared.compiled.authored.on["schedule.tick"]?.recurrence;
     const trigger = await this.database.saveOrganizationTrigger({
@@ -118,19 +121,21 @@ export class OrganizationTriggerStore {
     return { compiled, resolved };
   }
 
-  private async requireIdleSpriteForBootstrapChange(
+  private async requireIdleSpriteBeforeRetiring(
     triggerId: string,
-    target: SpriteTarget,
+    environment: CompiledTriggerEnvironment,
+    enabled: boolean,
   ): Promise<void> {
     const machine = await this.database.findLiveSpriteMachine(triggerId);
     if (machine === undefined) return;
-    if (spriteSpecs(machine).bootstrapHash === bootstrapHash(target.bootstrap)) return;
+    const retirement = retirementOf(environment, enabled, spriteSpecs(machine).bootstrapHash);
+    if (retirement === undefined) return;
     const running = await this.database.findRunningAgentExecutionsForMachine(machine.id);
     if (running.length === 0) return;
     throw new TriggerDocumentError([
       {
-        path: ["run", "target", "bootstrap"],
-        message: `Changing bootstrap recreates the sprite and ends its ${String(running.length)} running execution${running.length === 1 ? "" : "s"}. Save again once it is idle.`,
+        path: retirement.path,
+        message: `${retirement.consequence} and ends its ${String(running.length)} running execution${running.length === 1 ? "" : "s"}. Save again once it is idle.`,
       },
     ]);
   }
@@ -164,6 +169,30 @@ export class OrganizationTriggerStore {
     if (trigger === undefined) return false;
     return (await this.activeRevision(trigger)).yaml === input.yaml;
   }
+}
+
+type CompiledTriggerEnvironment = ReturnType<typeof compileTriggerDocument>["environment"];
+
+/** Mirrors the retire branch of `reconcileSprite`, which executes what this refuses. */
+function retirementOf(
+  environment: CompiledTriggerEnvironment,
+  enabled: boolean,
+  liveBootstrapHash: string | undefined,
+): { path: readonly string[]; consequence: string } | undefined {
+  if (environment.kind !== "sprite") {
+    return {
+      path: ["run", "target", "kind"],
+      consequence: "Changing the target destroys the sprite",
+    };
+  }
+  if (!enabled) {
+    return { path: ["enabled"], consequence: "Disabling the trigger destroys the sprite" };
+  }
+  if (liveBootstrapHash === bootstrapHash(environment.bootstrap)) return undefined;
+  return {
+    path: ["run", "target", "bootstrap"],
+    consequence: "Changing bootstrap recreates the sprite",
+  };
 }
 
 function validateAuthoringContract(
