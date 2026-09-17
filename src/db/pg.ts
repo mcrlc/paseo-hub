@@ -24,7 +24,12 @@ import {
   toProviderEventReceiptSummary,
   toProviderEventReceiptRecord,
 } from "./mappers.js";
-import type { AgentExecutionStatus, MachineSource, MachineStatus } from "./schema.js";
+import type {
+  AgentExecutionStatus,
+  MachineSource,
+  MachineStatus,
+  SpriteMachineSource,
+} from "./schema.js";
 import type { DatabaseRuntime, QueryHandle, QueryRow } from "./runtime/index.js";
 import type { Locks } from "./runtime/locks/index.js";
 import type {
@@ -262,6 +267,39 @@ class PgDatabase implements Database {
       );
 
       return rows.rows[0] === undefined ? undefined : toMachineRecord(rows.rows[0]);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined> {
+    try {
+      const rows = await query<MachineRow>(this.pool, LIVE_SPRITE_MACHINE_SQL, [triggerId]);
+      return rows.rows[0] === undefined ? undefined : toMachineRecord(rows.rows[0]);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async insertSpriteMachine(input: {
+    orgId: string;
+    source: SpriteMachineSource;
+    specs: unknown;
+  }): Promise<MachineRecord | undefined> {
+    try {
+      return await this.pool.transaction(async (client) => {
+        await this.locks.withTxLock(client, `sprite-machine:${input.source.triggerId}`);
+        const live = await client.query<MachineRow>(LIVE_SPRITE_MACHINE_SQL, [
+          input.source.triggerId,
+        ]);
+        if (live.rows[0] !== undefined) return undefined;
+        const rows = await client.query<MachineRow>(
+          `insert into machines (org_id, source, status, specs)
+           values ($1, $2, 'spawning', $3) returning *`,
+          [input.orgId, input.source, input.specs],
+        );
+        return toMachineRecord(rows.rows[0]!);
+      });
     } catch (error) {
       throw toDatabaseError(error);
     }
@@ -1567,10 +1605,35 @@ class PgDatabase implements Database {
         const consumedToken = token.rows[0];
         if (consumedToken?.organization_id === null || consumedToken === undefined)
           return client.rollback(undefined);
-        const machine = await client.query<MachineRow>(
-          `insert into machines (org_id, source, status) values ($1, $2, 'alive') returning *`,
-          [consumedToken.organization_id, { kind: "daemon", daemonId: input.daemonId }],
-        );
+        const apiKeyId = consumedToken.issued_by_api_key_id;
+        const sprite =
+          apiKeyId === null
+            ? undefined
+            : await client.query<MachineRow>(
+                `update machines set status = 'alive'
+                 where status = 'spawning' and org_id = $1
+                   and source->>'kind' = 'sprite' and source->>'apiKeyId' = $2
+                 returning *`,
+                [consumedToken.organization_id, apiKeyId],
+              );
+        if (sprite?.rows[0] !== undefined) {
+          await client.query(
+            `update organization_api_keys set revoked_at = coalesce(revoked_at, $2) where id = $1`,
+            [apiKeyId, input.now],
+          );
+          await client.query(
+            `update daemon_enrollment_tokens set expires_at = least(expires_at, $2)
+             where issued_by_api_key_id = $1 and consumed_at is null`,
+            [apiKeyId, input.now],
+          );
+        }
+        const machine =
+          sprite?.rows[0] === undefined
+            ? await client.query<MachineRow>(
+                `insert into machines (org_id, source, status) values ($1, $2, 'alive') returning *`,
+                [consumedToken.organization_id, { kind: "daemon", daemonId: input.daemonId }],
+              )
+            : sprite;
         const suggestedSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
         requestedSlug = suggestedSlug;
         let daemon = await client.query<DaemonRow>(
@@ -5490,3 +5553,7 @@ interface TenantRouteAccessRow extends QueryRow {
   project_archived_at: Date | null;
   project_active_configuration_revision_id: string | null;
 }
+
+const LIVE_SPRITE_MACHINE_SQL = `select * from machines
+  where status <> 'terminated' and source->>'kind' = 'sprite' and source->>'triggerId' = $1
+  limit 1`;

@@ -1,4 +1,9 @@
-import type { AgentExecutionStatus, MachineSource, MachineStatus } from "./schema.js";
+import type {
+  AgentExecutionStatus,
+  MachineSource,
+  MachineStatus,
+  SpriteMachineSource,
+} from "./schema.js";
 import type { JsonValue } from "../config/compiler.js";
 import type { LaunchMachineIntent } from "../dispatcher/launch-machine-intent.js";
 import type { InvocationRejection } from "../triggers/invocation.js";
@@ -1299,6 +1304,13 @@ export interface Database {
     attachmentId: string,
   ): Promise<AttachmentRecord | undefined>;
   insertMachine(input: InsertMachineInput): Promise<MachineRecord>;
+  findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined>;
+  /** Resolves undefined when a non-terminated sprite machine already exists for the trigger. */
+  insertSpriteMachine(input: {
+    orgId: string;
+    source: SpriteMachineSource;
+    specs: unknown;
+  }): Promise<MachineRecord | undefined>;
   findMachineById(id: string): Promise<MachineRecord | undefined>;
   findMachineForOrganization(
     organizationId: string,

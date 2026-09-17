@@ -28,6 +28,7 @@ import { CompositionResources } from "./composition-resources.js";
 import { TriggerDashboard } from "./triggers/dashboard.js";
 import type { ProviderApplications } from "./provider-applications/index.js";
 import { DaemonProviderCatalog } from "./daemons/provider-catalog.js";
+import { createSpriteActivation, type SpriteActivation } from "./daemons/sprites/activation.js";
 
 export interface ApplicationCompositionOptions {
   database: Database | null;
@@ -81,6 +82,7 @@ async function createOwnedApplicationRuntime(
     connectionsForProject,
     integrations,
   );
+  const spriteActivation = spriteActivationFor(options, connectionsForProject);
   const outputRegistry = new OutputExecutorRegistry();
   for (const output of registrations.flatMap((registration) => registration.outputs)) {
     outputRegistry.register(output);
@@ -112,6 +114,7 @@ async function createOwnedApplicationRuntime(
     ...(options.daemonConnectionForId === undefined
       ? {}
       : { daemonConnectionForId: options.daemonConnectionForId }),
+    spriteActivation,
   });
   ownership.own(() => application.hub.stop());
   await application.hub.start(registrations.flatMap((registration) => registration.sources));
@@ -146,7 +149,7 @@ async function createOwnedApplicationRuntime(
             githubConfigurations[0],
             (projectId) => application.configurationForProject(projectId),
           ),
-    triggerDashboard: triggerDashboardFor(options),
+    triggerDashboard: triggerDashboardFor(options, spriteActivation),
     daemonProviderCatalog: daemonProviderCatalogFor(options, application.hub),
     ...entitlementSurfaces(options),
     testTriggerRoutes: options.testTriggerRoutes ?? false,
@@ -357,10 +360,29 @@ async function createOwnedApplicationRuntime(
   };
 }
 
-function triggerDashboardFor(options: ApplicationCompositionOptions): TriggerDashboard | null {
+function triggerDashboardFor(
+  options: ApplicationCompositionOptions,
+  spriteActivation: SpriteActivation | null,
+): TriggerDashboard | null {
   return options.database === null || options.auth === null
     ? null
-    : new TriggerDashboard(options.database, options.auth, options.entitlements);
+    : new TriggerDashboard(options.database, options.auth, options.entitlements, spriteActivation);
+}
+
+function spriteActivationFor(
+  options: ApplicationCompositionOptions,
+  connectionsForProject: (projectId: string) => ConnectionResolver,
+): SpriteActivation | null {
+  return options.database === null ||
+    options.auth?.apiKeys === undefined ||
+    options.publicBaseUrl === undefined
+    ? null
+    : createSpriteActivation({
+        database: options.database,
+        apiKeys: options.auth.apiKeys,
+        connectionsForProject,
+        hubOrigin: options.publicBaseUrl,
+      });
 }
 
 function daemonProviderCatalogFor(

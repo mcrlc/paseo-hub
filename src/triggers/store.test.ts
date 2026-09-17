@@ -32,7 +32,18 @@ describe("organization trigger store", () => {
       { ...UNLIMITED_TEMPLATE, canUseSpriteTargets: false },
       { source: "provisioning", planId: null },
     );
-    const store = new OrganizationTriggerStore(database, "org", entitlements);
+    await database.upsertOrganizationSpritesConfiguration({
+      organizationId: "org",
+      token: "sprites-token",
+      memoryMb: 8192,
+      updatedByUserId: null,
+    });
+    const store = new OrganizationTriggerStore(
+      database,
+      "org",
+      entitlements,
+      async () => undefined,
+    );
     const daemon = await store.save({ yaml: triggerYaml(true), userId: null });
     const sprite = triggerYaml(true).replace(
       "target: { daemon: devbox, cwd: /workspace }",

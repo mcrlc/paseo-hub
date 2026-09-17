@@ -6,6 +6,7 @@ import type {
 import { resolveTriggerConfigurationForOrganization } from "../configuration/store.js";
 import { EntitlementDenied } from "../entitlements/catalog.js";
 import type { EntitlementsService } from "../entitlements/service.js";
+import type { SpriteActivation } from "../daemons/sprites/activation.js";
 import { compileTriggerDocument, TriggerDocumentError } from "./configuration/index.js";
 
 export interface SaveTriggerInput {
@@ -21,6 +22,7 @@ export class OrganizationTriggerStore {
     private readonly database: Database,
     private readonly organizationId: string,
     private readonly entitlements: Pick<EntitlementsService, "requireFlag"> | null = null,
+    private readonly spriteActivation: SpriteActivation | null = null,
   ) {}
 
   list(): Promise<OrganizationTriggerRecord[]> {
@@ -45,7 +47,7 @@ export class OrganizationTriggerStore {
     const unchangedLegacyAuthoring = await this.isUnchangedExistingYaml(input);
     const prepared = await this.validate(input.yaml, !unchangedLegacyAuthoring);
     const recurrence = prepared.compiled.authored.on["schedule.tick"]?.recurrence;
-    return this.database.saveOrganizationTrigger({
+    const trigger = await this.database.saveOrganizationTrigger({
       organizationId: this.organizationId,
       ...(input.triggerId === undefined ? {} : { triggerId: input.triggerId }),
       ...(recurrence === undefined ? {} : { recurrence }),
@@ -63,6 +65,14 @@ export class OrganizationTriggerStore {
       createdByUserId: input.userId,
       routes: prepared.compiled.authored.enabled ? prepared.resolved.routes : [],
     });
+    if (prepared.compiled.environment.kind === "sprite" && trigger.enabled) {
+      await this.spriteActivation?.({
+        trigger,
+        target: prepared.compiled.environment,
+        userId: input.userId,
+      });
+    }
+    return trigger;
   }
 
   async validate(yaml: string, enforceAuthoringContract = true) {
@@ -77,6 +87,20 @@ export class OrganizationTriggerStore {
         {
           path: ["run", "target", "kind"],
           message: "Sprite targets are not enabled for this organization.",
+        },
+      ]);
+    }
+    if (
+      compiled.environment.kind === "sprite" &&
+      compiled.authored.enabled &&
+      (this.spriteActivation === null ||
+        (await this.database.getOrganizationSpritesConfiguration(this.organizationId)) ===
+          undefined)
+    ) {
+      throw new TriggerDocumentError([
+        {
+          path: ["run", "target", "kind"],
+          message: "Sprites are not configured for this organization.",
         },
       ]);
     }

@@ -120,6 +120,29 @@ describe("daemon enrollment and execution", () => {
     assert.equal(second.slug, `studio-mac-local-${second.daemonId.slice(0, 8)}`);
   });
 
+  it("binds a daemon enrolled with a sprite's key to its spawning machine and revokes the key", async () => {
+    const machineId = await hub.spawningSpriteMachine();
+    const enrollment = await hub.enrollDaemon("sprite-host");
+
+    assert.equal((await hub.daemon(enrollment.daemonId)).machineId, machineId);
+    assert.equal((await hub.machine(machineId)).status, "alive");
+    assert.equal(await hub.harnessApiKeyRevoked(), true);
+  });
+
+  it("gives a daemon enrolled with an unrelated key a fresh machine", async () => {
+    const machineId = await hub.spawningSpriteMachine("00000000-0000-4000-8000-0000000000bb");
+    const enrollment = await hub.enrollDaemon("devbox");
+    const daemon = await hub.daemon(enrollment.daemonId);
+
+    assert.notEqual(daemon.machineId, machineId);
+    assert.deepEqual((await hub.machine(daemon.machineId)).source, {
+      kind: "daemon",
+      daemonId: enrollment.daemonId,
+    });
+    assert.equal((await hub.machine(machineId)).status, "spawning");
+    assert.equal(await hub.harnessApiKeyRevoked(), false);
+  });
+
   it("rejects invalid and revoked credentials on reconnect", async () => {
     await hub.connectDaemon();
     assert.equal(await hub.invalidCredentialReconnectStatus(), 403);

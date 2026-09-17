@@ -1,6 +1,7 @@
 import { createScheduleSource, createScheduleProvider } from "./triggers/schedule/index.js";
 import { createExecutionCapabilityServer } from "./execution-capabilities/server.js";
 import { OutputExecutorRegistry } from "./execution-capabilities/outputs.js";
+import type { SpriteActivation } from "./daemons/sprites/activation.js";
 import {
   createAttachmentCapabilityRegistry,
   type AttachmentCapabilityRegistry,
@@ -70,6 +71,7 @@ export interface HubRuntimeOptions {
   dispatchTimeoutMs?: number;
   browserOrganizationAccess?: BrowserOrganizationAccess;
   daemonConnectionForId?: DaemonDispatchLifecycleOptions["connectionForDaemon"];
+  spriteActivation?: SpriteActivation | null;
 }
 
 export interface HubRuntime {
@@ -328,7 +330,12 @@ function createAppPublicOperations(
     createDatabasePublicOperationRepository(database),
     {
       triggerForOrganization: (organizationId) => {
-        const store = new OrganizationTriggerStore(database, organizationId, options.entitlements);
+        const store = new OrganizationTriggerStore(
+          database,
+          organizationId,
+          options.entitlements,
+          options.spriteActivation ?? null,
+        );
         return {
           async list() {
             return Promise.all(
