@@ -9,6 +9,8 @@ export const Route = createFileRoute("/agent-sessions/$sessionId/mcp")({
           request,
           new URL(request.url).pathname.split("/")[2] ?? "",
         ),
+      ANY: () =>
+        Response.json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "POST" } }),
     },
   },
 });

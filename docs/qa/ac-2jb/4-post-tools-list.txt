@@ -1,0 +1,46 @@
+Server: node dist/index.js built from PR head 0f6e622, Postgres 17 docker, http://127.0.0.1:4105.
+Script: docs/qa/ac-2jb/post-tools-list.sh (seeds an agent_sessions row whose capabilityTokenHash = sha256(base64url) of a known bearer).
+
+### POST tools/list with the session bearer
+> POST http://127.0.0.1:4105/agent-sessions/22222222-3333-4444-8555-666666666666/mcp  body: {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+HTTP/1.1 200 OK
+content-type: application/json
+Transfer-Encoding: chunked
+
+{"result":{"tools":[{"name":"complete","description":"Complete the execution.","inputSchema":{"type":"object","required":["summary","executionId"],"properties":{"summary":{"type":"string"},"executionId":{"type":"string","description":"Execution ID supplied with the request prompt."}}}}]},"jsonrpc":"2.0","id":1}
+
+
+### POST tools/list with a wrong bearer
+HTTP/1.1 401 Unauthorized
+content-type: application/json
+x-request-id: c4cbcaa4-eb83-4b4a-8019-0337827a5cd3
+Transfer-Encoding: chunked
+
+{"error":"unauthorized"}
+
+
+### Hub log lines emitted during POSTs
+[2026-09-17 09:17:53.018 +0300] WARN: http.response failed
+    failureKind: "authentication"
+    requestId: "c4cbcaa4-eb83-4b4a-8019-0337827a5cd3"
+    operation: "http.response"
+    component: "http"
+    method: "POST"
+    path: "/agent-sessions/22222222-3333-4444-8555-666666666666/mcp"
+    status: 401
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+### end of log
+
+=== Same POST (session bearer) against origin/main build for comparison ===
+### POST tools/list with the session bearer
+> POST http://127.0.0.1:4106/agent-sessions/22222222-3333-4444-8555-666666666666/mcp  body: {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+HTTP/1.1 200 OK
+content-type: application/json
+Transfer-Encoding: chunked
+
+{"result":{"tools":[{"name":"complete","description":"Complete the execution.","inputSchema":{"type":"object","required":["summary","executionId"],"properties":{"summary":{"type":"string"},"executionId":{"type":"string","description":"Execution ID supplied with the request prompt."}}}}]},"jsonrpc":"2.0","id":1}

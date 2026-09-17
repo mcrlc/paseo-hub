@@ -1,0 +1,59 @@
+Server: node dist/index.js built from origin/main 1512f10 (temporary worktree), Postgres 17 (docker postgres:17-alpine), PASEO_HUB_APP_URL=http://127.0.0.1:4106.
+Script: docs/qa/ac-2jb/probe-methods.sh. Transport headers (Date, Connection, Keep-Alive, Transfer-Encoding) stripped.
+
+### origin/main: -X GET -H Accept: application/json http://127.0.0.1:4106/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 500 Internal Server Error
+content-type: application/json
+x-request-id: d9716a20-cf42-4565-88f9-da73c98882b4
+
+{"error":"Only HTML requests are supported here"}
+
+### origin/main: -X GET -H Accept: text/html http://127.0.0.1:4106/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/ass …[HTML truncated]
+
+### origin/main: -X DELETE http://127.0.0.1:4106/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/ass …[HTML truncated]
+
+### origin/main: -X PUT http://127.0.0.1:4106/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/ass …[HTML truncated]
+
+### origin/main: -X PATCH http://127.0.0.1:4106/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/ass …[HTML truncated]
+
+### origin/main: -X OPTIONS http://127.0.0.1:4106/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/ass …[HTML truncated]
+
+### origin/main: -I http://127.0.0.1:4106/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+
+### Hub log lines for these requests (1)
+[2026-09-17 09:17:23.882 +0300] ERROR: http.response failed
+    failureKind: "internal"
+    requestId: "d9716a20-cf42-4565-88f9-da73c98882b4"
+    operation: "http.response"
+    component: "http"
+    method: "GET"
+    path: "/agent-sessions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 500
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///private/tmp/ac2jb-main/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }

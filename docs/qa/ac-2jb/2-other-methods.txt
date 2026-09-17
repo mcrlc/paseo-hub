@@ -1,0 +1,112 @@
+Server: node dist/index.js built from PR head 0f6e622, Postgres 17 (docker postgres:17-alpine), PASEO_HUB_APP_URL=http://127.0.0.1:4105.
+Script: docs/qa/ac-2jb/probe-methods.sh. Transport headers (Date, Connection, Keep-Alive, Transfer-Encoding) stripped.
+
+### PR: -X DELETE http://127.0.0.1:4105/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: 05ab5a1b-a3b0-4763-856c-c69f2a3b7bb7
+
+{"error":"method_not_allowed"}
+
+### PR: -X PUT http://127.0.0.1:4105/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: 7e5c6361-40de-4b8f-ac77-a0fbcbe1a8f6
+
+{"error":"method_not_allowed"}
+
+### PR: -X PATCH http://127.0.0.1:4105/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: f1f3ae3c-0e63-4736-84bb-71fa4a7476d2
+
+{"error":"method_not_allowed"}
+
+### PR: -X OPTIONS http://127.0.0.1:4105/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: beb445d6-18c6-4401-b3f1-d9f948b5e0ca
+
+{"error":"method_not_allowed"}
+
+### PR: -I http://127.0.0.1:4105/agent-sessions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: 74a2af0c-0e63-4076-b74b-a459865ba912
+
+### Hub log lines for these requests (5)
+[2026-09-17 09:17:22.803 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "05ab5a1b-a3b0-4763-856c-c69f2a3b7bb7"
+    operation: "http.response"
+    component: "http"
+    method: "DELETE"
+    path: "/agent-sessions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+[2026-09-17 09:17:22.810 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "7e5c6361-40de-4b8f-ac77-a0fbcbe1a8f6"
+    operation: "http.response"
+    component: "http"
+    method: "PUT"
+    path: "/agent-sessions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+[2026-09-17 09:17:22.817 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "f1f3ae3c-0e63-4736-84bb-71fa4a7476d2"
+    operation: "http.response"
+    component: "http"
+    method: "PATCH"
+    path: "/agent-sessions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+[2026-09-17 09:17:22.824 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "beb445d6-18c6-4401-b3f1-d9f948b5e0ca"
+    operation: "http.response"
+    component: "http"
+    method: "OPTIONS"
+    path: "/agent-sessions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+[2026-09-17 09:17:22.831 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "74a2af0c-0e63-4076-b74b-a459865ba912"
+    operation: "http.response"
+    component: "http"
+    method: "HEAD"
+    path: "/agent-sessions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }

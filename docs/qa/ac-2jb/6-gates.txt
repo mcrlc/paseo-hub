@@ -1,0 +1,54 @@
+### $ npm run format:check
+
+> @getpaseo/hub@0.9.0 format:check
+> oxfmt --check .
+
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 1671ms on 734 files using 15 threads.
+exit=0
+
+### $ npm run typecheck:node
+
+> @getpaseo/hub@0.9.0 typecheck:node
+> tsgo --noEmit -p tsconfig.json
+
+exit=0
+
+### $ npm run typecheck:start
+
+> @getpaseo/hub@0.9.0 typecheck:start
+> tsgo --noEmit -p tsconfig.start.json
+
+exit=0
+
+### $ npm run typecheck:e2e
+
+> @getpaseo/hub@0.9.0 typecheck:e2e
+> tsgo --noEmit -p tsconfig.e2e.json
+
+exit=0
+
+### $ npm run lint
+Found 0 warnings and 0 errors.
+Finished in 5.0s on 453 files with 238 rules using 15 threads.
+
+> @getpaseo/hub@0.9.0 lint:start
+> oxlint --config oxlint.json --tsconfig tsconfig.start.json --ignore-pattern '**/*.mjs' src vite.config.ts drizzle.config.ts
+
+Found 0 warnings and 0 errors.
+Finished in 3.8s on 578 files with 238 rules using 15 threads.
+exit=0
+
+### $ npx vitest run src/mcp-route-method-guard.test.ts src/agent-sessions
+ ✓ src/agent-sessions/index.test.ts (8 tests) 77ms
+ ✓ src/mcp-route-method-guard.test.ts (3 tests) 0ms
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  09:18:28
+   Duration  632ms (transform 188ms, setup 0ms, collect 327ms, tests 78ms, environment 0ms, prepare 31ms)
+
+exit=0
+
