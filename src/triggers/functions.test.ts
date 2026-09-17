@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { recreateSpriteMessage } from "./functions.js";
+import { respondWithFailure } from "../failures/index.js";
+import { recreateSpriteMessage, saveTriggerMessages } from "./functions.js";
 
 const FALLBACK = "Hub couldn't recreate this sprite. Reload its status before trying again.";
 
@@ -28,5 +29,51 @@ describe("recreate sprite failures", () => {
     );
 
     assert.equal(recreateSpriteMessage(busy), busy.message);
+  });
+});
+
+const SAVE_FALLBACK = "Hub couldn't save the trigger. Reload the page and try again.";
+
+const silent = { warn() {}, error() {} };
+
+function saveFailureMessage(error: unknown): string {
+  const result = respondWithFailure(
+    error,
+    { operation: "trigger.save", component: "triggers" },
+    saveTriggerMessages(error),
+    { logger: silent },
+  );
+  assert.equal(result.status, "error");
+  return result.error.message;
+}
+
+describe("save trigger failures", () => {
+  it("says only its own sentence about a request with no session", () => {
+    const message = saveFailureMessage(new Error("unauthenticated"));
+
+    assert.ok(message.startsWith(SAVE_FALLBACK));
+    assert.ok(!message.includes("unauthenticated"));
+  });
+
+  it("says only its own sentence about an unexpected error", () => {
+    assert.ok(saveFailureMessage(new Error("boom")).startsWith(SAVE_FALLBACK));
+  });
+
+  it("passes through the field messages the editor renders", () => {
+    const document = crossChunkError(
+      "TriggerDocumentError",
+      "run.target.kind: Sprite targets are not enabled for this organization.",
+    );
+
+    assert.ok(saveFailureMessage(document).startsWith(document.message));
+  });
+
+  it("passes through a sprite prerequisite refusal", () => {
+    const prerequisite = crossChunkError(
+      "TriggerDocumentError",
+      "run.target.kind: Sprites are not configured for this organization.",
+    );
+
+    assert.ok(saveFailureMessage(prerequisite).startsWith(prerequisite.message));
   });
 });

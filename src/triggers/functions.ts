@@ -38,12 +38,11 @@ export const saveTrigger = createServerFn({ method: "POST" })
       });
       return respondOk({ state: "complete" });
     } catch (error) {
-      return respondWithFailure(error, triggerContext("trigger.save", data.organizationSlug), {
-        fallback: error instanceof Error ? error.message : "Hub couldn't save this trigger.",
-        forbidden: "You don't have permission to manage triggers.",
-        validation: error instanceof Error ? error.message : "This trigger is invalid.",
-        conflict: "A trigger with this name already exists.",
-      });
+      return respondWithFailure(
+        error,
+        triggerContext("trigger.save", data.organizationSlug),
+        saveTriggerMessages(error),
+      );
     }
   });
 
@@ -68,6 +67,26 @@ export const recreateSprite = createServerFn({ method: "POST" })
       );
     }
   });
+
+const SAVE_TRIGGER_FAILURE = "Hub couldn't save the trigger. Reload the page and try again.";
+
+/**
+ * Only `TriggerDocumentError` says something the reader can act on: the field messages the editor
+ * renders at a path. Identified by name, because the store that throws it bundles apart from this
+ * handler and loses the class identity.
+ */
+export function saveTriggerMessages(error: unknown) {
+  const message =
+    error instanceof Error && error.name === "TriggerDocumentError"
+      ? error.message
+      : SAVE_TRIGGER_FAILURE;
+  return {
+    fallback: message,
+    forbidden: "You don't have permission to manage triggers.",
+    validation: message,
+    conflict: "A trigger with this name already exists.",
+  };
+}
 
 const RECREATE_SPRITE_FAILURE =
   "Hub couldn't recreate this sprite. Reload its status before trying again.";
