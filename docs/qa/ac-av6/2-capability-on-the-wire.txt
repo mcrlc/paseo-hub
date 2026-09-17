@@ -1,0 +1,63 @@
+# Scenario 2: capability on the wire
+roles: admin@ac0yj.test=admin, member@ac0yj.test=member, owner@ac0yj.test=owner
+env before: {"OPENAI_API_KEY": "acav6-bravo-2mXcP4tR-sentinel", "CLAUDE_CODE_OAUTH_TOKEN": "acav6-alpha-9f3KqZ7w-sentinel"}
+row digest before: 30143ed5e702742e8a812a14f78203cf
+
+## member: setenv MEMBER_KEY
+> POST http://127.0.0.1:4117/_serverFn/a9da5ccd0f56ebd45c44089e07123b9139f99bda31a6270a4c5cfa2780b80deb  cookie: <session of member>
+> data: {"organizationSlug":"acme-56b508fa","key":"MEMBER_KEY","value":"member-value"}
+HTTP/1.1 200 OK
+  => status=error message="You don't have permission to configure Sprites."
+## member: setenv OPENAI_API_KEY (overwrite attempt)
+> POST http://127.0.0.1:4117/_serverFn/a9da5ccd0f56ebd45c44089e07123b9139f99bda31a6270a4c5cfa2780b80deb  cookie: <session of member>
+> data: {"organizationSlug":"acme-56b508fa","key":"OPENAI_API_KEY","value":"member-overwrite"}
+HTTP/1.1 200 OK
+  => status=error message="You don't have permission to configure Sprites."
+## member: rmenv CLAUDE_CODE_OAUTH_TOKEN
+> POST http://127.0.0.1:4117/_serverFn/3ca31b6fc7bb7a152e68951fc16f295ad54a1b605ddf54b7cddc0d2b1ac92394  cookie: <session of member>
+> data: {"organizationSlug":"acme-56b508fa","key":"CLAUDE_CODE_OAUTH_TOKEN"}
+HTTP/1.1 200 OK
+  => status=error message="You don't have permission to configure Sprites."
+## member: snapshot
+> GET snapshot  cookie: <session of member>
+HTTP/1.1 200 OK
+  => status=error message="You don't have permission to configure Sprites."
+envKeys in member snapshot response: 0
+row digest after member: 30143ed5e702742e8a812a14f78203cf (unchanged: yes)
+
+## none: setenv MEMBER_KEY
+> POST http://127.0.0.1:4117/_serverFn/a9da5ccd0f56ebd45c44089e07123b9139f99bda31a6270a4c5cfa2780b80deb  cookie: none
+> data: {"organizationSlug":"acme-56b508fa","key":"MEMBER_KEY","value":"member-value"}
+HTTP/1.1 200 OK
+  => status=error message="Hub couldn't save the variable. The stored environment is unchanged."
+## none: setenv OPENAI_API_KEY (overwrite attempt)
+> POST http://127.0.0.1:4117/_serverFn/a9da5ccd0f56ebd45c44089e07123b9139f99bda31a6270a4c5cfa2780b80deb  cookie: none
+> data: {"organizationSlug":"acme-56b508fa","key":"OPENAI_API_KEY","value":"member-overwrite"}
+HTTP/1.1 200 OK
+  => status=error message="Hub couldn't save the variable. The stored environment is unchanged."
+## none: rmenv CLAUDE_CODE_OAUTH_TOKEN
+> POST http://127.0.0.1:4117/_serverFn/3ca31b6fc7bb7a152e68951fc16f295ad54a1b605ddf54b7cddc0d2b1ac92394  cookie: none
+> data: {"organizationSlug":"acme-56b508fa","key":"CLAUDE_CODE_OAUTH_TOKEN"}
+HTTP/1.1 200 OK
+  => status=error message="Hub couldn't remove the variable. Reload the page to check whether it is gone."
+## none: snapshot
+> GET snapshot  cookie: none
+HTTP/1.1 200 OK
+  => status=error message="Hub couldn't load the Sprites configuration. Reload the page."
+envKeys in none snapshot response: 0
+row digest after none: 30143ed5e702742e8a812a14f78203cf (unchanged: yes)
+
+## admin: setenv ADMIN_KEY
+> POST http://127.0.0.1:4117/_serverFn/a9da5ccd0f56ebd45c44089e07123b9139f99bda31a6270a4c5cfa2780b80deb  cookie: <session of admin>
+> data: {"organizationSlug":"acme-56b508fa","key":"ADMIN_KEY","value":"admin-value"}
+HTTP/1.1 200 OK
+  => status=ok
+env after admin set: {"ADMIN_KEY": "admin-value", "OPENAI_API_KEY": "<value-b>", "CLAUDE_CODE_OAUTH_TOKEN": "<value-a>"}
+## admin: snapshot
+"envKeys","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":8192},{"t":9,"i":3,"a":[{"t":1,"s":"ADMIN_KEY"},{"t":1,"s":"CLAUDE_CODE_OAUTH_TOKEN"},{"t":1,"s":"OPENAI_API_KEY"}],"o":0},{"t":1,"s":"2026-09-17T09:50:10.852Z"},{"t":1,"s":"liUbbCAddOCgtpF6kPA1AVWI2O5wdLK8"}]},"o":0}]},"o":0},{"
+## admin: rmenv ADMIN_KEY
+> POST http://127.0.0.1:4117/_serverFn/3ca31b6fc7bb7a152e68951fc16f295ad54a1b605ddf54b7cddc0d2b1ac92394  cookie: <session of admin>
+> data: {"organizationSlug":"acme-56b508fa","key":"ADMIN_KEY"}
+HTTP/1.1 200 OK
+  => status=ok
+env after admin remove: {"OPENAI_API_KEY": "<value-b>", "CLAUDE_CODE_OAUTH_TOKEN": "<value-a>"}

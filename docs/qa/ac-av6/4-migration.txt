@@ -1,0 +1,171 @@
+# Scenario 4: migration 0050_organization_sprites_env
+
+## Journal count
+origin/main (at merge time): 50  last: "tag":"0049_organization_sprites_configuration",
+merged tree:                 51  last: "tag":"0050_organization_sprites_env",
+0050 SQL: ALTER TABLE "organization_sprites_configuration" ADD COLUMN "env" jsonb DEFAULT '{}'::jsonb NOT NULL;
+
+## A. Fresh Postgres
+$ npm run db:migrate
+
+> @getpaseo/hub@0.9.0 db:migrate
+> tsx src/db/migrate.ts
+
+(exit 0)
+                 Table "public.organization_sprites_configuration"
+       Column       |           Type           | Collation | Nullable |   Default   
+--------------------+--------------------------+-----------+----------+-------------
+ organization_id    | text                     |           | not null | 
+ token              | text                     |           | not null | 
+ memory_mb          | integer                  |           | not null | 8192
+ updated_at         | timestamp with time zone |           | not null | now()
+ updated_by_user_id | text                     |           |          | 
+ env                | jsonb                    |           | not null | '{}'::jsonb
+Indexes:
+    "organization_sprites_configuration_pkey" PRIMARY KEY, btree (organization_id)
+Check constraints:
+    "organization_sprites_configuration_memory_mb_check" CHECK (memory_mb > 0)
+Foreign-key constraints:
+    "organization_sprites_configuration_organization_id_organization" FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE
+    "organization_sprites_configuration_updated_by_user_id_user_id_f" FOREIGN KEY (updated_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL
+
+ column_name | data_type | is_nullable | column_default 
+-------------+-----------+-------------+----------------
+ env         | jsonb     | NO          | '{}'::jsonb
+(1 row)
+
+ applied_migrations 
+--------------------
+                 51
+(1 row)
+
+
+## B. Database already at 0049 (migrated by origin/main), with a stored configuration row
+origin/main worktree at 07d15dd
+$ npm run db:migrate
+
+> @getpaseo/hub@0.9.0 db:migrate
+> tsx src/db/migrate.ts
+
+(exit 0)
+ applied_migrations 
+--------------------
+                 50
+(1 row)
+
+    column_name     
+--------------------
+ organization_id
+ token
+ memory_mb
+ updated_at
+ updated_by_user_id
+(5 rows)
+
+INSERT 0 1
+INSERT 0 1
+
+Now the merged tree's migrations:
+$ npm run db:migrate
+
+> @getpaseo/hub@0.9.0 db:migrate
+> tsx src/db/migrate.ts
+
+(exit 0)
+ applied_migrations 
+--------------------
+                 51
+(1 row)
+
+ column_name | data_type | is_nullable | column_default 
+-------------+-----------+-------------+----------------
+ env         | jsonb     | NO          | '{}'::jsonb
+(1 row)
+
+ organization_id |       token        | memory_mb | env 
+-----------------+--------------------+-----------+-----
+ o1              | pre-existing-token |     16384 | {}
+(1 row)
+
+NOT NULL enforced:
+ERROR:  null value in column "env" of relation "organization_sprites_configuration" violates not-null constraint
+DETAIL:  Failing row contains (o1, pre-existing-token, 16384, 2026-09-17 09:51:44.656186+00, null, null).
+Idempotent re-run:
+$ npm run db:migrate
+
+> @getpaseo/hub@0.9.0 db:migrate
+> tsx src/db/migrate.ts
+
+(exit 0)
+ applied_migrations 
+--------------------
+                 51
+(1 row)
+
+
+## npm run db:check
+$ npm run db:check
+
+> @getpaseo/hub@0.9.0 db:check
+> scripts/check-drizzle.sh
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/drizzle.config.ts'
+Everything's fine 🐶🔥
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/drizzle.config.ts'
+50 tables
+account 13 columns 0 indexes 1 fks
+agent_executions 30 columns 4 indexes 6 fks
+agent_sessions 5 columns 1 indexes 1 fks
+attachment_capabilities 11 columns 2 indexes 2 fks
+audit_events 10 columns 2 indexes 3 fks
+billing_plan_prices 7 columns 1 indexes 1 fks
+billing_plans 8 columns 0 indexes 0 fks
+cli_authorizations 13 columns 2 indexes 0 fks
+configuration_sync_attempts 10 columns 1 indexes 2 fks
+daemon_enrollment_tokens 7 columns 0 indexes 1 fks
+daemons 18 columns 3 indexes 2 fks
+discord_connections 9 columns 2 indexes 2 fks
+entitlement_changes 8 columns 1 indexes 1 fks
+execution_authorities 2 columns 0 indexes 1 fks
+execution_credential_leases 3 columns 1 indexes 1 fks
+github_connections 13 columns 4 indexes 2 fks
+github_repositories 8 columns 2 indexes 1 fks
+instance_bootstrap 6 columns 0 indexes 2 fks
+invitation 8 columns 2 indexes 2 fks
+linear_connections 14 columns 3 indexes 2 fks
+machines 10 columns 3 indexes 0 fks
+member 5 columns 3 indexes 2 fks
+organization_api_keys 10 columns 2 indexes 2 fks
+organization_billing_customers 3 columns 0 indexes 1 fks
+organization_cli_credentials 8 columns 2 indexes 2 fks
+organization_connection_attempts 19 columns 1 indexes 3 fks
+organization_entitlements 7 columns 0 indexes 1 fks
+organization_sprites_configuration 6 columns 0 indexes 2 fks
+organization_trigger_revisions 11 columns 3 indexes 2 fks
+organization_trigger_routes 8 columns 2 indexes 2 fks
+organization_triggers 9 columns 3 indexes 3 fks
+organization_usage 4 columns 1 indexes 1 fks
+organization 6 columns 0 indexes 0 fks
+project_configuration_revisions 23 columns 3 indexes 2 fks
+project_configuration_sources 11 columns 0 indexes 3 fks
+project_trigger_migrations 4 columns 1 indexes 3 fks
+project_trigger_routes 8 columns 2 indexes 2 fks
+projects 10 columns 3 indexes 3 fks
+provider_event_receipts 15 columns 5 indexes 1 fks
+runtime_configuration 3 columns 0 indexes 0 fks
+runtime_provider_activation 4 columns 0 indexes 0 fks
+runtime_provider_configuration 7 columns 0 indexes 1 fks
+session 9 columns 1 indexes 1 fks
+slack_connections 12 columns 2 indexes 2 fks
+trigger_runs 24 columns 4 indexes 4 fks
+trigger_schedules 4 columns 1 indexes 2 fks
+user 9 columns 0 indexes 0 fks
+verification 6 columns 0 indexes 0 fks
+workflow_step_runs 14 columns 4 indexes 1 fks
+workflow_wakeups 3 columns 1 indexes 1 fks
+
+No schema changes, nothing to migrate 😴
+(exit 0)
+git status of drizzle/ after db:check: 0 changed files
