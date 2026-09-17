@@ -125,6 +125,16 @@ describe("Sprites organization settings", () => {
     assert.equal(after.updatedByUserId, null);
   });
 
+  it("rewrites live sprite services after each successful variable write", async () => {
+    const { settings, rewrites } = setup("owner");
+    await assert.rejects(settings.setEnv(request, "acme", { key: "TOKEN", value: "v" }));
+    await settings.save(request, "acme", { token: "t", memoryMb: 8192 });
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: "v" });
+    await assert.rejects(settings.removeEnv(request, "acme", { key: "OTHER" }));
+    await settings.removeEnv(request, "acme", { key: "TOKEN" });
+    assert.deepEqual(rewrites, ["org-1", "org-1"]);
+  });
+
   it("refuses to remove a variable that does not exist", async () => {
     const { settings } = setup("owner");
     const notFound = {
@@ -201,6 +211,7 @@ describe("Sprites organization settings", () => {
 function setup(role: OrganizationRole, status = 200) {
   let answer = status;
   const requests: { url: string; authorization: string | null }[] = [];
+  const rewrites: string[] = [];
   const fetchStub: typeof fetch = (input, init) => {
     requests.push({
       url: input instanceof Request ? input.url : input.toString(),
@@ -223,10 +234,16 @@ function setup(role: OrganizationRole, status = 200) {
   return {
     database,
     requests,
+    rewrites,
     respondWith: (next: number) => {
       answer = next;
     },
-    settings: new SpritesSettings(database, accountAuth(), { fetch: fetchStub }),
+    settings: new SpritesSettings(database, accountAuth(), {
+      fetch: fetchStub,
+      rewriteServices: async (organizationId) => {
+        rewrites.push(organizationId);
+      },
+    }),
   };
 }
 

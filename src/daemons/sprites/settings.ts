@@ -43,13 +43,18 @@ export class SpritesEnvNotFoundError extends Error {
 
 export class SpritesSettings {
   private readonly fetch: typeof fetch;
+  private readonly rewriteServices: (organizationId: string) => Promise<void>;
 
   constructor(
     private readonly database: Database,
     private readonly auth: AuthServer,
-    options: { fetch?: typeof fetch } = {},
+    options: {
+      fetch?: typeof fetch;
+      rewriteServices?: (organizationId: string) => Promise<void>;
+    } = {},
   ) {
     this.fetch = options.fetch ?? fetch;
+    this.rewriteServices = options.rewriteServices ?? (() => Promise.resolve());
   }
 
   async snapshot(request: Request, organizationSlug: string) {
@@ -97,6 +102,7 @@ export class SpritesSettings {
     if (stored === undefined) {
       throw new SpritesEnvInputError("Connect Sprites with an organization token first.");
     }
+    await this.rewriteServices(tenant.organization.id);
   }
 
   async removeEnv(request: Request, organizationSlug: string, input: { key: string }) {
@@ -106,6 +112,7 @@ export class SpritesSettings {
       key: input.key,
     });
     if (stored === undefined) throw new SpritesEnvNotFoundError();
+    await this.rewriteServices(tenant.organization.id);
   }
 
   private async manager(request: Request, organizationSlug: string) {

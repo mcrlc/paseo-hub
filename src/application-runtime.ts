@@ -29,7 +29,11 @@ import { TriggerDashboard } from "./triggers/dashboard.js";
 import { SpritesSettings } from "./daemons/sprites/settings.js";
 import type { ProviderApplications } from "./provider-applications/index.js";
 import { DaemonProviderCatalog } from "./daemons/provider-catalog.js";
-import { createSpriteActivation, type SpriteActivation } from "./daemons/sprites/activation.js";
+import {
+  createSpriteActivation,
+  createSpriteServiceRewrite,
+  type SpriteActivation,
+} from "./daemons/sprites/activation.js";
 
 export interface ApplicationCompositionOptions {
   database: Database | null;
@@ -151,7 +155,7 @@ async function createOwnedApplicationRuntime(
             (projectId) => application.configurationForProject(projectId),
           ),
     triggerDashboard: triggerDashboardFor(options, spriteActivation),
-    spritesSettings: spritesSettingsFor(options),
+    spritesSettings: spritesSettingsFor(options, connectionsForProject),
     daemonProviderCatalog: daemonProviderCatalogFor(options, application.hub),
     ...entitlementSurfaces(options),
     testTriggerRoutes: options.testTriggerRoutes ?? false,
@@ -387,10 +391,18 @@ function spriteActivationFor(
       });
 }
 
-function spritesSettingsFor(options: ApplicationCompositionOptions): SpritesSettings | null {
+function spritesSettingsFor(
+  options: ApplicationCompositionOptions,
+  connectionsForProject: (projectId: string) => ConnectionResolver,
+): SpritesSettings | null {
   return options.database === null || options.auth === null
     ? null
-    : new SpritesSettings(options.database, options.auth);
+    : new SpritesSettings(options.database, options.auth, {
+        rewriteServices: createSpriteServiceRewrite({
+          database: options.database,
+          connectionsForProject,
+        }),
+      });
 }
 
 function daemonProviderCatalogFor(
