@@ -40,13 +40,11 @@ export class TriggerDashboard {
       this.database.organizationConnectionUsage(tenant.organization.id),
       this.database.listOrganizationSprites(tenant.organization.id),
     ]);
-    // Newest first, so the trigger whose sprite was just retired reads `terminated` rather than
-    // reaching back to a sprite it no longer has.
-    const spriteFor = new Map<string, OrganizationSpriteRecord>();
+    const latestSpriteFor = new Map<string, OrganizationSpriteRecord>();
     for (const sprite of sprites) {
       if (sprite.machine.source.kind !== "sprite") continue;
       const { triggerId } = sprite.machine.source;
-      if (!spriteFor.has(triggerId)) spriteFor.set(triggerId, sprite);
+      if (!latestSpriteFor.has(triggerId)) latestSpriteFor.set(triggerId, sprite);
     }
     const activity = (
       await Promise.all(triggers.map((trigger) => this.activityForTrigger(trigger)))
@@ -63,7 +61,7 @@ export class TriggerDashboard {
             store,
             trigger,
             activity.find(({ triggerId }) => triggerId === trigger.id),
-            spriteFor.get(trigger.id),
+            latestSpriteFor.get(trigger.id),
           ),
         ),
       ),
@@ -142,11 +140,6 @@ export class TriggerDashboard {
     }));
   }
 
-  /**
-   * Destroy the sprite and revoke its daemon; the next arrival provisions a new one. Refused
-   * while the sprite is busy, for the same reason saving a retiring change is: the reader would
-   * be ending runs they cannot see from here.
-   */
   async recreateSprite(request: Request, organizationSlug: string, triggerId: string) {
     const { account, tenant } = await resolveRouteTenant(this.auth, this.database, request, {
       organizationSlug,
@@ -245,11 +238,6 @@ async function triggerView(
   };
 }
 
-/**
- * What the trigger's own sprite amounts to, or null when it does not run on one. A trigger that
- * targets a sprite it has never activated — or has just retired — still gets a panel, because
- * "no machine yet" is the state the reader came to see.
- */
 function spriteView(
   normalizedConfiguration: unknown,
   sprite: OrganizationSpriteRecord | undefined,

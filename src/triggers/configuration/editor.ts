@@ -55,12 +55,6 @@ export type TriggerFormProjection =
 const ProviderOptionsSchema = z.record(z.string(), z.unknown());
 const GitHubPermissionsSchema = z.record(z.string(), z.enum(["read", "write", "admin"]));
 
-/**
- * What the document asks for and will not get, said without refusing the save. A leased
- * credential is revoked when its execution reaches terminal, which clears the session key and
- * hands the next arrival a new agent, so a sprite asking to remember a conversation across
- * pauses cannot also lease one per run.
- */
 export function triggerDocumentWarnings(yaml: string): readonly TriggerDocumentWarning[] {
   const parsed = parseEditorDocument(yaml);
   if (!parsed.success) return [];

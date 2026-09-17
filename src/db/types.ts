@@ -1325,6 +1325,7 @@ export interface Database {
   ): Promise<AttachmentRecord | undefined>;
   insertMachine(input: InsertMachineInput): Promise<MachineRecord>;
   findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined>;
+  /** Newest first, so the first entry for a trigger is the sprite it has now. */
   listOrganizationSprites(organizationId: string): Promise<OrganizationSpriteRecord[]>;
   listSpriteRunStatuses(
     organizationId: string,
