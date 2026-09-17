@@ -1,0 +1,15 @@
+name: qa-acwri-scrub
+enabled: true
+on:
+  manual.run: {}
+run:
+  target:
+    kind: sprite
+    bootstrap: |
+      printenv QA_ORG_MARKER; exit 3
+    cwd: /home/sprite
+  agent: { provider: claude, mode: bypassPermissions }
+  prompt: Call the finish_execution MCP tool exactly once.
+  auto_archive: true
+  max_runtime: 1h
+  idle_timeout: 5m

@@ -1,0 +1,46 @@
+# Scenario 4: scrub on a failing bootstrap (head 024c0a0). Bootstrap: printenv QA_ORG_MARKER; exit 3 (s4-trigger.yml).
+
+## Install at 11:39:41Z
+{"triggerId":"da481d6d-97c0-4d81-8bce-532a7ead5f55","name":"qa-acwri-scrub","revisionId":"e2838bd3-9ea8-4fd4-99f3-4ae2781026c9","version":1,"active":true}
+HTTP 201 total 0.429310s
+
+## watch.sh (name | status | shutdown_reason), UTC; sprite A rows omitted
+== 11:39:42
+== 11:39:44
+trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55 | spawning | 
+== 11:39:48
+trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55 | spawning | 
+== 11:40:03
+trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55 | terminated | bootstrap exited with 3: [redacted]
+== 11:40:28
+trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55 | terminated | bootstrap exited with 3: [redacted]
+
+## Hub log since the save (local +0300)
+[2026-09-17 14:39:42.559 +0300] INFO: sprite activation: destroy leftover
+    machineId: "5f8c21d7-023f-486d-b7c2-8147d15aa639"
+    sprite: "trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55"
+[2026-09-17 14:39:42.993 +0300] INFO: sprite activation: create
+    machineId: "5f8c21d7-023f-486d-b7c2-8147d15aa639"
+    sprite: "trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55"
+[2026-09-17 14:39:44.424 +0300] INFO: sprite activation: npm prefix
+    machineId: "5f8c21d7-023f-486d-b7c2-8147d15aa639"
+    sprite: "trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55"
+[2026-09-17 14:39:46.406 +0300] INFO: sprite activation: install paseo
+    machineId: "5f8c21d7-023f-486d-b7c2-8147d15aa639"
+    sprite: "trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55"
+[2026-09-17 14:40:02.902 +0300] INFO: sprite activation: bootstrap
+    machineId: "5f8c21d7-023f-486d-b7c2-8147d15aa639"
+    sprite: "trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55"
+[2026-09-17 14:40:03.139 +0300] WARN: sprite activation failed
+    machineId: "5f8c21d7-023f-486d-b7c2-8147d15aa639"
+    reason: "bootstrap exited with 3: [redacted]"
+[2026-09-17 14:40:04.216 +0300] INFO: sprite activation: destroyed after failure
+    machineId: "5f8c21d7-023f-486d-b7c2-8147d15aa639"
+
+## Row, key, provider
+machine: terminated | shutdown_reason=bootstrap exited with 3: [redacted] | marker position in reason: 0 | terminated_at 2026-09-17 11:40:03.137191+00
+api key "Sprite da481d6d-97c0-4d81-8bce-532a7ead5f55" revoked: true
+GET /v1/sprites/trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55 -> {"error":"sprite not found"} HTTP 404
+
+## grep -cF <org-marker> over the whole Hub log (64 lines at 11:40:58): 0
+grep -cF from-org / from-target in the Hub log: 0 / 0
