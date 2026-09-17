@@ -22,7 +22,7 @@ import type { DaemonConnection } from "../protocol.js";
 import { AgentSessions } from "../../agent-sessions/index.js";
 import { OutputExecutorRegistry } from "../../execution-capabilities/outputs.js";
 import type { AgentConnection, AgentSnapshot } from "../agents/index.js";
-import { createSpriteActivation, type SpriteActivation } from "./activation.js";
+import { bootstrapHash, createSpriteActivation, type SpriteActivation } from "./activation.js";
 import { SpritesError } from "./client.js";
 
 const SECRET = "sprite-dispatch-secret";
@@ -198,6 +198,28 @@ describe("sprite dispatch", () => {
     const execution = await hub.database.findAgentExecutionById(second.executionId);
     assert.equal(execution?.daemonId, second.intent.environment.daemonId);
     assert.equal(execution?.agentSessionAction, "reset");
+  });
+
+  it("continues the conversation across an env edit", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(5);
+    const first = hub.dispatches[0]!;
+    const before = await hub.openSession(first);
+    await hub.database.transitionAgentExecution(first.executionId, "succeeded");
+
+    await hub.editEnv();
+    assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "alive");
+
+    await hub.startRun();
+    await hub.claim(5);
+    const second = hub.dispatches[1]!;
+    assert.equal(second.intent.environment.daemonId, hub.daemonId);
+    const after = await hub.openSession(second);
+    assert.equal(after.action, "continued");
+    assert.equal(after.agentId, before.agentId);
   });
 
   it("releases the hold only after the archive completes", async () => {
@@ -570,8 +592,8 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
       provider: () => ({
         create: unavailable,
         exec: unavailable,
-        service: unavailable,
         setMemory: unavailable,
+        async service() {},
         async destroy(sprite) {
           providerCalls.push({ call: "destroy", sprite });
         },
@@ -609,11 +631,17 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
   const revision = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
   assert.ok(revision);
   const configuration = parseCompiledHubConfig(revision.normalizedConfiguration);
+  const activeRevision = async () => {
+    const active = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
+    assert.ok(active);
+    return { id: active.id, configuration: parseCompiledHubConfig(active.normalizedConfiguration) };
+  };
   const provider = {
     name: "manual",
     eventNames: ["manual.run"] as const,
     async match(): Promise<readonly AcceptedTriggerProviderMatch[]> {
-      const configured = configuration.triggers[0]!;
+      const active = await activeRevision();
+      const configured = active.configuration.triggers[0]!;
       const invocation = parseInvocation("", configured.inputs);
       if (invocation.status !== "accepted") throw new Error("invocation rejected");
       return [
@@ -621,8 +649,8 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
           triggerName: configured.name,
           triggerContext: { provider: "manual" },
           outputContext: { provider: "manual" },
-          configurationRevisionId: revision.id,
-          hubConfig: configuration,
+          configurationRevisionId: active.id,
+          hubConfig: active.configuration,
           conversation: null,
           invocation,
         },
@@ -690,6 +718,19 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
         refreshProviderSnapshot: unused,
       };
       return { called, resolve };
+    },
+    async editEnv() {
+      await database.setMachineSpecs(state.machineId, {
+        bootstrapHash: bootstrapHash("echo ready"),
+        envHash: "before",
+        memoryMb: 8192,
+        npmPrefix: "/usr/lib/node",
+      });
+      await editStore.save({
+        triggerId: trigger.id,
+        yaml: spriteYaml.replace("cwd: /workspace", "cwd: /workspace\n    env: { TOKEN: two }"),
+        userId: null,
+      });
     },
     async editBootstrap() {
       await editStore.save({
@@ -818,7 +859,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
         providerEventReceiptId: receipt.event.providerEventReceiptId,
         organizationId: "org",
         projectId: trigger.runtimeProjectId,
-        configurationRevisionId: revision.id,
+        configurationRevisionId: (await activeRevision()).id,
         source: "manual.run",
         deliveryId: receipt.event.deliveryId,
         payload: {},
