@@ -1,7 +1,7 @@
 import type { DaemonCreateAgentOptions } from "../daemons/protocol.js";
 import type { OutputToolDefinition } from "../execution-capabilities/outputs.js";
 
-export type AgentSessionAction = "created" | "continued" | "restored";
+export type AgentSessionAction = "created" | "continued" | "restored" | "reset";
 
 export interface AgentSessionRecord {
   id: string;

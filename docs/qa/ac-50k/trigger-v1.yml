@@ -1,0 +1,21 @@
+name: qa-ac50k-sprite
+enabled: true
+on:
+  manual.run: {}
+run:
+  target:
+    kind: sprite
+    bootstrap: |
+      npm install -g @anthropic-ai/claude-code && node "$(npm prefix -g)/lib/node_modules/@anthropic-ai/claude-code/install.cjs"
+      mkdir -p /home/sprite/workspace/project && cd /home/sprite/workspace/project && git init -q && git -c user.email=qa@example.com -c user.name=qa commit -q --allow-empty -m init
+    cwd: /home/sprite/workspace/project
+    env:
+      QA_A: one
+  agent: { provider: claude, mode: bypassPermissions }
+  continuation:
+    mode: key
+    key: qa-ac50k
+  prompt: Call the finish_execution MCP tool exactly once. Do not use curl, shell, or direct HTTP.
+  auto_archive: true
+  max_runtime: 3m
+  idle_timeout: 2m

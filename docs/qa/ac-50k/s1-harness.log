@@ -1,0 +1,74 @@
+# s1: harness regression at fe83ab1
+
+$ npx vitest run src/daemons src/triggers src/agent-sessions
+
+
+ Test Files  58 passed | 2 skipped (60)
+      Tests  596 passed | 2 skipped (598)
+   Start at  16:11:08
+   Duration  493.89s (transform 2.10s, setup 0ms, collect 6.40s, tests 486.98s, environment 0ms, prepare 71ms)
+
+
+No failures, no reruns needed (ac-shh.19 / ac-shh.28 registry.test.ts flakes did not occur).
+
+## Per-test detail for the files this PR touches
+
+$ npx vitest run src/daemons/sprites/activation.test.ts src/daemons/sprites/dispatch.test.ts src/daemons/sprites/client.test.ts src/agent-sessions/index.test.ts --reporter=verbose
+
+ ✓ src/agent-sessions/index.test.ts > same-key arrivals share an agent; an earlier completion cannot archive newer work 22ms
+ ✓ src/agent-sessions/index.test.ts > session tools keep each arrival's destination and reject stale or foreign execution IDs 25ms
+ ✓ src/agent-sessions/index.test.ts > new-agent policy isolates arrivals and incompatible targets fail without replacement 8ms
+ ✓ src/agent-sessions/index.test.ts > ordinary launches use agent sessions and preserve long prompts without enabling continuation 5ms
+ ✓ src/agent-sessions/index.test.ts > steering keeps the active agent's scoped credentials instead of requiring a new agent 3ms
+ ✓ src/agent-sessions/index.test.ts > steering cannot extend the active agent's original max-runtime deadline 3ms
+ ✓ src/agent-sessions/index.test.ts > a completed credentialed task gets a fresh agent and isolates the previous agent's tools 4ms
+ ✓ src/agent-sessions/index.test.ts > a ping cannot send more work after the inherited deadline while timeout cleanup is pending 3ms
+ ✓ src/agent-sessions/index.test.ts > a new daemon for the same key resets the conversation and records the new daemon 3ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > creates, bootstraps, and enrolls the sprite in order with the service env resolved 7ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > terminates the machine, stops, and destroys the sprite when bootstrap exits non-zero 1ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > scrubs long organization values only, from the failure reason and the connect log 1ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > keeps the failure reason when destroying the failed sprite also fails 3ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > terminates the machine with the provider message when create fails 1ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > fails the job naming the env key when a template needs an execution lease 1ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > rewrites the daemon service of every alive sprite with the merged env 2ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > reports and resolves when the rewrite cannot list the organization's triggers 0ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > does not create a second sprite while the trigger's machine is not terminated 1ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > rejects activation without a Sprites configuration and keeps the previous revision 1ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite activation > rejects activation on a Hub that cannot provision sprites 0ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite trigger edits > destroys the sprite, revokes its daemon, and terminates the row when the bootstrap changes 1ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite trigger edits > refuses a bootstrap change while an execution is running on the sprite 0ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite trigger edits > rewrites the daemon service when only the target env changes 0ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite trigger edits > updates the resources policy when only the memory changes 0ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite trigger edits > destroys the sprite when the trigger stops targeting one 0ms
+ ✓ src/daemons/sprites/activation.test.ts > sprite trigger edits > recreates the sprite on the next save once the row is terminated 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > holds an awake sprite before handing off 5ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > holds, defers while the socket is closed, and hands off once the daemon reconnects 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > defers a spawning sprite without reaching the provider 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > defers an alive sprite whose daemon has not enrolled without reaching the provider 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > recreates a terminated sprite once and defers 0ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > fails the run as sprite_unavailable when the recreated sprite terminates again 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > fails the run as sprite_unavailable when recreation fails 3ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > terminates the machine and defers when hold fails, so the next claim recreates 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > destroys the sprite when its daemon is revoked 0ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > releases the hold only after the archive completes 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > releases the hold at the end of the archive attempt when the daemon is offline 3ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > releases the hold after the archive attempt when an execution fails 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > holds and releases each of two concurrent executions under its own task 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > reports a failed release and still completes the terminal transition 1ms
+ ✓ src/daemons/sprites/client.test.ts > decodeExec > decodes a zero exit 0ms
+ ✓ src/daemons/sprites/client.test.ts > decodeExec > decodes a non-zero exit after stdout 0ms
+ ✓ src/daemons/sprites/client.test.ts > decodeExec > separates interleaved stdout and stderr 0ms
+ ✓ src/daemons/sprites/client.test.ts > decodeExec > drops the newline HTTP/2 appends after the exit frame 0ms
+ ✓ src/daemons/sprites/client.test.ts > decodeExec > reports a missing exit frame as a null exit code 0ms
+ ✓ src/daemons/sprites/client.test.ts > decodeExec > decodes UTF-8 payloads 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > builds the exec query with repeated cmd and env and sends stdin only when given 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > creates a sprite and applies its memory limit 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > updates the memory limit on its own 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > deletes a service before writing it and tolerates a missing one 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > rejects a service write whose stream never completes 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > holds by upserting the task with PUT through sprite-env curl 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > treats a missing task or sprite as released or destroyed 0ms
+ ✓ src/daemons/sprites/client.test.ts > Sprites client > raises provider failures with their status and body 0ms
+ Test Files  4 passed (4)
+      Tests  54 passed (54)
+   Duration  819ms (transform 253ms, setup 0ms, collect 436ms, tests 117ms, environment 0ms, prepare 30ms)

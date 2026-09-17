@@ -1203,6 +1203,7 @@ export class DaemonDispatchLifecycle {
     await this.options.database.transitionMachine(machineId, "terminated", {
       reason,
     });
+    await this.destroySprite(machineId);
 
     await Promise.all(
       failedExecutions.map((execution) =>
@@ -1520,6 +1521,18 @@ export class DaemonDispatchLifecycle {
       );
     } catch (error) {
       this.report(error, "sprites.release", { executionId: execution.id });
+    }
+  }
+
+  private async destroySprite(machineId: string): Promise<void> {
+    const machine = await this.options.database.findMachineById(machineId);
+    if (machine?.source.kind !== "sprite") return;
+    try {
+      const provider = await this.spriteProviderFor(machine.orgId);
+      await provider.destroy(machine.source.spriteName);
+      this.logger.info({ machineId, sprite: machine.source.spriteName }, "sprite destroyed");
+    } catch (error) {
+      this.report(error, "sprites.destroy", { machineId });
     }
   }
 
