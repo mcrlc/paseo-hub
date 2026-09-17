@@ -1,0 +1,36 @@
+# Scenario 5: replace flow
+Token A: ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+Token B: ac0yj-sprites-token-B-8046761983535a0a400c52d4
+
+## Row before replacing (after the owner's wire save of token A)
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+memory_mb          | 8192
+updated_by_user_id | 07e75ede-db0d-421b-94cd-cc7e60f9a7c2
+updated_at         | 2026-09-17 08:39:01.000003+00
+
+## Admin saves token B with 16384 through the UI (ui-journey.ts replace)
+## Row after
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-B-8046761983535a0a400c52d4
+memory_mb          | 16384
+updated_by_user_id | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni
+updated_at         | 2026-09-17 08:39:14.664254+00
+
+updated_at changed 08:39:01.000003 -> 08:39:14.664254, token A -> token B, memory 8192 -> 16384, updated_by owner -> admin. One row per organization (primary key organization_id):
+1|f|t
+(stale-notice.ts later re-saved token B at 16384; updated_at advanced again to 2026-09-17 08:39:50.205349+00)
+
+## Browser responses during the replace step
+# 48 responses received; 40 static /assets/ bodies omitted here, grep counted over all of them before trimming
+token A hits: 0, token B hits: 0 (counted before trimming too: 0 / 0)
+
+## Sprites API proof: blocked
+The installed sprite CLI (sprite --help) can add an existing org token (org auth, auth setup --token) but cannot mint one, and minting
+two real Fly org tokens is an account-level action outside this verification. Both tokens above are synthetic, so 'sprite api' against
+either would only show both rejected. The replacement is proven by the row alone.
+
+## Hub log
+grep -c token A in hub log: 0, token B: 0

@@ -1,0 +1,3 @@
+member settings nav links: ["Team","Usage"]
+member direct visit main text: "Toggle Sidebar\nAcme\n/\nSettings\n/\nSprites\nTeam\nUsage\nSprites\n\nThe Fly Sprites organization token Hub uses to create sprites for Acme.\n\nNo access to Sprites\n\nYou don't have permission to configure Sprites."
+admin settings nav links: ["Team","API keys","Sprites","Usage"]
