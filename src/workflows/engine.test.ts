@@ -99,8 +99,18 @@ describe("durable multi-step workflow engine", () => {
     const fixture = await workflowFixture({
       compiledConfiguration: compileHubConfig(raw, { spriteTargets: true }),
     });
-    const dispatches: string[] = [];
-    const { handler, engine } = engineFor(fixture, dispatches);
+    const stream = new FailureLogStream();
+    const dispatches: LaunchMachineIntent[] = [];
+    const { handler, engine } = createDurableWorkflowHandler({
+      database: fixture.database,
+      entitlements: fixture.entitlements,
+      providers: [providerMatch(fixture.configuration, fixture.revisionId)],
+      logger: createLogger(stream),
+      dispatchLaunchMachineIntent: async (intent) => {
+        dispatches.push(intent);
+        throw new Error("sprite step was dispatched");
+      },
+    });
 
     await handler(fixture.trigger("run"));
     await engine.processAvailable();
@@ -111,6 +121,13 @@ describe("durable multi-step workflow engine", () => {
     assert.equal(run.status, "failed");
     assert.match(run.failureReason ?? "", /sprite target, which cannot be dispatched yet/u);
     assert.deepEqual(dispatches, []);
+    assertOneFailure(stream, {
+      operation: "workflow.launch-expression.evaluate",
+      component: "workflows",
+      failureKind: "validation",
+      level: 40,
+      canary: "sprite-dispatch-canary",
+    });
   });
 
   it("materializes ambient context only for the step that authors paseo.context", async () => {

@@ -49,6 +49,19 @@ describe("organization trigger store", () => {
     assert.deepEqual(parseCompiledHubConfig(revision.normalizedConfiguration).environments, [
       { name: "target", kind: "sprite", bootstrap: "install", cwd: "/workspace" },
     ]);
+
+    await entitlements.clearOverride("org", "canUseSpriteTargets", "admin", "Sprite beta ended");
+    const disabled = await store.save({
+      triggerId: daemon.id,
+      yaml: sprite.replace("enabled: true", "enabled: false"),
+      userId: null,
+    });
+    assert.equal(disabled.enabled, false);
+    assert.equal((await store.activeRevision(disabled)).version, 3);
+    await assert.rejects(
+      store.save({ triggerId: daemon.id, yaml: sprite, userId: null }),
+      /run\.target\.kind: Sprite targets are not enabled for this organization\./u,
+    );
   });
 
   it("fails validation before creating storage when the daemon is unknown", async () => {

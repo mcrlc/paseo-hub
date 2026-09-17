@@ -68,7 +68,11 @@ export class OrganizationTriggerStore {
   async validate(yaml: string, enforceAuthoringContract = true) {
     const compiled = compileTriggerDocument(yaml);
     if (enforceAuthoringContract) validateAuthoringContract(compiled.authored);
-    if (compiled.environment.kind === "sprite" && !(await this.canUseSpriteTargets())) {
+    if (
+      compiled.environment.kind === "sprite" &&
+      compiled.authored.enabled &&
+      !(await this.canUseSpriteTargets())
+    ) {
       throw new TriggerDocumentError([
         {
           path: ["run", "target", "kind"],

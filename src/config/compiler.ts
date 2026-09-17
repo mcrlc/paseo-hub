@@ -1188,6 +1188,13 @@ function validateEnvironmentTemplates(
   environments: readonly (AuthoredEnvironment | CompiledEnvironment)[],
 ): void {
   for (const environment of environments) {
+    if (environment.kind === "sprite") {
+      for (const [key, value] of Object.entries(environment.env ?? {})) {
+        compileAt(["environments", environment.name, "env", key], () => {
+          validateConnectionTemplate(value, `environment ${environment.name} env.${key}`);
+        });
+      }
+    }
     if (environment.worktree?.mode !== "branch-off") continue;
     const newBranch = environment.worktree.newBranch;
     compileAt(["environments", environment.name, "worktree", "newBranch"], () => {

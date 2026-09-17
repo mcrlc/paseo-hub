@@ -15,7 +15,7 @@ import type { AgentExecutionStatus } from "../db/schema.js";
 import { parseCompiledHubConfig, type JsonPrimitive, type JsonValue } from "../config/compiler.js";
 import type { CompiledProjectConfiguration } from "../configuration/store.js";
 import { logger as defaultLogger } from "../logger.js";
-import { reportFailure } from "../failures/index.js";
+import { reportFailure, type FailureKind } from "../failures/index.js";
 import { durableExecutionId } from "../daemons/lifecycle.js";
 import { EntitlementDenied } from "../entitlements/catalog.js";
 import { encodeEntitlementDenialFailureReason } from "../entitlements/denial.js";
@@ -541,10 +541,12 @@ export class DurableWorkflowEngine {
         !(error instanceof SpriteDispatchUnsupportedError)
       )
         throw error;
-      this.report(error, "workflow.launch-expression.evaluate", {
-        triggerRunId: run.id,
-        stepId: step.id,
-      });
+      this.report(
+        error,
+        "workflow.launch-expression.evaluate",
+        { triggerRunId: run.id, stepId: step.id },
+        error instanceof SpriteDispatchUnsupportedError ? "validation" : undefined,
+      );
       const failed = await database.failWorkflowRun(run.id, "failed", error.message, step.id);
       if (failed?.transitioned === true) await this.notifyWorkflowRunTerminal(failed.run);
       return undefined;
@@ -788,11 +790,20 @@ export class DurableWorkflowEngine {
     );
   }
 
-  private report(error: unknown, operation: string, diagnostic?: Record<string, unknown>): void {
+  private report(
+    error: unknown,
+    operation: string,
+    diagnostic?: Record<string, unknown>,
+    kind?: FailureKind,
+  ): void {
     reportFailure(
       error,
       { operation, component: "workflows" },
-      { logger: this.logger, ...(diagnostic === undefined ? {} : { diagnostic }) },
+      {
+        logger: this.logger,
+        ...(diagnostic === undefined ? {} : { diagnostic }),
+        ...(kind === undefined ? {} : { kind }),
+      },
     );
   }
 
