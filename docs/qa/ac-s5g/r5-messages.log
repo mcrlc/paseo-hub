@@ -1,0 +1,104 @@
+# ac-s5g round 5, scenario 4: refusal messages
+# HEAD: 88dec43c1764d23be50f90a23047302d764621e6
+# date: 2026-09-17T15:51:19Z
+# command: LOG_LEVEL=silent npx tsx docs/qa/ac-s5g/r5-messages.ts
+
+ac-s5g round 5, scenario 4: refusal messages from the code
+
+== entitlement refused (guide L12-13) ==
+produced:   "run.target.kind: Sprite targets are not enabled for this organization."
+documented: "run.target.kind: Sprite targets are not enabled for this organization."
+MATCH
+
+== no Sprites configuration (guide L13-14) ==
+produced:   "run.target.kind: Sprites are not configured for this organization."
+documented: "run.target.kind: Sprites are not configured for this organization."
+MATCH
+
+== auto_archive: false (guide L54-55) ==
+produced:   "run.auto_archive: Sprite targets always archive; auto_archive must be true."
+documented: "run.auto_archive: Sprite targets always archive; auto_archive must be true."
+MATCH
+
+== reserved target env key HOME (guide L58-59) ==
+produced:   ": Hub sets HOME on every sprite; choose another name."
+documented: ": Hub sets HOME on every sprite; choose another name."
+MATCH
+
+== reserved target env key PATH (guide L58-59) ==
+produced:   ": Hub sets PATH on every sprite; choose another name."
+documented: ": Hub sets PATH on every sprite; choose another name."
+MATCH
+
+== reserved target env key PASEO_HOME (guide L58-59) ==
+produced:   ": Hub sets PASEO_HOME on every sprite; choose another name."
+documented: ": Hub sets PASEO_HOME on every sprite; choose another name."
+MATCH
+
+== reserved target env key PASEO_PASSWORD (guide L58-59) ==
+produced:   ": Hub sets PASEO_PASSWORD on every sprite; choose another name."
+documented: ": Hub sets PASEO_PASSWORD on every sprite; choose another name."
+MATCH
+
+== reserved daemon env key HOME (guide L154) ==
+produced:   "Hub sets HOME on every sprite; choose another name."
+documented: "Hub sets HOME on every sprite; choose another name."
+MATCH
+
+== reserved daemon env key PATH (guide L154) ==
+produced:   "Hub sets PATH on every sprite; choose another name."
+documented: "Hub sets PATH on every sprite; choose another name."
+MATCH
+
+== reserved daemon env key PASEO_HOME (guide L154) ==
+produced:   "Hub sets PASEO_HOME on every sprite; choose another name."
+documented: "Hub sets PASEO_HOME on every sprite; choose another name."
+MATCH
+
+== reserved daemon env key PASEO_PASSWORD (guide L154) ==
+produced:   "Hub sets PASEO_PASSWORD on every sprite; choose another name."
+documented: "Hub sets PASEO_PASSWORD on every sprite; choose another name."
+MATCH
+
+== bootstrap change, 1 running execution (guide L89-90) ==
+produced:   "run.target.bootstrap: Changing bootstrap recreates the sprite and ends its 1 running execution. Save again once it is idle."
+documented: "run.target.bootstrap: Changing bootstrap recreates the sprite and ends its 1 running execution. Save again once it is idle."
+MATCH
+
+== bootstrap change, 2 running executions (plural branch) ==
+produced:   "run.target.bootstrap: Changing bootstrap recreates the sprite and ends its 2 running executions. Save again once it is idle."
+documented: "run.target.bootstrap: Changing bootstrap recreates the sprite and ends its 2 running executions. Save again once it is idle."
+MATCH
+
+== disable while running (guide L90-91) ==
+produced:   "enabled: Disabling the trigger destroys the sprite and ends its 2 running executions. Save again once it is idle."
+documented: "enabled: Disabling the trigger destroys the sprite and ends its 2 running executions. Save again once it is idle."
+MATCH
+
+== target switch while running (guide L90-91) ==
+produced:   "run.target.kind: Changing the target destroys the sprite and ends its 2 running executions. Save again once it is idle."
+documented: "run.target.kind: Changing the target destroys the sprite and ends its 2 running executions. Save again once it is idle."
+MATCH
+
+== env and memory edits while 2 executions run (guide L91) ==
+memory save accepted: true; env save accepted: true
+
+== connection template in the target env (guide L27, L162-164) ==
+produced:   "env.GH cannot be resolved without an execution lease"
+documented: "env.GH cannot be resolved without an execution lease"
+MATCH
+machine status: terminated; trigger: manual-task
+
+== 8-character redaction rule (guide L154, SECURITY.md L11) ==
+produced:   "bootstrap exited with 3: saw abcdefg and [redacted] and target-plain"
+documented: "bootstrap exited with 3: saw abcdefg and [redacted] and target-plain"
+MATCH
+
+== daemon slugs for trigger "manual-task" (guide L6-7) ==
+first daemon:               manual-task
+after a recreation:         manual-task-d04b0ee0
+first daemon status:        revoked
+
+result: PASS
+
+exit: 0
