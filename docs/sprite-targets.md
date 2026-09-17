@@ -120,18 +120,18 @@ That work runs inside the Hub process as a fire-and-forget job; nothing about it
 
 **Decision: one interface with six calls, all plain HTTP requests to the Sprites API from Hub's own process. No CLI on the Hub host, no WebSocket client. Wake is not a call; exec wakes.**
 
-| Call      | Input                              | Output                                                        |
-| --------- | ---------------------------------- | ------------------------------------------------------------- |
-| `create`  | name, memory                       | provider sprite id                                            |
-| `exec`    | sprite, command, env               | exit code and output; wakes a paused sprite as a side effect  |
-| `service` | sprite, cmd, args, env, dir        | none; delete-then-put so env changes apply                    |
-| `hold`    | sprite, task name, expiry ≤ 3600 s | none; `POST` for a new name, `PUT` to refresh an existing one |
-| `release` | sprite, task name                  | none                                                          |
-| `destroy` | sprite                             | none; the filesystem is deleted                               |
+| Call      | Input                              | Output                                                       |
+| --------- | ---------------------------------- | ------------------------------------------------------------ |
+| `create`  | name, memory                       | provider sprite id                                           |
+| `exec`    | sprite, command, env               | exit code and output; wakes a paused sprite as a side effect |
+| `service` | sprite, cmd, args, env, dir        | none; delete-then-put so env changes apply                   |
+| `hold`    | sprite, task name, expiry ≤ 3600 s | none; one idempotent `PUT` that creates or refreshes         |
+| `release` | sprite, task name                  | none                                                         |
+| `destroy` | sprite                             | none; the filesystem is deleted                              |
 
 `create` names the sprite after the trigger id, applies the memory policy, execs the Paseo CLI install and then the authored `bootstrap`, execs `paseo hub connect <origin> --api-key … --permission hub.execute` once, and writes the daemon service with `cmd: <prefix>/bin/paseo start --foreground --listen 127.0.0.1:6767 --no-relay --no-web-ui`, `dir: /home/sprite`, and `env: { HOME, PASEO_HOME, PATH, PASEO_PASSWORD, …target.env }` with connection templates resolved. The sprite URL stays at `auth: sprite` and no service sets `http_port`; the sprite has no inbound surface and all traffic is the daemon's outbound Hub socket.
 
-Transport, measured in spike 6 (`docs/qa/sprites/README.md`): every call is `fetch` against `https://api.sprites.dev` with `Authorization: Bearer <org token>`. `create` is `POST /v1/sprites {name}`; memory is `POST /v1/sprites/:name/policy/resources {memory: {limit_mb}}`; services are `PUT` and `DELETE` on `/v1/sprites/:name/services/:svc`, and a `PUT` whose `cmd` matches the running service is ignored, so an env change is `DELETE` then `PUT`. `exec` is `POST /v1/sprites/:name/exec` with `cmd` repeated once per argv element, optional `env=KEY=VALUE` (repeated) and `dir`, and `stdin=true` to send the request body to the process, which is how the multi-line `bootstrap` script reaches `sh -s`. The response is a byte stream in which each HTTP chunk is one frame: a channel byte (1 stdout, 2 stderr, 3 exit) followed by payload, with the exit frame last and carrying one exit-code byte. A silent 90 s command completes; nothing at the edge cuts an idle response. The task endpoints are not reachable from outside the sprite (`/v1/sprites/:name/tasks` is 404), so `hold`, refresh, and `release` are `exec` of `sprite-env curl` against the in-sprite `/v1/tasks`; `POST` of an existing name returns 409 and `DELETE` of a missing one returns 404. The WebSocket form of exec exists for TTY sessions and is not used. The decoder is `docs/qa/sprites/spike6-decode.mjs`.
+Transport, measured in spike 6 (`docs/qa/sprites/README.md`): every call is `fetch` against `https://api.sprites.dev` with `Authorization: Bearer <org token>`. `create` is `POST /v1/sprites {name}`; memory is `POST /v1/sprites/:name/policy/resources {memory: {limit_mb}}`; services are `PUT` and `DELETE` on `/v1/sprites/:name/services/:svc`, and a `PUT` whose `cmd` matches the running service is ignored, so an env change is `DELETE` then `PUT`. `exec` is `POST /v1/sprites/:name/exec` with `cmd` repeated once per argv element, optional `env=KEY=VALUE` (repeated) and `dir`, and `stdin=true` to send the request body to the process, which is how the multi-line `bootstrap` script reaches `sh -s`. The response is a byte stream in which each HTTP chunk is one frame: a channel byte (1 stdout, 2 stderr, 3 exit) followed by payload, with the exit frame last and carrying one exit-code byte. A silent 90 s command completes; nothing at the edge cuts an idle response. The task endpoints are not reachable from outside the sprite (`/v1/sprites/:name/tasks` is 404), so `hold` and `release` are `exec` of `sprite-env curl` against the in-sprite `/v1/tasks`. `PUT /v1/tasks/:name` creates the task when it is missing and refreshes `expires_at` when it exists, so hold and refresh are the same idempotent call and no 409 handling exists; `DELETE` of a missing task returns 404, which release tolerates. `sprite-env curl` exits 22 on any HTTP error and names the status in stderr. The WebSocket form of exec exists for TTY sessions and is not used. The decoder is `docs/qa/sprites/spike6-decode.mjs`.
 
 Organization settings hold the Sprites org token and the default memory, in a new `organization_sprites_configuration` table keyed by organization id with `token`, `memory_mb`, `updated_at`, and `updated_by_user_id`, following `organization_api_keys`. An earlier draft pointed at `runtime_provider_configuration` (`src/db/schema.ts:1245-1246`); that table is one row per Hub instance per provider with a CHECK limited to the four connection providers and mandatory verified-identity columns, so it cannot hold a per-organization credential. The connection tables cannot either, since each is provider-specific and there is no generic API-key connection. Hub has no secret encryption layer; adding one is out of scope and the security section says so.
 
@@ -169,7 +169,7 @@ Measured: a paused sprite keeps its outbound socket open, so `canDispatchToDaemo
 4. If the socket is not live yet, defer as today. The engine's 250 ms re-claim picks it up the moment the daemon connects. The wait stays bounded by the trigger's `max_runtime`, exactly as an offline daemon target is today.
 5. Hand off.
 
-The hold in step 3 is issued once per execution attempt, not once per claim. A deferred run is re-claimed every 250 ms, and the engine's claim loop must not reach the provider on each pass: the lifecycle keeps an in-memory set of execution ids it has already held, skips step 3 when the id is present, and treats a 409 from the provider as "already held". The set is cleared when the execution reaches terminal or when the refresh tick gets a 404, which is the only case where a hold is re-issued (5.8).
+The hold in step 3 is issued once per execution attempt, not once per claim. A deferred run is re-claimed every 250 ms, and the engine's claim loop must not reach the provider on each pass: the lifecycle keeps an in-memory set of execution ids it has already held and skips step 3 when the id is present. The set is cleared when the execution reaches terminal; the refresh tick (5.8) re-issues the same idempotent call on its own schedule.
 
 `startup_timeout` keeps its meaning and still starts when the daemon is connected. Measured dispatch-to-reply on a woken sprite was about 6 s, so authors need nothing special.
 
@@ -206,7 +206,7 @@ On the second arrival Hub attaches the execution to the session, then: an execut
 **Decision: one hold per execution, named by execution id, refreshed by a tick, released at terminal. No idle deadline of Hub's own.**
 
 - `hold` at execution `spawning` (5.5 step 3), with the maximum expiry of 3600 s.
-- A scheduler tick refreshes (`PUT`) every hold whose execution is still `spawning` or `running` and is older than 30 minutes. If the provider answers 404, because the task did not survive a provider restart, the tick re-`POST`s.
+- A scheduler tick re-issues the same `PUT` for every hold whose execution is still `spawning` or `running` and is older than 30 minutes. Because `PUT` creates a missing task, a task that did not survive a provider restart is recreated by the same call.
 - `release` when the execution reaches a terminal state. Sibling executions on the same sprite each hold their own task, so nothing is counted.
 - The provider pauses the sprite about 30 s after the last release; measured 15 s to `warm`.
 - Startup recovery re-holds from execution rows, like execution deadlines.
