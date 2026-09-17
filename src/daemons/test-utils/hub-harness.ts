@@ -472,10 +472,26 @@ export class HubHarness {
     return daemon;
   }
 
-  async spawningSpriteMachine(apiKeyId = HUB_API_KEY_ID): Promise<string> {
+  async spawningSpriteMachine(
+    triggerName = "nightly_deploy",
+    apiKeyId = HUB_API_KEY_ID,
+  ): Promise<string> {
+    if (this.postgres === undefined) throw new Error("Postgres is unavailable");
+    const client = await createPostgresQueryRuntime(this.postgres.getConnectionUri());
+    const triggers = await client.query<{ id: string }>(
+      `insert into organization_triggers (organization_id, name, format)
+       values ($1, $2, 'single_run') returning id`,
+      [HUB_ORGANIZATION_ID, triggerName],
+    );
+    await client.close();
     const machine = await this.requireDatabase().insertSpriteMachine({
       orgId: HUB_ORGANIZATION_ID,
-      source: { kind: "sprite", triggerId: randomUUID(), spriteName: "sprite", apiKeyId },
+      source: {
+        kind: "sprite",
+        triggerId: triggers.rows[0]!.id,
+        spriteName: "sprite",
+        apiKeyId,
+      },
       specs: null,
     });
     if (machine === undefined) throw new Error("Sprite machine was not inserted");
