@@ -2,7 +2,7 @@
 
 PRD for running Hub-triggered agents on Fly Sprites: ephemeral compute that pauses when idle and keeps its filesystem. Status: proposal, validated by spikes, not implemented. Implementation lives entirely here; the Paseo image and entrypoint are not involved. Cross-provider continuation and agent-opened Slack threads were split out to `docs/cross-provider-continuation.md`; neither depends on the other.
 
-Validated against `getpaseo/hub` at `1512f10 fix(executions): survive Hub restarts with active credentials (#133)`. Unprefixed `file:line` references are to this tree; Paseo paths are marked. Every claim about Sprites below was measured on 2026-09-16 against Sprites API `0.0.1-rc48`; the scripts and numbers are in `docs/qa/sprites/README.md`. An earlier draft assumed a provider with images, sizes, regions, and explicit sleep and wake calls. Sprites has none of those, and the design got smaller once that was accepted.
+Validated against `getpaseo/hub` at `1512f10 fix(executions): survive Hub restarts with active credentials (#133)`. Unprefixed `file:line` references are to this tree; Paseo paths are marked. Every claim about Sprites below was measured on 2026-09-16 and 2026-09-17 against Sprites API `0.0.1-rc48`; the scripts and numbers are in `docs/qa/sprites/README.md`. An earlier draft assumed a provider with images, sizes, regions, and explicit sleep and wake calls. Sprites has none of those, and the design got smaller once that was accepted.
 
 ## Premise probes
 
@@ -114,9 +114,11 @@ The legacy bundle compiler (`src/config/compiler.ts`) removes the `fly` and `doc
 
 Activation validates the target and checks that the organization has a Sprites credential configured. It creates the `machines` row and starts provider `create` plus bootstrap immediately, so the first arrival usually finds an enrolled, paused sprite and a bad `bootstrap` fails at activation rather than at first arrival.
 
+That work runs inside the Hub process as a fire-and-forget job; nothing about it is durable except the `machines` row. The row is written `spawning` before the first provider call, and a Hub restart mid-bootstrap leaves it there until the recovery scan in 5.5 either finds an enrolled daemon for it and marks it `alive`, or destroys the half-built sprite, marks the row `terminated`, and lets the next arrival recreate it. No job table and no retry state.
+
 ### 5.2 Provider
 
-**Decision: one interface with six calls, all thin wrappers over the Sprites API. Wake is not a call; exec wakes.**
+**Decision: one interface with six calls, all plain HTTP requests to the Sprites API from Hub's own process. No CLI on the Hub host, no WebSocket client. Wake is not a call; exec wakes.**
 
 | Call      | Input                              | Output                                                        |
 | --------- | ---------------------------------- | ------------------------------------------------------------- |
@@ -128,6 +130,8 @@ Activation validates the target and checks that the organization has a Sprites c
 | `destroy` | sprite                             | none; the filesystem is deleted                               |
 
 `create` names the sprite after the trigger id, applies the memory policy, execs the Paseo CLI install and then the authored `bootstrap`, execs `paseo hub connect <origin> --api-key … --permission hub.execute` once, and writes the daemon service with `cmd: <prefix>/bin/paseo start --foreground --listen 127.0.0.1:6767 --no-relay --no-web-ui`, `dir: /home/sprite`, and `env: { HOME, PASEO_HOME, PATH, PASEO_PASSWORD, …target.env }` with connection templates resolved. The sprite URL stays at `auth: sprite` and no service sets `http_port`; the sprite has no inbound surface and all traffic is the daemon's outbound Hub socket.
+
+Transport, measured in spike 6 (`docs/qa/sprites/README.md`): every call is `fetch` against `https://api.sprites.dev` with `Authorization: Bearer <org token>`. `create` is `POST /v1/sprites {name}`; memory is `POST /v1/sprites/:name/policy/resources {memory: {limit_mb}}`; services are `PUT` and `DELETE` on `/v1/sprites/:name/services/:svc`, and a `PUT` whose `cmd` matches the running service is ignored, so an env change is `DELETE` then `PUT`. `exec` is `POST /v1/sprites/:name/exec` with `cmd` repeated once per argv element, optional `env=KEY=VALUE` (repeated) and `dir`, and `stdin=true` to send the request body to the process, which is how the multi-line `bootstrap` script reaches `sh -s`. The response is a byte stream in which each HTTP chunk is one frame: a channel byte (1 stdout, 2 stderr, 3 exit) followed by payload, with the exit frame last and carrying one exit-code byte. A silent 90 s command completes; nothing at the edge cuts an idle response. The task endpoints are not reachable from outside the sprite (`/v1/sprites/:name/tasks` is 404), so `hold`, refresh, and `release` are `exec` of `sprite-env curl` against the in-sprite `/v1/tasks`; `POST` of an existing name returns 409 and `DELETE` of a missing one returns 404. The WebSocket form of exec exists for TTY sessions and is not used. The decoder is `docs/qa/sprites/spike6-decode.mjs`.
 
 Organization settings hold the Sprites org token and the default memory. They live under the existing organization settings routes. The credential is stored like other operator provider configuration, as plain jsonb in `runtime_provider_configuration` (`src/db/schema.ts:1245-1246`). Hub has no secret encryption layer; adding one is out of scope and the security section says so.
 
@@ -164,6 +168,8 @@ Measured: a paused sprite keeps its outbound socket open, so `canDispatchToDaemo
 3. `hold(sprite, execution id, 60m)`. Exec wakes the sprite if it was paused; the daemon's socket resumes or reconnects within seconds (measured: about 5 s from hold to "Client connected via hello").
 4. If the socket is not live yet, defer as today. The engine's 250 ms re-claim picks it up the moment the daemon connects. The wait stays bounded by the trigger's `max_runtime`, exactly as an offline daemon target is today.
 5. Hand off.
+
+The hold in step 3 is issued once per execution attempt, not once per claim. A deferred run is re-claimed every 250 ms, and the engine's claim loop must not reach the provider on each pass: the lifecycle keeps an in-memory set of execution ids it has already held, skips step 3 when the id is present, and treats a 409 from the provider as "already held". The set is cleared when the execution reaches terminal or when the refresh tick gets a 404, which is the only case where a hold is re-issued (5.8).
 
 `startup_timeout` keeps its meaning and still starts when the daemon is connected. Measured dispatch-to-reply on a woken sprite was about 6 s, so authors need nothing special.
 

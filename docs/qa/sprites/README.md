@@ -1,7 +1,8 @@
 # Fly Sprites spikes for `docs/sprite-targets.md`
 
-Run 2026-09-16 against Sprites API `0.0.1-rc48`, CLI `2026-09-02 (6390abf)`, org `michael-ehrlich`.
-Scripts in this directory reproduce each result. Sprites used: `hub-spike`, `hub-spike-2`.
+Run 2026-09-16 against Sprites API `0.0.1-rc48`, CLI `2026-09-02 (6390abf)`, org `michael-ehrlich`;
+spike 6 on 2026-09-17. Scripts in this directory reproduce each result. Sprites used: `hub-spike`,
+`hub-spike-2`, `hub-spike-3`.
 
 ## Base environment
 
@@ -169,3 +170,40 @@ restore. That is PRD 5.7 continuation across sleep, proven with today's Hub and 
 
 Timing for the PRD: hold to daemon-reconnected about 5 s; dispatch to reply about 6 s. The 20 s to
 60 s "Created agent" lag seen on the first runs was the stale Claude binary check, not Sprites.
+
+## Spike 6: the provider surface over the HTTP API (`spike6-http-api.sh`, `spike6-decode.mjs`)
+
+Spikes 1 to 5 drove everything through the `sprite` CLI. Hub runs in Node and will not shell out to
+a logged-in CLI, so this spike repeats the calls the PRD's provider needs as plain HTTP against
+`https://api.sprites.dev` with `Authorization: Bearer <org token>`. `sprite api` is only an
+authenticated curl and was used as the client; the token comes from the CLI's keyring, or
+`SPRITES_TOKEN` in CI, and is minted at `sprites.dev/account`. Fresh sprite `hub-spike-3`.
+
+| Call               | Request                                                              | Result                                                                                                                                                                                                                                          |
+| ------------------ | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| create             | `POST /v1/sprites {"name"}`                                          | 200, `status: cold`, URL `auth: sprite`. Whole body is the name.                                                                                                                                                                                |
+| memory             | `POST /v1/sprites/:n/policy/resources {"memory":{"limit_mb":16384}}` | 204; `GET` reads it back. `{"memory_mb"}` is rejected with 400 "unknown field".                                                                                                                                                                 |
+| service put        | `PUT /v1/sprites/:n/services/:svc {cmd,args,env,dir}`                | 200, streams `started` then `complete` with log paths, service `running`.                                                                                                                                                                       |
+| service env change | same `PUT` with a new `env`                                          | 200 but ignored: "Service already running with that command". `DELETE` (204) then `PUT` applies the new env. Same as the CLI finding in spike 3.                                                                                                |
+| exec               | `POST /v1/sprites/:n/exec?cmd=sh&cmd=-c&cmd=…`                       | 200 `application/octet-stream`. `cmd` repeats once per argv element. `env=K=V` (repeatable) and `dir` work. Runs as `sprite`, `HOME=/home/sprite`, non-login `PATH`.                                                                            |
+| exec with stdin    | `…exec?cmd=sh&cmd=-s&stdin=true` with the script as the request body | Runs the multi-line script; stdout, stderr, and exit 7 all came back. This is how `bootstrap` is delivered.                                                                                                                                     |
+| exec, silent 90 s  | `sleep 90; echo done`                                                | Completed in 90 s with `done`. Nothing at the edge cuts an idle response, so a quiet `npm install` is safe.                                                                                                                                     |
+| tasks from outside | `GET`/`POST /v1/sprites/:n/tasks`                                    | 404. Holds are only reachable inside the sprite, so `hold`/`refresh`/`release` are an exec of `sprite-env curl` against `/v1/tasks`. Same shape as spike 2, confirmed over HTTP.                                                                |
+| hold via exec      | `POST /v1/tasks {"name":"hub-hold","expire":"5m"}`                   | 200 with `expires_at`. `PUT` refreshes `expires_at`. `DELETE` 200; `DELETE` again 404 "task not found". Re-`POST` of a live name is 409 per spike 2 (same in-sprite call; `sprite-env curl` rejects `-o` and `-w`, so it is not re-shown here). |
+| exec wake          | `POST …/exec` after 4 min idle                                       | 0.34 s wall clock. The probe service's log, written every 5 s, stops at 04:39:51 and resumes at 04:43:46, so the sprite was paused and the exec woke it. Same pid afterwards.                                                                   |
+| WebSocket exec     | `GET …/exec?cmd=…` with an `Upgrade: websocket` handshake            | 101 with the bearer, so it exists, but it is only needed for TTY sessions and is not used.                                                                                                                                                      |
+| destroy            | `DELETE /v1/sprites/:n`                                              | 204; `GET` afterwards 404. `spike6-http-api.sh` runs create through destroy end to end on a fresh sprite in about 20 s.                                                                                                                         |
+
+**Exec response framing.** With `--http1.1 --raw` every chunked-encoding chunk is exactly one
+frame: a channel byte followed by payload, `1` stdout, `2` stderr, `3` exit. The exit frame is
+last and carries one exit-code byte (`03 00`, `03 03`, `03 c8` for 0, 3, 200); over HTTP/2 a
+newline follows it. A 5000-byte stdout arrived as one frame. `spike6-decode.mjs` decodes a whole
+body and self-checks; it strips channel bytes wherever they appear because `fetch()` does not
+preserve chunk boundaries, which is fine for logs and JSON and wrong for binary stdout.
+
+**Status field lags.** `GET /v1/sprites/:n` reported `warm` one second after a 90 s exec
+finished and `warm` while an exec was running. Do not use it to decide whether a sprite is
+awake; the hold set and the daemon socket are the truth, as the PRD says.
+
+Consequence for the PRD: the provider is six `fetch` calls and one decoder. No CLI on the Hub
+host, no WebSocket client, no new dependency.
