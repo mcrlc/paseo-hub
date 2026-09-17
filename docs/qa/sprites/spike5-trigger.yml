@@ -1,0 +1,18 @@
+# Spike 5 trigger: manual runs with a fixed continuation key stand in for PR comments.
+# Two runs with the same key must land on the same agent, across a sprite pause.
+name: sprite-spike
+on:
+  manual.run: {}
+run:
+  target:
+    daemon: hub-spike-2-102c06ad
+    cwd: /home/sprite/workspace/hub
+  agent:
+    provider: claude
+    mode: bypassPermissions
+  continuation:
+    mode: key
+    key: sprite-spike-v2
+  prompt: ${{ paseo.prompt }}
+  max_runtime: 30m
+  idle_timeout: 2m
