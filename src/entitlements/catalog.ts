@@ -122,7 +122,7 @@ export type EntitlementKind = "cap" | "meter" | "flag";
 export const UNLIMITED_TEMPLATE: EntitlementTemplate = {
   seats: { max: null },
   canInviteMembers: true,
-  canUseSpriteTargets: false,
+  canUseSpriteTargets: true,
   meters: { "executions.monthly": { limit: null } },
 };
 

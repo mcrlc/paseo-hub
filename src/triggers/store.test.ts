@@ -27,7 +27,11 @@ describe("organization trigger store", () => {
   it("activates a sprite target only while the organization is entitled to sprite targets", async () => {
     const database = await databaseWithDaemon();
     const entitlements = new EntitlementsService(database, { seats: async () => 0 });
-    await entitlements.stamp("org", UNLIMITED_TEMPLATE, { source: "provisioning", planId: null });
+    await entitlements.stamp(
+      "org",
+      { ...UNLIMITED_TEMPLATE, canUseSpriteTargets: false },
+      { source: "provisioning", planId: null },
+    );
     const store = new OrganizationTriggerStore(database, "org", entitlements);
     const daemon = await store.save({ yaml: triggerYaml(true), userId: null });
     const sprite = triggerYaml(true).replace(

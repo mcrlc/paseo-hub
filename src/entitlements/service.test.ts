@@ -464,7 +464,7 @@ describe("effectiveEntitlements", () => {
     assert.deepEqual(effective, {
       seats: { max: 2 },
       canInviteMembers: true,
-      canUseSpriteTargets: false,
+      canUseSpriteTargets: true,
       meters: { "executions.monthly": { limit: null } },
     });
   });
@@ -484,7 +484,7 @@ describe("normalizeStoredEntitlements", () => {
       seats: { max: null },
       canInviteMembers: true,
     });
-    assert.deepEqual(normalized, UNLIMITED_TEMPLATE);
+    assert.deepEqual(normalized, { ...UNLIMITED_TEMPLATE, canUseSpriteTargets: false });
   });
 
   it("keeps a fully current document unchanged", () => {
