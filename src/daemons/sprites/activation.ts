@@ -276,8 +276,21 @@ async function retireSprite(
   await destroyBestEffort(provider, machine);
   const daemon = await database.findDaemonByMachineId(machine.id);
   if (daemon !== undefined) await database.revokeDaemon(daemon.id);
+  await freeSpriteDaemonSlug(database, machine);
   await database.transitionMachine(machine.id, "terminated", { reason });
   logger.info({ machineId: machine.id, reason }, "sprite retired");
+}
+
+/** The slug unique index covers revoked daemons, so the trigger name stays taken until this runs. */
+export async function freeSpriteDaemonSlug(
+  database: Pick<Database, "findDaemonByMachineId" | "renameDaemonForOrganization">,
+  machine: MachineRecord,
+): Promise<void> {
+  const daemon = await database.findDaemonByMachineId(machine.id);
+  if (daemon === undefined) return;
+  const suffix = `-revoked-${daemon.id.slice(0, 8)}`;
+  if (daemon.slug.endsWith(suffix)) return;
+  await database.renameDaemonForOrganization(machine.orgId, daemon.id, `${daemon.slug}${suffix}`);
 }
 
 async function rewriteSpriteService(input: {

@@ -171,6 +171,33 @@ describe("sprite dispatch", () => {
     assert.equal(machine?.shutdownReason, "daemon_revoked");
   });
 
+  it("frees the sprite daemon's slug on revocation and leaves a daemon target alone", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    const sprite = hub.daemonId;
+    const devbox = await hub.enrollDaemonTarget();
+
+    await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
+      hub.machineId,
+      "daemon_revoked",
+    );
+    await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
+      hub.machineId,
+      "daemon_revoked",
+    );
+    await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
+      devbox.machineId,
+      "daemon_revoked",
+    );
+
+    assert.equal(
+      (await hub.database.findDaemonById(sprite))?.slug,
+      `sprite-task-revoked-${sprite.slice(0, 8)}`,
+    );
+    assert.equal((await hub.database.findDaemonById(devbox.id))?.slug, "devbox");
+  });
+
   it("recreates the sprite after a bootstrap change and resets the conversation", async () => {
     const hub = await setup();
     hub.socketOpen = true;
@@ -775,6 +802,28 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
       const daemon = await database.findDaemonByMachineId(state.machineId);
       assert.ok(daemon);
       state.daemonId = daemon.id;
+    },
+    async enrollDaemonTarget() {
+      await database.issueEnrollmentToken({
+        id: randomUUID(),
+        verifier: "devbox-token",
+        organizationId: "org",
+        expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+        consumedAt: null,
+      });
+      const daemon = await database.enrollDaemon({
+        daemonId: randomUUID(),
+        idempotencyKey: randomUUID(),
+        suggestedSlug: "devbox",
+        tokenVerifier: "devbox-token",
+        serverId: "devbox-server",
+        daemonPublicKey: "public-key",
+        credentialVerifier: "credential-verifier",
+        permissions: ["hub.execute"],
+        now: new Date(),
+      });
+      assert.ok(daemon !== undefined && "id" in daemon);
+      return daemon;
     },
     async agentFinished(executionId: string) {
       const sessionId = randomUUID();

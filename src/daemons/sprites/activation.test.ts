@@ -381,6 +381,34 @@ describe("sprite trigger edits", () => {
     assert.equal((await hub.database.findDaemonById(daemonId))?.status, "revoked");
   });
 
+  it("frees the retired daemon's slug so the recreated sprite enrolls as the trigger", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    const retired = await hub.enrollSprite();
+    assert.equal((await hub.database.findDaemonById(retired))?.slug, "manual-task");
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("@anthropic-ai/claude-code", "@anthropic-ai/claude-code@2"),
+      userId: null,
+    });
+    await hub.settled();
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("@anthropic-ai/claude-code", "@anthropic-ai/claude-code@3"),
+      userId: null,
+    });
+    await hub.settled();
+    const recreated = await hub.enrollSprite("key-2");
+
+    assert.equal(
+      (await hub.database.findDaemonById(retired))?.slug,
+      `manual-task-revoked-${retired.slice(0, 8)}`,
+    );
+    assert.equal((await hub.database.findDaemonById(recreated))?.slug, "manual-task");
+  });
+
   it("refuses a bootstrap change while an execution is running on the sprite", async () => {
     const hub = await setup();
     const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });

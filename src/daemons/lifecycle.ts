@@ -26,7 +26,11 @@ import {
   type LaunchMachineIntent,
   type SpriteDispatchReadiness,
 } from "../dispatcher/launch-machine-intent.js";
-import type { SpriteActivation, SpriteTarget } from "./sprites/activation.js";
+import {
+  freeSpriteDaemonSlug,
+  type SpriteActivation,
+  type SpriteTarget,
+} from "./sprites/activation.js";
 import { createSpritesClient, type SpritesClient } from "./sprites/client.js";
 import { logger as defaultLogger } from "../logger.js";
 import { reportFailure } from "../failures/index.js";
@@ -1527,6 +1531,7 @@ export class DaemonDispatchLifecycle {
   private async destroySprite(machineId: string): Promise<void> {
     const machine = await this.options.database.findMachineById(machineId);
     if (machine?.source.kind !== "sprite") return;
+    await freeSpriteDaemonSlug(this.options.database, machine);
     try {
       const provider = await this.spriteProviderFor(machine.orgId);
       await provider.destroy(machine.source.spriteName);
