@@ -1,0 +1,26 @@
+$ node docs/qa/ac-s5g/check-links.mjs
+ok   SECURITY.md: (docs/sprite-targets-guide.md) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/docs/sprite-targets-guide.md
+ok   docs/sprite-targets-guide.md: (../SECURITY.md#sprite-targets) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/SECURITY.md #sprite-targets found
+ok   docs/sprite-targets-guide.md: (#credentials-and-continuation) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/docs/sprite-targets-guide.md #credentials-and-continuation found
+ok   docs/sprite-targets-guide.md: (scheduled-triggers.md#timing-and-recovery) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/docs/scheduled-triggers.md #timing-and-recovery found
+ok   docs/sprite-targets-guide.md: (../SECURITY.md#sprite-targets) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/SECURITY.md #sprite-targets found
+result: PASS
+exit=0
+
+$ grep -n "^#" docs/scheduled-triggers.md SECURITY.md docs/sprite-targets-guide.md
+SECURITY.md:1:# Security
+SECURITY.md:5:## Sprite targets
+docs/scheduled-triggers.md:1:# Scheduled triggers
+docs/scheduled-triggers.md:19:## YAML and API
+docs/scheduled-triggers.md:80:## Timing and recovery
+docs/scheduled-triggers.md:111:## Ownership and storage
+docs/sprite-targets-guide.md:1:# Sprite targets
+docs/sprite-targets-guide.md:11:## Reference
+docs/sprite-targets-guide.md:58:## Lifecycle
+docs/sprite-targets-guide.md:84:## Multi-event reviewer
+docs/sprite-targets-guide.md:126:## Credentials and continuation
+docs/sprite-targets-guide.md:149:## Bootstrap notes
+docs/sprite-targets-guide.md:161:## Limits
+
+$ git diff --stat HEAD origin/main -- docs/scheduled-triggers.md   # same heading on main
+(empty = identical)

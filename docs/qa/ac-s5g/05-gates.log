@@ -1,0 +1,25 @@
+# PR head db67936; format:check run with the uncommitted docs/qa/ac-s5g files present
+$ npm run format:check
+
+> @getpaseo/hub@0.9.0 format:check
+> oxfmt --check .
+
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 2674ms on 756 files using 15 threads.
+exit=0
+
+$ gh pr checks 6 --repo mcrlc/paseo-hub --watch --interval 30   # exit 0; final state below
+browser-e2e	pass	15m42s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247486	
+build	pass	1m3s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247436	
+docker-smoke	pass	1m4s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247431	
+format	pass	37s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247478	
+hub-e2e	pass	6m38s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247490	
+lint	pass	45s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247280	
+migrations	pass	36s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247375	
+test	pass	12m10s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247482	
+typecheck	pass	51s	https://github.com/mcrlc/paseo-hub/actions/runs/35197233658/job/105123247140	
+
+$ gh run view 35197233658 --repo mcrlc/paseo-hub --json headSha,conclusion
+{"conclusion":"success","headSha":"db6793687dd944fb8e09a34523869742b1030fcc"}
