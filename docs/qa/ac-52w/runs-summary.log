@@ -1,0 +1,12 @@
+# All trigger runs at the end of the session (UTC). Columns: run | ordinal | run status | failure | run created | execution | exec status | exec started | exec completed | intent machineId | intent daemonId | execution.daemon_id | execution.machine_id
+4a43b4ee | 0 | failed | Provider 'claude' is not available | 10:46:55.222 | fe40e174 | failed | 10:46:55.460 | 10:46:57.765 | 26ad1faa | 06e580e0 | 06e580e0 | 26ad1faa
+3b72fd65 | 0 | failed | Continuation settings differ from the existing agent; use a different key or choose a new agent | 10:50:07.824 | 35b949a7 | failed | 10:50:07.863 | 10:50:08.391 | 26ad1faa | 06e580e0 | 06e580e0 | 26ad1faa
+a1b16632 | 0 | failed | Provider 'claude' is not available | 10:51:12.310 | 0f3f7d9e | failed | 10:51:12.497 | 10:51:13.557 | 26ad1faa | 06e580e0 | 06e580e0 | 26ad1faa
+ec062e0e | 0 | failed | step_idle_timeout | 10:51:43.703 | eee20edc | failed | 10:52:16.123 | 10:54:18.575 | 20a8b9a8 | eb616a99 | 06e580e0 | 20a8b9a8
+4a067f39 | 0 | failed | step_idle_timeout | 10:55:19.394 | 35e7ace7 | failed | 10:55:19.423 | 10:57:22.092 | 20a8b9a8 | eb616a99 | eb616a99 | 20a8b9a8
+a44c7af9 | 0 | failed | step_idle_timeout | 10:59:49.064 | fcc0340c | failed | 10:59:50.555 | 11:01:52.831 | 20a8b9a8 | eb616a99 | eb616a99 | 20a8b9a8
+81d84f33 | 0 | failed | step_idle_timeout | 11:27:20.537 | 17a8b44e | failed | 11:27:20.660 | 11:29:24.097 | 20a8b9a8 | eb616a99 | eb616a99 | 20a8b9a8
+
+# daemons: id | machine | slug | status | presence | connected_at | disconnected_at
+eb616a99 | 20a8b9a8 | trigger-c8477b8e-eb616a99 | active | connected | 11:26:28.774 | 11:20:51.076
+06e580e0 | 26ad1faa | trigger-c8477b8e | active | offline | 10:49:19.288 | 10:51:45.205
