@@ -1,0 +1,97 @@
+Server: node dist/index.js built from PR head 0f6e622, Postgres 17 (docker postgres:17-alpine), PASEO_HUB_APP_URL=http://127.0.0.1:4105.
+Script: docs/qa/ac-2jb/probe-methods.sh. Transport headers (Date, Connection, Keep-Alive, Transfer-Encoding) stripped.
+
+### PR: -X GET -H Accept: application/json http://127.0.0.1:4105/agent-executions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: 90540643-9cfd-48d4-8445-078881411bf7
+
+{"error":"method_not_allowed"}
+
+### PR: -X DELETE http://127.0.0.1:4105/agent-executions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: 7355d943-c534-494e-a8c5-b3e01a12f278
+
+{"error":"method_not_allowed"}
+
+### Hub log lines for these requests (2)
+[2026-09-17 09:17:22.839 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "90540643-9cfd-48d4-8445-078881411bf7"
+    operation: "http.response"
+    component: "http"
+    method: "GET"
+    path: "/agent-executions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+[2026-09-17 09:17:22.846 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "7355d943-c534-494e-a8c5-b3e01a12f278"
+    operation: "http.response"
+    component: "http"
+    method: "DELETE"
+    path: "/agent-executions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///Users/mic/.paseo/worktrees/01slizkc/agent-sessions-mcp-get-405-1/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+
+
+=== Same probes on origin/main for comparison ===
+
+### origin/main: -X GET -H Accept: application/json http://127.0.0.1:4106/agent-executions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: 5a1e506d-3d4d-49f1-8204-62c291804f55
+
+{"error":"method_not_allowed"}
+
+### origin/main: -X DELETE http://127.0.0.1:4106/agent-executions/11111111-2222-4333-8444-555555555555/mcp
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/json
+x-request-id: a0e47535-78be-48d8-8951-d8d06f8166ac
+
+{"error":"method_not_allowed"}
+
+### Hub log lines for these requests (2)
+[2026-09-17 09:17:23.984 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "5a1e506d-3d4d-49f1-8204-62c291804f55"
+    operation: "http.response"
+    component: "http"
+    method: "GET"
+    path: "/agent-executions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///private/tmp/ac2jb-main/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
+[2026-09-17 09:17:23.993 +0300] WARN: http.response failed
+    failureKind: "validation"
+    requestId: "a0e47535-78be-48d8-8951-d8d06f8166ac"
+    operation: "http.response"
+    component: "http"
+    method: "DELETE"
+    path: "/agent-executions/11111111-2222-4333-8444-555555555555/mcp"
+    status: 405
+    err: {
+      "type": "Error",
+      "stack":
+              at forwardRequest (file:///private/tmp/ac2jb-main/dist/http/node-server.js:35:47)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    }
