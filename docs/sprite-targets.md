@@ -208,7 +208,7 @@ On the second arrival Hub attaches the execution to the session, then: an execut
 **Decision: one hold per execution, named by execution id, refreshed by a tick, released at terminal. No idle deadline of Hub's own.**
 
 - `hold` at execution `spawning` (5.5 step 3), with the maximum expiry of 3600 s.
-- A scheduler tick re-issues the same `PUT` for every hold whose execution is still `spawning` or `running` and is older than 30 minutes. Because `PUT` creates a missing task, a task that did not survive a provider restart is recreated by the same call.
+- A scheduler tick re-issues the same idempotent `PUT` for every execution that is still `spawning` or `running`, on every pass, by default every 5 minutes. There is no age test: the `PUT` is one exec on a sprite the hold already keeps awake, so comparing the hold's age buys nothing and costs a clock read. Because `PUT` creates a missing task, a task that did not survive a provider restart is recreated by the same call.
 - `release` when the execution reaches a terminal state. Sibling executions on the same sprite each hold their own task, so nothing is counted.
 - The provider pauses the sprite within about 1 s of the last release (measured: `last_warming_at` 10:54:18 for a terminal at 10:54:18.6, and 11:01:53 for a terminal at 11:01:52.8). Release therefore has to come after the terminal hub action (archive or interrupt) has been delivered, not at terminal itself, which is how the lifecycle now orders it; releasing at terminal left the `auto_archive` action to time out 30 s later and complete only on the next wake.
 - Startup recovery re-holds from execution rows, like execution deadlines.
@@ -246,7 +246,7 @@ Per `docs/design.md`: state through `StatusPill`, never a badge.
 | Arrival while paused                 | `hold`, which wakes it; engine defers until the socket is live; dispatch                    |
 | Arrival while awake                  | `hold`, dispatch                                                                            |
 | Execution terminal                   | `release` after the terminal hub action; provider pauses within about 1 s                   |
-| Execution older than 30 min          | tick refreshes the hold                                                                     |
+| Every tick (5 min)                   | re-issue every active hold                                                                  |
 | `bootstrap` changed                  | `destroy` after in-flight executions, recreate on next arrival                              |
 | `env` changed                        | rewrite service; daemon restarts and reconnects                                             |
 | `memory` changed                     | update resources policy                                                                     |
@@ -259,6 +259,7 @@ Per `docs/design.md`: state through `StatusPill`, never a badge.
 - **One sprite per trigger.** A burst of arrivals on one trigger runs on one machine. Fan-out means more triggers, and two triggers on one repo clone it twice. Per-execution sprites are a later addition that gives up continuation.
 - **Fixed shape.** 8 vCPU on a 16 GB host, memory limit adjustable, no CPU or region choice. A trigger that needs more is a Fly Machines target, which this interface does not yet have.
 - **One hour per hold.** The refresh tick is load-bearing. A Hub outage longer than the remaining expiry on a hold lets the sprite pause mid-turn; the turn resumes on the next hold.
+- **One Hub instance per database.** Restart recovery treats every `spawning` sprite row as its own; a second instance starting would retire the first's in-flight bootstraps.
 - **First boot is about a minute.** Bootstrap installs in about 25 s and the daemon's first start pulls about 1 GB of speech models. A warm wake is about a second; a cold wake measured 64 s to a daemon reconnect, so an arrival on a cold sprite defers about a minute.
 - **Org credential changes are serial.** A Sprites settings save rewrites every live sprite's service one at a time, about 6.7 s each, and the save waits for all of them.
 - **Clone is the bootstrap's job.** Hub-driven clone waits on a machine-scoped credential lease.

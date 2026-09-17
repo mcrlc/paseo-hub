@@ -1,0 +1,64 @@
+# ac-7rt scenario 3b: a missing hold task is recreated by the tick (bead AC "a 404 on refresh
+# results in a new hold"). Nothing in dispatch.test.ts covers this; the PR argues it from
+# `PUT /v1/tasks/:name` creating a missing task, so it is measured here.
+# head a35fe78. trigger qa-ac7rt-sprite v3 (idle_timeout 7m, key qa-ac7rt-s3b). execution a12a214a.
+# Hub B started 13:35:30.6, so its ticks fall at 13:40:32, 13:45:32, 13:50:32.
+# The run was fired at 13:40:40, just after the 13:40:32 tick, so the tick under test is 13:45:32.
+
+## the delete: same path client.ts release uses, DELETE /v1/tasks/:name (del-task.sh)
+delete 13:40:52.003 a12a214a-3a37-5250-b2db-6493e8971544
+
+
+## in-sprite task samples every 10 s (task-poll.sh)
+13:40:40.376 {"tasks":[]}
+13:40:50.734 {"tasks":[{"name":"a12a214a-3a37-5250-b2db-6493e8971544","started_at":"2026-09-17T13:40:40Z","expires_at":"2026-09-17T14:40:40Z"}]}
+13:41:01.073 {"tasks":[]}
+13:41:11.404 {"tasks":[]}
+13:41:21.750 {"tasks":[]}
+13:41:32.149 {"tasks":[]}
+13:41:42.490 {"tasks":[]}
+13:41:52.848 {"tasks":[]}
+13:42:03.191 {"tasks":[]}
+13:42:13.574 {"tasks":[]}
+13:42:23.916 {"tasks":[]}
+13:42:34.243 {"tasks":[]}
+13:42:44.640 {"tasks":[]}
+13:42:55.054 {"tasks":[]}
+13:43:05.492 {"tasks":[]}
+13:43:15.899 {"tasks":[]}
+13:43:26.286 {"tasks":[]}
+13:43:36.624 {"tasks":[]}
+13:43:46.962 {"tasks":[]}
+13:43:57.395 {"tasks":[]}
+13:44:07.820 {"tasks":[]}
+13:44:18.201 {"tasks":[]}
+13:44:28.566 {"tasks":[]}
+13:44:38.950 {"tasks":[]}
+13:44:49.416 {"tasks":[]}
+13:44:59.857 {"tasks":[]}
+13:45:10.276 {"tasks":[]}
+13:45:20.688 {"tasks":[]}
+13:45:31.170 {"tasks":[]}
+13:45:41.557 {"tasks":[{"name":"a12a214a-3a37-5250-b2db-6493e8971544","started_at":"2026-09-17T13:45:32Z","expires_at":"2026-09-17T14:45:32Z"}]}
+13:45:51.905 {"tasks":[{"name":"a12a214a-3a37-5250-b2db-6493e8971544","started_at":"2026-09-17T13:45:32Z","expires_at":"2026-09-17T14:45:32Z"}]}
+13:46:02.259 {"tasks":[{"name":"a12a214a-3a37-5250-b2db-6493e8971544","started_at":"2026-09-17T13:45:32Z","expires_at":"2026-09-17T14:45:32Z"}]}
+13:46:12.656 {"tasks":[{"name":"a12a214a-3a37-5250-b2db-6493e8971544","started_at":"2026-09-17T13:45:32Z","expires_at":"2026-09-17T14:45:32Z"}]}
+13:46:22.985 {"tasks":[{"name":"a12a214a-3a37-5250-b2db-6493e8971544","started_at":"2026-09-17T13:45:32Z","expires_at":"2026-09-17T14:45:32Z"}]}
+13:46:33.339 {"tasks":[{"name":"a12a214a-3a37-5250-b2db-6493e8971544","started_at":"2026-09-17T13:45:32Z","expires_at":"2026-09-17T14:45:32Z"}]}
+
+## measured
+#   hold                13:40:40Z  expires 14:40:40Z
+#   task deleted        13:40:52.003   (absent from the 13:41:01.073 sample on)
+#   task absent for     13:40:52 -> 13:45:32 = 4 m 40 s, 28 consecutive empty samples
+#   RECREATED           started_at 13:45:32Z / expires 14:45:32Z, first seen 13:45:41.557
+#   recreation stamp    exactly 13:45:32Z = Hub B start 13:35:32 + 2 x 300 s
+#   operation="sprites.hold-refresh" 0 -- the PUT answered success, no error was reported
+#
+# This also pins the tick period independently: refreshes landed at 13:35:32 (recovery),
+# 13:40:32 (no-op, the run was fired 8 s later) and 13:45:32, i.e. exactly 300 s apart.
+#
+# NOTE the sprite was unheld for those 4 m 40 s. It did not pause only because task-poll.sh execs
+# every 10 s, and an exec wakes a sprite. That is a property of the measurement, not of Hub: with
+# no poller the sprite would have paused mid-turn, which is exactly the ceiling docs/sprite-targets.md
+# section 7 states ("a Hub outage longer than the remaining expiry lets the sprite pause mid-turn;
+# the turn resumes on the next hold"). What is proved here is the recreation, not the no-pause.

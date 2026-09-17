@@ -1,0 +1,26 @@
+# ac-7rt scenario 1: harness regression
+# head: a35fe78
+# date: 2026-09-17T13:10:01Z
+# command: npx vitest run src/daemons src/workflows
+
+ ↓ src/daemons/sprites/client.real.test.ts (1 test | 1 skipped)
+ Test Files  18 passed | 1 skipped (19)
+      Tests  282 passed | 1 skipped (283)
+   Start at  16:10:02
+   Duration  426.70s (transform 1.32s, setup 0ms, collect 3.51s, tests 422.86s, environment 0ms, prepare 32ms)
+
+# rerun of the failing file alone:
+# command: npx vitest run src/daemons/registry.test.ts
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Duration  587ms (transform 93ms, setup 0ms, collect 252ms, tests 35ms, environment 0ms, prepare 102ms)
+
+# Note: an EARLIER full run of the same command at 16:02:21 (same head) gave:
+#   Test Files  1 failed | 17 passed | 1 skipped (19)
+#        Tests  1 failed | 281 passed | 1 skipped (283)
+#   FAIL src/daemons/registry.test.ts > daemon socket protocol negotiation >
+#        negotiates the standard session only when offered=true
+#   AssertionError: Expected values to be strictly equal: false !== true
+#     at src/daemons/registry.test.ts:94:14
+# The run logged above (16:10:02) is the same command and passed 282/282, and the
+# file alone passes 16/16. This is the known load flake ac-shh.19, not a regression.

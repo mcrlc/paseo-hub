@@ -12,6 +12,7 @@ import {
   mergeOverrides,
 } from "../entitlements/catalog.js";
 import { toDatabaseError } from "./errors.js";
+import { slugify } from "../slug.js";
 import { withApiKeySerialization } from "./api-key-serialization.js";
 import { ConnectionRepository } from "./connections.js";
 import { ProviderEventAcceptanceRepository } from "./trigger-acceptance.js";
@@ -278,6 +279,18 @@ class PgDatabase implements Database {
     try {
       const rows = await query<MachineRow>(this.pool, LIVE_SPRITE_MACHINE_SQL, [triggerId]);
       return rows.rows[0] === undefined ? undefined : toMachineRecord(rows.rows[0]);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async findSpawningSpriteMachines(): Promise<MachineRecord[]> {
+    try {
+      const rows = await query<MachineRow>(
+        this.pool,
+        "select * from machines where status = 'spawning' and source->>'kind' = 'sprite'",
+      );
+      return rows.rows.map(toMachineRecord);
     } catch (error) {
       throw toDatabaseError(error);
     }
@@ -1644,7 +1657,19 @@ class PgDatabase implements Database {
                 [consumedToken.organization_id, { kind: "daemon", daemonId: input.daemonId }],
               )
             : sprite;
-        const suggestedSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+        const hostnameSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+        const spriteSource = sprite?.rows[0]?.source;
+        const triggerName =
+          spriteSource?.kind === "sprite"
+            ? (
+                await client.query<{ name: string }>(
+                  `select name from organization_triggers where id = $1 and organization_id = $2`,
+                  [spriteSource.triggerId, consumedToken.organization_id],
+                )
+              ).rows[0]?.name
+            : undefined;
+        const suggestedSlug =
+          triggerName === undefined ? hostnameSlug : slugify(triggerName, hostnameSlug);
         requestedSlug = suggestedSlug;
         let daemon = await client.query<DaemonRow>(
           `insert into daemons
