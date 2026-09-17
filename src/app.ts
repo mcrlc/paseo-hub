@@ -328,7 +328,7 @@ function createAppPublicOperations(
     createDatabasePublicOperationRepository(database),
     {
       triggerForOrganization: (organizationId) => {
-        const store = new OrganizationTriggerStore(database, organizationId);
+        const store = new OrganizationTriggerStore(database, organizationId, options.entitlements);
         return {
           async list() {
             return Promise.all(

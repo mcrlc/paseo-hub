@@ -88,6 +88,16 @@ export const TriggerTargetSchema = z.discriminatedUnion("kind", [
       worktree: WorktreeTargetSchema.optional(),
     })
     .strict(),
+  z
+    .object({
+      kind: z.literal("sprite"),
+      bootstrap: z.string().min(1),
+      cwd: z.string().startsWith("/", "must be an absolute path"),
+      memory: z.number().int().positive().optional(),
+      env: z.record(z.string().min(1), z.string()).optional(),
+      worktree: WorktreeTargetSchema.optional(),
+    })
+    .strict(),
 ]);
 
 export const TriggerOutputSchema = z
@@ -173,6 +183,13 @@ export const TriggerDocumentSchema = z
         code: z.ZodIssueCode.custom,
         path: ["on"],
         message: "at least one event is required",
+      });
+    }
+    if (trigger.run.target.kind === "sprite" && !trigger.run.auto_archive) {
+      context.addIssue({
+        code: "custom",
+        path: ["run", "auto_archive"],
+        message: "Sprite targets always archive; auto_archive must be true.",
       });
     }
     if ("choices" in trigger.run.agent && Object.keys(trigger.run.agent.choices).length === 0) {

@@ -170,6 +170,43 @@ describe("self-contained trigger documents", () => {
     );
   });
 
+  it("compiles a sprite target with every field into the environment", () => {
+    assert.deepEqual(compileTriggerDocument(spriteTrigger()).environment, {
+      name: "target",
+      kind: "sprite",
+      bootstrap: "npm install -g @getpaseo/cli\n",
+      cwd: "/home/sprite/workspace/project",
+      memory: 16384,
+      env: { ANTHROPIC_API_KEY: "key" },
+      worktree: { mode: "branch-off", newBranch: "hub-work", base: "origin/main" },
+    });
+  });
+
+  it.each([
+    [
+      "auto_archive false",
+      (yaml: string) => `${yaml}  auto_archive: false\n`,
+      /run\.auto_archive: Sprite targets always archive/u,
+    ],
+    [
+      "a missing bootstrap",
+      (yaml: string) => yaml.replace(/    bootstrap: \|\n.*\n/u, ""),
+      /run\.target\.bootstrap: .*expected string/iu,
+    ],
+    [
+      "a relative cwd",
+      (yaml: string) => yaml.replace("cwd: /home/sprite/workspace/project", "cwd: workspace"),
+      /run\.target\.cwd: must be an absolute path/u,
+    ],
+    [
+      "a non-positive memory",
+      (yaml: string) => yaml.replace("memory: 16384", "memory: 0"),
+      /run\.target\.memory: .*expected number to be >0/iu,
+    ],
+  ])("rejects a sprite target with %s", (_name, mutate, expected) => {
+    assert.throws(() => parseTriggerDocument(mutate(spriteTrigger())), expected);
+  });
+
   it("round-trips the semantic document through canonical YAML", () => {
     const parsed = parseTriggerDocument(trigger);
     assert.deepEqual(parseTriggerDocument(serializeTriggerDocument(parsed)), parsed);
@@ -262,3 +299,25 @@ it("applies the continuation default when reading old trigger revisions without 
   });
   assert.deepEqual(migratedLegacy, legacy);
 });
+
+function spriteTrigger(): string {
+  return `name: review
+on:
+  manual.run: {}
+run:
+  target:
+    kind: sprite
+    bootstrap: |
+      npm install -g @getpaseo/cli
+    cwd: /home/sprite/workspace/project
+    memory: 16384
+    env:
+      ANTHROPIC_API_KEY: key
+    worktree:
+      mode: branch-off
+      newBranch: hub-work
+      base: origin/main
+  agent: { provider: claude, mode: bypassPermissions }
+  prompt: Review it.
+`;
+}

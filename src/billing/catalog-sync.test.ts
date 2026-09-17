@@ -148,6 +148,7 @@ describe("syncBillingCatalog", () => {
       hashTemplate({
         seats: { max: 5 },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: 2000 } },
       }),
     );

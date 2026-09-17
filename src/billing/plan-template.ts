@@ -39,6 +39,7 @@ const planMetadataSchema = z.object({
   paseo_plan_slug: z.string().trim().min(1, "paseo_plan_slug must not be blank"),
   ent_seats_max: positiveIntegerOrUnlimited,
   ent_can_invite: booleanFlag,
+  ent_can_use_sprite_targets: booleanFlag.default(false),
   ent_executions_monthly_limit: nonnegativeIntegerOrUnlimited,
 });
 
@@ -62,6 +63,7 @@ export function parsePlanMetadata(metadata: Record<string, string>): ParsePlanMe
   const template = entitlementsSchema.safeParse({
     seats: { max: raw.data.ent_seats_max },
     canInviteMembers: raw.data.ent_can_invite,
+    canUseSpriteTargets: raw.data.ent_can_use_sprite_targets,
     meters: { "executions.monthly": { limit: raw.data.ent_executions_monthly_limit } },
   });
   if (!template.success) return { success: false, message: z.prettifyError(template.error) };

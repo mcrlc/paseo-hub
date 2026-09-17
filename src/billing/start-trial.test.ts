@@ -20,11 +20,13 @@ const WEBHOOK_SECRET = "whsec_trial_test";
 const FLOOR = {
   seats: { max: 1 },
   canInviteMembers: false,
+  canUseSpriteTargets: false,
   meters: { "executions.monthly": { limit: 0 } },
 };
 const TRIAL_TEMPLATE = {
   seats: { max: null },
   canInviteMembers: true,
+  canUseSpriteTargets: false,
   meters: { "executions.monthly": { limit: 2_000 } },
 };
 

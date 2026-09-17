@@ -17,6 +17,7 @@ export const entitlementsSchema = z
       })
       .strict(),
     canInviteMembers: z.boolean(),
+    canUseSpriteTargets: z.boolean(),
     meters: z
       .object({
         "executions.monthly": z
@@ -48,6 +49,7 @@ export type Entitlements = z.infer<typeof entitlementsSchema>;
 const storedEntitlementsSchema = z.object({
   seats: z.object({ max: z.number().int().nonnegative().nullable() }),
   canInviteMembers: z.boolean(),
+  canUseSpriteTargets: z.boolean().default(false),
   meters: z
     .object({
       "executions.monthly": z
@@ -74,6 +76,7 @@ export const entitlementOverridesSchema = z
       .strict()
       .partial(),
     canInviteMembers: z.boolean(),
+    canUseSpriteTargets: z.boolean(),
     meters: z
       .object({
         "executions.monthly": z
@@ -104,7 +107,7 @@ export const CAP_KEYS: readonly CapKey[] = ["seats"];
 export type MeterKey = "executions.monthly";
 
 /** Flags are boolean permissions checked by `requireFlag` — no count, no limit. */
-export type FlagKey = "canInviteMembers";
+export type FlagKey = "canInviteMembers" | "canUseSpriteTargets";
 
 /**
  * Which entitlement an override touches. The clearable keys are exactly the cap, flag, and
@@ -119,6 +122,7 @@ export type EntitlementKind = "cap" | "meter" | "flag";
 export const UNLIMITED_TEMPLATE: EntitlementTemplate = {
   seats: { max: null },
   canInviteMembers: true,
+  canUseSpriteTargets: false,
   meters: { "executions.monthly": { limit: null } },
 };
 
@@ -142,6 +146,7 @@ export function meterLimit(effective: Entitlements, meter: MeterKey): number | n
 export function flagEnabled(effective: Entitlements, flag: FlagKey): boolean {
   const flags: Record<FlagKey, boolean> = {
     canInviteMembers: effective.canInviteMembers,
+    canUseSpriteTargets: effective.canUseSpriteTargets,
   };
   return flags[flag];
 }
@@ -195,6 +200,8 @@ export function clearOverrideKey(
     delete next.seats;
   } else if (key === "canInviteMembers") {
     delete next.canInviteMembers;
+  } else if (key === "canUseSpriteTargets") {
+    delete next.canUseSpriteTargets;
   } else {
     const meters = { ...next.meters };
     delete meters[key];
@@ -245,6 +252,7 @@ export function effectiveEntitlements(
   return {
     seats: { max: overrides.seats?.max !== undefined ? overrides.seats.max : granted.seats.max },
     canInviteMembers: overrides.canInviteMembers ?? granted.canInviteMembers,
+    canUseSpriteTargets: overrides.canUseSpriteTargets ?? granted.canUseSpriteTargets,
     meters: {
       "executions.monthly": {
         limit:

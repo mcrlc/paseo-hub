@@ -536,7 +536,11 @@ export class DurableWorkflowEngine {
         executionId,
       );
     } catch (error) {
-      if (!(error instanceof ExpressionEvaluationError)) throw error;
+      if (
+        !(error instanceof ExpressionEvaluationError) &&
+        !(error instanceof SpriteDispatchUnsupportedError)
+      )
+        throw error;
       this.report(error, "workflow.launch-expression.evaluate", {
         triggerRunId: run.id,
         stepId: step.id,
@@ -905,6 +909,15 @@ export class DurableWorkflowEngine {
   }
 }
 
+class SpriteDispatchUnsupportedError extends Error {
+  constructor(environmentName: string) {
+    super(
+      `workflow environment ${environmentName} is a sprite target, which cannot be dispatched yet`,
+    );
+    this.name = "SpriteDispatchUnsupportedError";
+  }
+}
+
 function buildStepIntent(
   configuration: CompiledProjectConfiguration,
   trigger: CompiledProjectConfiguration["triggers"][number],
@@ -922,6 +935,7 @@ function buildStepIntent(
   const environment = configuration.environments.find(
     (candidate) => candidate.name === environmentName,
   );
+  if (environment?.kind === "sprite") throw new SpriteDispatchUnsupportedError(environmentName);
   if (
     environment === undefined ||
     environment.kind !== "daemon" ||
@@ -1104,6 +1118,7 @@ function asProjectConfiguration(
 ): CompiledProjectConfiguration {
   const environments: CompiledProjectConfiguration["environments"] = configuration.environments.map(
     (environment) => {
+      if (environment.kind !== "daemon") return environment;
       if (environment.daemonId === undefined)
         throw new Error(`daemon environment ${environment.name} is not activated`);
       return {

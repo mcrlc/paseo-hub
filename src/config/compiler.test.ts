@@ -56,6 +56,18 @@ function legacyCompiledConfiguration(compiled: CompiledHubConfig): unknown {
 }
 
 describe("workflow compiler", () => {
+  it("rejects a legacy bundle environment that targets a sprite", () => {
+    assert.throws(
+      () =>
+        compileHubConfig(
+          configuration({
+            environments: [{ name: "runner", kind: "sprite", bootstrap: "install", cwd: "/repo" }],
+          }),
+        ),
+      /Expected 'daemon'"/u,
+    );
+  });
+
   it("preserves an authored startup timeout in stored compiled configurations", () => {
     const authored = configuration();
     Reflect.set(authored.triggers[0]!.steps[0]!, "startup_timeout", "3m");

@@ -96,6 +96,7 @@ describe("EntitlementsService.consume against PostgreSQL", () => {
     const template = {
       seats: { max: 3 },
       canInviteMembers: false,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: null } },
     };
     await service.stamp(organizationId, template, { source: "plan_stamp", planId: "plan-solo" });
@@ -148,6 +149,7 @@ describe("EntitlementsService.consume against PostgreSQL", () => {
       {
         seats: { max: null },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: 5 } },
       },
       { source: "provisioning", planId: null },

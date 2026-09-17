@@ -47,6 +47,7 @@ describe("EntitlementsService", () => {
     const capped = {
       seats: { max: 3 },
       canInviteMembers: false,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: null } },
     };
 
@@ -65,6 +66,7 @@ describe("EntitlementsService", () => {
     const template = {
       seats: { max: 3 },
       canInviteMembers: false,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: null } },
     };
     await service.stamp("org-1", template, { source: "plan_stamp", planId: "plan-solo" });
@@ -86,6 +88,7 @@ describe("EntitlementsService", () => {
     const template = {
       seats: { max: 3 },
       canInviteMembers: true,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: null } },
     };
     await service.stamp("org-1", template, { source: "plan_stamp", planId: "plan-team" });
@@ -104,6 +107,7 @@ describe("EntitlementsService", () => {
         {
           seats: { max: -1 },
           canInviteMembers: true,
+          canUseSpriteTargets: false,
           meters: { "executions.monthly": { limit: null } },
         },
         { source: "provisioning", planId: null },
@@ -121,6 +125,7 @@ describe("EntitlementsService", () => {
     const restamped = {
       seats: { max: 25 },
       canInviteMembers: true,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: null } },
     };
     await service.stamp("org-1", restamped, { source: "plan_stamp", planId: "plan-team" });
@@ -148,6 +153,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: 25 },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: null } },
       },
       { source: "plan_stamp", planId: "plan-team" },
@@ -194,6 +200,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: 1 },
         canInviteMembers: false,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: null } },
       },
       { source: "plan_stamp", planId: "plan-free" },
@@ -211,6 +218,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: 1 },
         canInviteMembers: false,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: null } },
       },
       { source: "plan_stamp", planId: "plan-free" },
@@ -230,6 +238,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: 2 },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: null } },
       },
       { source: "plan_stamp", planId: "plan-solo" },
@@ -314,6 +323,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: null },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: 2 } },
       },
       { source: "provisioning", planId: null },
@@ -349,6 +359,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: 1 },
         canInviteMembers: false,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: 0 } },
       },
       { source: "plan_stamp", planId: "prod-free" },
@@ -375,6 +386,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: null },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: 5 } },
       },
       { source: "provisioning", planId: null },
@@ -426,6 +438,7 @@ describe("EntitlementsService", () => {
       {
         seats: { max: null },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: 1 } },
       },
       { source: "provisioning", planId: null },
@@ -451,6 +464,7 @@ describe("effectiveEntitlements", () => {
     assert.deepEqual(effective, {
       seats: { max: 2 },
       canInviteMembers: true,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: null } },
     });
   });
@@ -477,6 +491,7 @@ describe("normalizeStoredEntitlements", () => {
     const current = {
       seats: { max: 3 },
       canInviteMembers: false,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: 10 } },
     };
     assert.deepEqual(normalizeStoredEntitlements(current), current);
