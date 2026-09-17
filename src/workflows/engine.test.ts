@@ -1465,7 +1465,127 @@ describe("durable multi-step workflow engine", () => {
     const execution = await fixture.database.findAgentExecutionByWorkflowStepRunId(steps[0]!.id);
     assert.equal(execution?.launchIntent?.prompt, 'Context: {"ambient":"once"}\nTrigger: run');
   });
+  it("keeps a sprite continuation compatible across env and memory edits", async () => {
+    const base = await stepCompatibility(spriteContinuationConfiguration({}));
+
+    assert.deepEqual(
+      await stepCompatibility(spriteContinuationConfiguration({ env: { TOKEN: "two" } })),
+      base,
+    );
+    assert.deepEqual(
+      await stepCompatibility(spriteContinuationConfiguration({ memory: 16384 })),
+      base,
+    );
+    assert.notDeepEqual(
+      await stepCompatibility(spriteContinuationConfiguration({ bootstrap: "install --next" })),
+      base,
+    );
+  });
+
+  it("keeps the whole environment in a daemon continuation compatibility", async () => {
+    const compatibility = await stepCompatibility(daemonContinuationConfiguration());
+
+    assert.deepEqual(compatibility, {
+      agent: { provider: "codex" },
+      target: {
+        name: "runner",
+        kind: "daemon",
+        daemon: "runner",
+        daemonId: "daemon-1",
+        cwd: "/repo",
+      },
+      env: {},
+      github: null,
+    });
+  });
 });
+
+function continuationConfiguration(environment: Record<string, unknown>): CompiledHubConfig {
+  const compiled = compileHubConfig(
+    {
+      environments: [environment],
+      triggers: [
+        {
+          name: "run",
+          on: "manual.run",
+          max_runtime: "1h",
+          steps: [
+            {
+              id: "work",
+              environment: "runner",
+              max_runtime: "10m",
+              idle_timeout: "1m",
+              agent: { provider: "codex" },
+              prompt: [{ text: "Do the work." }],
+            },
+          ],
+        },
+      ],
+    },
+    { spriteTargets: true },
+  );
+  const trigger = compiled.triggers[0]!;
+  const step = trigger.steps[0]!;
+  return {
+    environments: compiled.environments,
+    triggers: [
+      {
+        ...trigger,
+        steps: [{ ...step, continuation: { mode: "key", key: "pull-request-1" } as const }],
+      },
+    ],
+  };
+}
+
+function spriteContinuationConfiguration(overrides: Record<string, unknown>): CompiledHubConfig {
+  return continuationConfiguration({
+    name: "runner",
+    kind: "sprite",
+    bootstrap: "install",
+    cwd: "/repo",
+    env: { TOKEN: "one" },
+    memory: 8192,
+    ...overrides,
+  });
+}
+
+function daemonContinuationConfiguration(): CompiledHubConfig {
+  return continuationConfiguration({
+    name: "runner",
+    kind: "daemon",
+    daemon: "runner",
+    cwd: "/repo",
+  });
+}
+
+async function stepCompatibility(compiledConfiguration: CompiledHubConfig): Promise<unknown> {
+  const fixture = await workflowFixture({ compiledConfiguration });
+  const intents: LaunchMachineIntent[] = [];
+  const { handler, engine } = createDurableWorkflowHandler({
+    database: fixture.database,
+    entitlements: fixture.entitlements,
+    providers: [providerMatch(fixture.configuration, fixture.revisionId)],
+    prepareSpriteDispatch: async () => ({
+      status: "ready",
+      machineId: "machine-1",
+      daemonId: "daemon-1",
+    }),
+    dispatchLaunchMachineIntent: async (intent) => {
+      intents.push(intent);
+      const execution = await fixture.database.findAgentExecutionByWorkflowStepRunId(
+        intent.workflowStepRunId!,
+      );
+      assert.ok(execution);
+      return { execution };
+    },
+  });
+
+  await handler(fixture.trigger("run"));
+  await engine.processAvailable();
+
+  assert.equal(intents.length, 1);
+  return intents[0]!.continuation?.compatibility;
+}
 
 interface Fixture {
   database: Database;

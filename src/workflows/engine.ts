@@ -972,6 +972,14 @@ function launchTarget(
   return { daemonId: sprite.daemonId, machineId: sprite.machineId, authoredSlug: environment.name };
 }
 
+// An env edit rewrites the daemon service and a memory edit lands in place, so neither invalidates
+// the agent; a bootstrap change recreates the sprite, which resets on the new daemon id.
+function compatibilityTarget(environment: CompiledProjectConfiguration["environments"][number]) {
+  if (environment.kind !== "sprite") return environment;
+  const { name, kind, bootstrap, cwd, worktree } = environment;
+  return { name, kind, bootstrap, cwd, ...(worktree === undefined ? {} : { worktree }) };
+}
+
 function stepEnvironment(
   configuration: CompiledProjectConfiguration,
   step: CompiledStep,
@@ -1046,7 +1054,7 @@ function buildStepIntent(
             ),
             compatibility: {
               agent,
-              target: environment,
+              target: compatibilityTarget(environment),
               env: step.env ?? {},
               github: step.github ?? null,
             },
