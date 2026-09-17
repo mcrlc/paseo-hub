@@ -83,3 +83,21 @@ Observations, not findings:
   should come from.
 - PRD 5.10 L226 says the org token "is stored in plain jsonb". Main stores it in a plain `text` column
   (`src/db/schema.ts:1321`). SECURITY.md's "unencrypted" is correct either way.
+
+## Round 5 re-run (post-merge)
+
+Re-run at `61eb966`, the merge of `origin/main` into `sprite-targets/docs-security`, after every
+lifecycle slice landed. The logs above are refreshed in place; `02-claims.md` describes the state at
+`db67936` and is kept as the record of that round.
+
+| #   | Scenario                                             | Result | Evidence              |
+| --- | ---------------------------------------------------- | ------ | --------------------- |
+| 1   | Both YAML blocks parse and compile; control rejected | pass   | `01-yaml-compile.log` |
+| 3   | Links and anchors                                    | pass   | `03-links.log`        |
+| 4   | Vocabulary and every quoted message against the code | pass   | `04-vocabulary.log`   |
+| 5   | Gates: `format:check`, `typecheck`, `lint`           | pass   | `05-gates.log`        |
+
+F1 (the guide described an unimplemented lifecycle) no longer applies: the behaviour shipped, and the
+guide is rewritten against the merged code, with the timings from `ac-52w`, `ac-7rt`, `ac-wri`, and
+`ac-50k`. The one claim still traced only to evidence rather than to a code path is the cold-wake
+figure of about a minute (`ac-52w`, round 1 scenario 4), which is provider behaviour and not Hub's.

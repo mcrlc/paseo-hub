@@ -1,14 +1,12 @@
-# Scenario 4: vocabulary in the guide vs schema on origin/main (318238c)
+# Scenario 4 (round 5): vocabulary and behaviour strings in the guide vs merged code at 61eb966
 
-$ git show origin/main:src/triggers/configuration/schema.ts | grep -n <field>
+$ grep -n <field> src/triggers/configuration/schema.ts
 12:    mode: z.literal("branch-off"),
 13:    newBranch: z.string().min(1),
 14:    base: z.string().min(1).optional(),
 39:    label: z.string().min(1).optional(),
 49:    from_users: z.array(z.string().min(1)).optional(),
 57:    connection: z.string().regex(CONNECTION_SLUG).optional(),
-64:    provider: z.string().min(1),
-66:    mode: z.string().min(1).optional(),
 85:      kind: z.literal("daemon").optional().default("daemon"),
 87:      cwd: z.string().min(1),
 88:      worktree: WorktreeTargetSchema.optional(),
@@ -18,118 +16,48 @@ $ git show origin/main:src/triggers/configuration/schema.ts | grep -n <field>
 96:      memory: z.number().int().positive().optional(),
 97:      env: z.record(z.string().min(1), z.string()).optional(),
 98:      worktree: WorktreeTargetSchema.optional(),
-112:    target: TriggerTargetSchema,
-113:    agent: TriggerAgentSelectionSchema,
 114:    continuation: ContinuationSchema.default({ mode: "conversation" }),
-115:    prompt: z.string().min(1),
 119:    env: z.record(z.string().min(1), z.string()).optional(),
 126:    auto_archive: z.boolean().default(true),
-132:    name: z.string().regex(IDENTIFIER),
-134:    on: z.record(z.string().regex(EVENT_NAME), TriggerEventSchema),
 188:    if (trigger.run.target.kind === "sprite" && !trigger.run.auto_archive) {
 191:        path: ["run", "auto_archive"],
 192:        message: "Sprite targets always archive; auto_archive must be true.",
 
-$ git show origin/main:src/triggers/continuation.ts | grep -n conversation
-4:  z.object({ mode: z.literal("conversation") }).strict(),
+$ grep -n "reserved env keys" src/daemons/sprites/env.ts
+2:const RESERVED_ENV_KEYS = new Set(["HOME", "PATH", "PASEO_HOME", "PASEO_PASSWORD"]);
+3:const VALUE_MAX = 8192;
+9:  if (RESERVED_ENV_KEYS.has(key)) return `Hub sets ${key} on every sprite; choose another name.`;
+15:  if (value.length > VALUE_MAX) return `Keep the value to ${VALUE_MAX} characters or fewer.`;
 
-$ git show origin/main:src/triggers/configuration/events.ts | grep -nE "pull_request_(label_added|comment_created)|key: \"label\""
-23:  key: "label",
-50:  "github.pull_request_comment_created": event("github", "GitHub pull request comment created"),
-52:  "github.pull_request_label_added": event("github", "GitHub pull request label added", [
+$ grep -n "editor and entitlement messages" src/triggers/store.ts
+99:          message: "Sprite targets are not enabled for this organization.",
+138:        message: `${retirement.consequence} and ends its ${String(running.length)} running execution${running.length === 1 ? "" : "s"}. Save again once it is idle.`,
+150:      return "Sprites are not configured for this organization.";
+185:      consequence: "Changing the target destroys the sprite",
+189:    return { path: ["enabled"], consequence: "Disabling the trigger destroys the sprite" };
+194:    consequence: "Changing bootstrap recreates the sprite",
 
-$ git show origin/main:src/triggers/github/match.ts | grep -n from_users   # from_users is required for a GitHub event to match
-73:  if (filter.from_users === undefined || filter.from_users.length === 0) {
-101:  if (!filter.from_users.includes("*") && !filter.from_users.includes(classified.actor)) {
+$ grep -n "hold, tick, release, recovery" src/daemons/lifecycle.ts
+82:const SPRITE_HOLD_REFRESH_INTERVAL_MS = 5 * 60_000;
+274:        await provider.hold(machine.source.spriteName, input.executionId, "60m");
+1015:          reason: "hub restarted during activation",
+1033:        await provider.hold(machine.source.spriteName, execution.id, "60m");
+1449:      await this.releaseSpriteHold(execution);
+1556:    if (execution.hubAction === null) await this.releaseSpriteHold(execution);
 
-$ git show origin/main:src/config/compiler.ts | sed -n 1016,1022p   # paseo.context allowed in prompt; paseo.execution only in worktree.newBranch
-      if (reference.path === "context") {
-        if (!contextAllowed) throw new Error(`${path} uses paseo.context outside a step prompt`);
-        return;
-      }
-      if (reference.path[0] === "execution") {
-        throw new Error(`${path} uses paseo.execution outside environment worktree.newBranch`);
-      }
+$ grep -n "secret scrub and org env merge" src/daemons/sprites/activation.ts
+196:  const bootstrapEnv = { PATH, ...input.organizationEnv, ...targetEnv };
+206:  const service = daemonService(npmPrefix, { ...input.organizationEnv, ...targetEnv });
+297:  const service = daemonService(npmPrefix, { ...input.organizationEnv, ...targetEnv });
+365:          throw new Error(`env.${key} cannot be resolved without an execution lease`);
+379:    PASEO_PASSWORD: randomBytes(32).toString("base64url"),
+417:const SECRET_MIN_LENGTH = 8;
+422:      secret.length < SECRET_MIN_LENGTH ? scrubbed : scrubbed.replaceAll(secret, "[redacted]"),
 
-$ git show origin/main:src/config/compiler.ts | sed -n 1187,1203p   # sprite env connection-template validation, newBranch execution template
-function validateEnvironmentTemplates(
-  environments: readonly (AuthoredEnvironment | CompiledEnvironment)[],
-): void {
-  for (const environment of environments) {
-    if (environment.kind === "sprite") {
-      for (const [key, value] of Object.entries(environment.env ?? {})) {
-        compileAt(["environments", environment.name, "env", key], () => {
-          validateConnectionTemplate(value, `environment ${environment.name} env.${key}`);
-        });
-      }
-    }
-    if (environment.worktree?.mode !== "branch-off") continue;
-    const newBranch = environment.worktree.newBranch;
-    compileAt(["environments", environment.name, "worktree", "newBranch"], () => {
-      validateExecutionTemplate(newBranch);
-    });
-  }
+$ grep -n "slug from trigger name" src/db/pg.ts
+1672:          triggerName === undefined ? hostnameSlug : slugify(triggerName, hostnameSlug);
 
-# Tokens used in the guide (grep -on)
-SECURITY.md:9:`bootstrap`
-SECURITY.md:11:`env`
-SECURITY.md:11:`env`
-SECURITY.md:11:`run.github`
-SECURITY.md:13:`daemons:enroll`
-docs/sprite-targets-guide.md:13:`run.target`
-docs/sprite-targets-guide.md:13:`kind`
-docs/sprite-targets-guide.md:18:`kind`
-docs/sprite-targets-guide.md:19:`bootstrap`
-docs/sprite-targets-guide.md:19:`cwd`
-docs/sprite-targets-guide.md:20:`cwd`
-docs/sprite-targets-guide.md:20:`bootstrap`
-docs/sprite-targets-guide.md:21:`memory`
-docs/sprite-targets-guide.md:22:`env`
-docs/sprite-targets-guide.md:23:`worktree`
-docs/sprite-targets-guide.md:28:github.pull_request_comment_created
-docs/sprite-targets-guide.md:29:connection:
-docs/sprite-targets-guide.md:31:from_users:
-docs/sprite-targets-guide.md:51:`auto_archive`
-docs/sprite-targets-guide.md:60:`bootstrap`
-docs/sprite-targets-guide.md:61:`bootstrap`
-docs/sprite-targets-guide.md:69:`bootstrap`
-docs/sprite-targets-guide.md:72:`env`
-docs/sprite-targets-guide.md:74:`memory`
-docs/sprite-targets-guide.md:81:`sprite_unavailable`
-docs/sprite-targets-guide.md:82:`max_runtime`
-docs/sprite-targets-guide.md:92:github.pull_request_label_added
-docs/sprite-targets-guide.md:93:connection:
-docs/sprite-targets-guide.md:95:label:
-docs/sprite-targets-guide.md:96:from_users:
-docs/sprite-targets-guide.md:97:github.pull_request_comment_created
-docs/sprite-targets-guide.md:98:connection:
-docs/sprite-targets-guide.md:100:from_users:
-docs/sprite-targets-guide.md:112:continuation: { mode: conversation }
-docs/sprite-targets-guide.md:124:`agent_interrupted`
-docs/sprite-targets-guide.md:128:`run.github`
-docs/sprite-targets-guide.md:128:`run.env`
-docs/sprite-targets-guide.md:132:`env`
-docs/sprite-targets-guide.md:138:`env`
-docs/sprite-targets-guide.md:140:`env`
-docs/sprite-targets-guide.md:141:`run.github`
-docs/sprite-targets-guide.md:141:`bootstrap`
-docs/sprite-targets-guide.md:142:`continuation.mode: conversation`
-docs/sprite-targets-guide.md:142:`run.github`
-docs/sprite-targets-guide.md:143:`run.env`
-docs/sprite-targets-guide.md:146:`bootstrap`
-docs/sprite-targets-guide.md:147:`env`
-docs/sprite-targets-guide.md:154:`bootstrap`
-docs/sprite-targets-guide.md:158:`bootstrap`
-docs/sprite-targets-guide.md:158:`env`
-docs/sprite-targets-guide.md:159:`bootstrap`
+$ grep -n "sprite_unavailable" src/workflows/engine.ts
+546:          "sprite_unavailable",
 
-# Failure reasons named by the guide on origin/main
-$ git grep -n "sprite_unavailable" origin/main -- src
-(no match: sprite_unavailable does not exist on main; PRD 5.5 introduces it)
-$ git grep -n "\"agent_interrupted\"" origin/main -- src/agent-sessions/index.ts src/daemons/lifecycle.ts
-origin/main:src/agent-sessions/index.ts:155:        throw new AgentSessionError("agent_interrupted");
-origin/main:src/daemons/lifecycle.ts:727:      await this.failAgentExecution(executionId, "agent_interrupted");
-$ git grep -n "daemons:enroll" origin/main -- src/auth/api-key-contract.ts
-origin/main:src/auth/api-key-contract.ts:8:  "daemons:enroll",
-
-result: PASS (every field, event, filter key, continuation mode and auto_archive in the guide matches main exactly)
+result: PASS (every term and quoted message in the guide appears above)

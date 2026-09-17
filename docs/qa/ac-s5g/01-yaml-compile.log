@@ -1,9 +1,9 @@
-$ npx tsx docs/qa/ac-s5g/compile-guide-yaml.ts /tmp/ac-s5g-main   # worktree of origin/main 318238c
-guide: /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/docs/sprite-targets-guide.md
-code:  /tmp/ac-s5g-main
+# re-run at 61eb966 (post-merge, round 5) on 2026-09-17T15:20:45Z
+guide: /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/sprite-targets-guide.md
+code:  /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security
 yaml blocks found: 2
 
-== block 1 (guide line 25) ==
+== block 1 (guide line 30) ==
 parseTriggerDocument: ok; run.auto_archive = true ; continuation = {"mode":"conversation"}
 compileTriggerDocument: ok
 compiled.environment = {
@@ -12,9 +12,6 @@ compiled.environment = {
   "bootstrap": "npm install -g @anthropic-ai/claude-code\nnode \"$(npm prefix -g)/lib/node_modules/@anthropic-ai/claude-code/install.cjs\"\ngit clone https://github.com/acme/project.git /home/sprite/workspace/project\n",
   "cwd": "/home/sprite/workspace/project",
   "memory": 16384,
-  "env": {
-    "ANTHROPIC_API_KEY": "sk-ant-..."
-  },
   "worktree": {
     "mode": "branch-off",
     "newBranch": "trigger-${{ paseo.execution.id }}",
@@ -24,17 +21,14 @@ compiled.environment = {
 events = [{"on":"github.pull_request_comment_created","filters":{"from_users":["alice"],"connection":"acme-github"}}]
 steps[0].prompt = [{"kind":"text","value":"Review the pull request."}]
 
-== block 2 (guide line 89) ==
+== block 2 (guide line 108) ==
 parseTriggerDocument: ok; run.auto_archive = true ; continuation = {"mode":"conversation"}
 compileTriggerDocument: ok
 compiled.environment = {
   "name": "target",
   "kind": "sprite",
   "bootstrap": "npm install -g @anthropic-ai/claude-code\nnode \"$(npm prefix -g)/lib/node_modules/@anthropic-ai/claude-code/install.cjs\"\ngit clone https://github.com/acme/project.git /home/sprite/workspace/project\n",
-  "cwd": "/home/sprite/workspace/project",
-  "env": {
-    "ANTHROPIC_API_KEY": "sk-ant-..."
-  }
+  "cwd": "/home/sprite/workspace/project"
 }
 events = [{"on":"github.pull_request_label_added","filters":{"label":"review","from_users":["alice","bob"],"connection":"acme-github"}},{"on":"github.pull_request_comment_created","filters":{"from_users":["alice","bob"],"connection":"acme-github"}}]
 steps[0].prompt = [{"kind":"text","value":"Review this pull request, or answer the comment on it.\n${{ paseo.context }}\n"}]
@@ -42,29 +36,8 @@ steps[0].prompt = [{"kind":"text","value":"Review this pull request, or answer t
 == control: block 1 with run.auto_archive: false ==
 rejected as expected:
 TriggerDocumentError: run.auto_archive: Sprite targets always archive; auto_archive must be true.
-    at parseTriggerDocument (/private/tmp/ac-s5g-main/src/triggers/configuration/index.ts:158:11)
-    at run (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/docs/qa/ac-s5g/compile-guide-yaml.ts:27:20)
-    at <anonymous> (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/docs/qa/ac-s5g/compile-guide-yaml.ts:45:1)
+    at parseTriggerDocument (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/src/triggers/configuration/index.ts:158:11)
+    at run (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/qa/ac-s5g/compile-guide-yaml.ts:27:20)
+    at <anonymous> (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/qa/ac-s5g/compile-guide-yaml.ts:55:1)
 
 result: PASS
-exit=0
-
-$ npx tsx docs/qa/ac-s5g/compile-guide-yaml.ts   # this branch db67936 (based on ffbcf81, lacks PR #3)
-guide: /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1/docs/sprite-targets-guide.md
-code:  /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security-1
-yaml blocks found: 2
-
-== block 1 (guide line 25) ==
-FAILED:
-TriggerDocumentError: run.target.kind: Invalid discriminator value. Expected 'daemon' | 'undefined'
-
-== block 2 (guide line 89) ==
-FAILED:
-TriggerDocumentError: run.target.kind: Invalid discriminator value. Expected 'daemon' | 'undefined'
-
-== control: block 1 with run.auto_archive: false ==
-rejected as expected:
-TriggerDocumentError: run.target.kind: Invalid discriminator value. Expected 'daemon' | 'undefined'
-
-result: FAIL (2)
-exit=1 (script exit code; FAIL (2) above)
