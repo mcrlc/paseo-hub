@@ -1104,7 +1104,6 @@ function asProjectConfiguration(
 ): CompiledProjectConfiguration {
   const environments: CompiledProjectConfiguration["environments"] = configuration.environments.map(
     (environment) => {
-      if (environment.kind !== "daemon") return environment;
       if (environment.daemonId === undefined)
         throw new Error(`daemon environment ${environment.name} is not activated`);
       return {

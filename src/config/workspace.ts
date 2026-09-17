@@ -21,10 +21,6 @@ export function planWorkspace(input: {
 }): WorkspacePlan {
   const environment = selectEnvironment(input.resolved.config.environments, input.environmentName);
 
-  if (environment.kind !== "daemon") {
-    throw new Error(`environment kind is not implemented: ${environment.kind}`);
-  }
-
   return {
     repos: [],
     cwd: environment.cwd,

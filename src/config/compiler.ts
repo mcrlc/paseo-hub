@@ -142,22 +142,6 @@ const EnvironmentSchema = z.discriminatedUnion("kind", [
       worktree: WorktreeTargetSchema.optional(),
     })
     .strict(),
-  z
-    .object({
-      name: z.string().min(1),
-      kind: z.literal("fly"),
-      image: z.string().min(1),
-      cwd: z.string().min(1).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      name: z.string().min(1),
-      kind: z.literal("docker"),
-      image: z.string().min(1),
-      cwd: z.string().min(1).optional(),
-    })
-    .strict(),
 ]);
 
 const AuthoredAgentSelectionSchema = z.union([AgentSchema, z.string().min(1)]);
@@ -274,9 +258,7 @@ export type CompiledTriggerFilter = Readonly<
   }
 >;
 
-export type CompiledEnvironment =
-  | (Extract<AuthoredEnvironment, { kind: "daemon" }> & { daemonId?: string | undefined })
-  | Exclude<AuthoredEnvironment, { kind: "daemon" }>;
+export type CompiledEnvironment = AuthoredEnvironment & { daemonId?: string | undefined };
 
 export interface CompiledTrigger {
   name: string;
@@ -362,22 +344,6 @@ const CompiledEnvironmentSchema = z.discriminatedUnion("kind", [
       daemonId: z.string().min(1).optional(),
       cwd: z.string().min(1),
       worktree: WorktreeTargetSchema.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      name: z.string().regex(IDENTIFIER),
-      kind: z.literal("fly"),
-      image: z.string().min(1),
-      cwd: z.string().min(1).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      name: z.string().regex(IDENTIFIER),
-      kind: z.literal("docker"),
-      image: z.string().min(1),
-      cwd: z.string().min(1).optional(),
     })
     .strict(),
 ]);
@@ -521,7 +487,7 @@ function compileTrigger(
   const inputs = compileAt([...triggerPath, "inputs"], () => compileInputs(trigger));
   compileAt([...triggerPath, "filters"], () => validateInputFilters(trigger, inputs));
   compileAt([...triggerPath, "steps"], () =>
-    validateEnvironmentInputChoices(trigger, inputs, environmentNames, environments),
+    validateEnvironmentInputChoices(trigger, inputs, environmentNames),
   );
   const steps = trigger.steps.map((step) =>
     compileStep(trigger, step, environmentNames, environments, resolvedPromptPartials, namedAgents),
@@ -555,12 +521,6 @@ function compileStep(
   compileAt([...stepPath, "environment"], () => {
     if (!environmentNames.has(step.environment) && !step.environment.includes(EXPRESSION_START)) {
       throw new Error(`step ${step.id} references unknown environment ${step.environment}`);
-    }
-    const staticEnvironment = environments.get(step.environment);
-    if (staticEnvironment !== undefined && staticEnvironment.kind !== "daemon") {
-      throw new Error(
-        `trigger ${trigger.name} step ${step.id} environment ${step.environment} must be a daemon environment`,
-      );
     }
   });
   const maxRuntimeMs = compileAt([...stepPath, "max_runtime"], () =>
@@ -781,7 +741,6 @@ function validateEnvironmentInputChoices(
   trigger: AuthoredTrigger,
   inputs: Readonly<Record<string, CompiledInput>>,
   environmentNames: ReadonlySet<string>,
-  environments: ReadonlyMap<string, AuthoredEnvironment>,
 ): void {
   for (const step of trigger.steps) {
     const reference = DYNAMIC_INPUT_REFERENCE.exec(step.environment);
@@ -792,11 +751,6 @@ function validateEnvironmentInputChoices(
       if (typeof choice !== "string" || !environmentNames.has(choice)) {
         throw new Error(
           `trigger ${trigger.name} step ${step.id} environment choice ${String(choice)} is not a configured environment`,
-        );
-      }
-      if (environments.get(choice)?.kind !== "daemon") {
-        throw new Error(
-          `trigger ${trigger.name} step ${step.id} environment choice ${choice} must be a daemon environment`,
         );
       }
     }
@@ -891,9 +845,6 @@ function validateExpressionContract(
     for (const name of selected) {
       if (!environmentNames.has(name)) {
         throw new Error(`step ${stepId} resolves to unknown environment ${name}`);
-      }
-      if (environments.get(name)?.kind !== "daemon") {
-        throw new Error(`step ${stepId} environment ${name} must be a daemon environment`);
       }
     }
   }
@@ -1173,7 +1124,6 @@ function validateCompiledContract(config: CompiledHubConfig): void {
       if (!environmentIds.has(step.environment) && !step.environment.includes(EXPRESSION_START)) {
         throw new Error(`step ${step.id} references unknown environment ${step.environment}`);
       }
-      validateCompiledStepEnvironment(step, trigger.inputs, environments);
       validateStepEnvironmentContract(trigger.name, trigger.on, step.id, step.env, step.github);
       if (step.idleTimeoutMs > step.maxRuntimeMs) {
         throw new Error(`step ${step.id} idle_timeout must not exceed max_runtime`);
@@ -1205,27 +1155,6 @@ function validateEnvironmentTemplates(
     compileAt(["environments", environment.name, "worktree", "newBranch"], () => {
       validateExecutionTemplate(newBranch);
     });
-  }
-}
-
-function validateCompiledStepEnvironment(
-  step: CompiledStep,
-  inputs: Readonly<Record<string, CompiledInput>>,
-  environments: ReadonlyMap<string, CompiledEnvironment>,
-): void {
-  const staticEnvironment = environments.get(step.environment);
-  if (staticEnvironment !== undefined && staticEnvironment.kind !== "daemon") {
-    throw new Error(`step ${step.id} environment ${step.environment} must be a daemon environment`);
-  }
-  const environmentReference = DYNAMIC_INPUT_REFERENCE.exec(step.environment);
-  const environmentInput =
-    environmentReference === null ? undefined : inputs[environmentReference[1]!];
-  for (const choice of environmentInput?.choices ?? []) {
-    if (typeof choice !== "string") continue;
-    const choiceEnvironment = environments.get(choice);
-    if (choiceEnvironment !== undefined && choiceEnvironment.kind !== "daemon") {
-      throw new Error(`step ${step.id} environment choice ${choice} must be a daemon environment`);
-    }
   }
 }
 

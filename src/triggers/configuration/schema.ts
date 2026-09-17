@@ -79,13 +79,16 @@ export const TriggerAgentSelectionSchema = z.union([
     .strict(),
 ]);
 
-export const TriggerTargetSchema = z
-  .object({
-    daemon: z.string().min(1),
-    cwd: z.string().min(1),
-    worktree: WorktreeTargetSchema.optional(),
-  })
-  .strict();
+export const TriggerTargetSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("daemon").optional().default("daemon"),
+      daemon: z.string().min(1),
+      cwd: z.string().min(1),
+      worktree: WorktreeTargetSchema.optional(),
+    })
+    .strict(),
+]);
 
 export const TriggerOutputSchema = z
   .object({

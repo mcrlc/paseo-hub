@@ -55,14 +55,10 @@ function compileTestDaemonReferences(rawConfiguration: unknown): CompiledProject
   return {
     ...configuration,
     environments: configuration.environments.map((environment) =>
-      environment.kind === "daemon"
-        ? Object.assign({}, environment, {
-            daemonId:
-              environment.daemon === TEST_DAEMON_SLUG
-                ? TEST_DAEMON_ID
-                : `daemon-${environment.daemon}`,
-          })
-        : environment,
+      Object.assign({}, environment, {
+        daemonId:
+          environment.daemon === TEST_DAEMON_SLUG ? TEST_DAEMON_ID : `daemon-${environment.daemon}`,
+      }),
     ),
   };
 }
