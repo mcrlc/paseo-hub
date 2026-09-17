@@ -1346,6 +1346,10 @@ class MemoryDatabase implements Database {
     return machine?.orgId === organizationId ? machine : undefined;
   }
 
+  async setMachineSpecs(id: string, specs: unknown): Promise<void> {
+    this.machines.set(id, { ...this.readMachine(id), specs });
+  }
+
   async transitionMachine(
     id: string,
     toStatus: MachineStatus,

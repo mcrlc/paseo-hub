@@ -8,13 +8,13 @@ import { reportFailure } from "../../failures/index.js";
 import { logger } from "../../logger.js";
 import { createSpritesClient, type ExecResult, type SpritesClient } from "./client.js";
 
-const NPM_PREFIX = "/.sprite/languages/node/nvm/versions/node/v24.18.0";
 const HOME = "/home/sprite";
-const PATH = `${NPM_PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+const SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 const DAEMON_LISTEN = "127.0.0.1:6767";
-const CONNECT_SCRIPT = `for _ in $(seq 60); do
+const CONNECT_SCRIPT = `for i in $(seq 600); do
   curl -so /dev/null http://${DAEMON_LISTEN}/
   [ $? -ne 7 ] && exec paseo hub connect "$1" --host ${DAEMON_LISTEN} --api-key "$2" --permission hub.execute
+  [ $((i % 30)) -eq 0 ] && echo "waiting for paseo daemon on ${DAEMON_LISTEN}: \${i}s"
   sleep 1
 done
 echo "paseo daemon is not listening on ${DAEMON_LISTEN}" >&2
@@ -50,6 +50,10 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
       "daemons:enroll",
     ]);
     const memoryMb = target.memory ?? configuration.memoryMb;
+    const specs = {
+      bootstrapHash: createHash("sha256").update(target.bootstrap).digest("hex"),
+      memoryMb,
+    };
     const machine = await database.insertSpriteMachine({
       orgId: trigger.organizationId,
       source: {
@@ -58,10 +62,7 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
         spriteName: `trigger-${trigger.id}`,
         apiKeyId: key.summary.id,
       },
-      specs: {
-        bootstrapHash: createHash("sha256").update(target.bootstrap).digest("hex"),
-        memoryMb,
-      },
+      specs,
     });
     if (machine === undefined) {
       await apiKeys.revoke(trigger.organizationId, key.summary.id);
@@ -70,12 +71,13 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
     const provision = async () => {
       try {
         await provisionSprite({
+          database,
           provider: providerFor(configuration.token),
           resolver: options.connectionsForProject(trigger.runtimeProjectId),
           hubOrigin: options.hubOrigin,
           machine,
           target,
-          memoryMb,
+          specs,
           apiKey: key.secret,
         });
         logger.info({ machineId: machine.id }, "sprite activation bootstrapped");
@@ -105,12 +107,13 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
 }
 
 async function provisionSprite(input: {
+  database: Database;
   provider: SpriteProvider;
   resolver: ConnectionResolver;
   hubOrigin: string;
   machine: MachineRecord;
   target: SpriteTarget;
-  memoryMb: number;
+  specs: { bootstrapHash: string; memoryMb: number };
   apiKey: string;
 }): Promise<void> {
   const { provider, machine, target } = input;
@@ -119,7 +122,14 @@ async function provisionSprite(input: {
   const step = (label: string) => logger.info({ machineId: machine.id, sprite: name }, label);
 
   step("sprite activation: create");
-  await provider.create({ name, memoryMb: input.memoryMb });
+  await provider.create({ name, memoryMb: input.specs.memoryMb });
+  step("sprite activation: npm prefix");
+  const prefixResult = await provider.exec(name, ["sh", "-c", "npm prefix -g"]);
+  expectSuccess("npm prefix -g", prefixResult);
+  const npmPrefix = prefixResult.stdout.trim();
+  if (npmPrefix === "") throw new Error("npm prefix -g printed nothing");
+  await input.database.setMachineSpecs(machine.id, { ...input.specs, npmPrefix });
+  const PATH = `${npmPrefix}/bin:${SYSTEM_PATH}`;
   step("sprite activation: install paseo");
   expectSuccess(
     "paseo install",
@@ -156,19 +166,23 @@ async function provisionSprite(input: {
   }
   step("sprite activation: daemon service");
   await provider.service(name, "paseo", {
-    cmd: `${NPM_PREFIX}/bin/paseo`,
+    cmd: `${npmPrefix}/bin/paseo`,
     args: ["start", "--foreground", "--listen", DAEMON_LISTEN, "--no-relay", "--no-web-ui"],
     env,
     dir: HOME,
   });
   // `paseo hub connect` enrolls through the running daemon, so the service must exist first.
   step("sprite activation: hub connect");
-  expectSuccess(
-    "hub connect",
-    await provider.exec(name, ["sh", "-c", CONNECT_SCRIPT, "sh", input.hubOrigin, input.apiKey], {
-      env: daemonEnv,
-    }),
+  const connected = await provider.exec(
+    name,
+    ["sh", "-c", CONNECT_SCRIPT, "sh", input.hubOrigin, input.apiKey],
+    { env: daemonEnv },
   );
+  logger.info(
+    { machineId: machine.id, sprite: name, output: connected.stdout.replaceAll(input.apiKey, "") },
+    "sprite activation: hub connect output",
+  );
+  expectSuccess("hub connect", connected);
 }
 
 function expectSuccess(label: string, result: ExecResult): void {

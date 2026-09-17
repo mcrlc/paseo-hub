@@ -1321,6 +1321,7 @@ export interface Database {
     toStatus: MachineStatus,
     fields?: TerminateMachineFields,
   ): Promise<MachineRecord>;
+  setMachineSpecs(id: string, specs: unknown): Promise<void>;
   insertAgentExecution(input: InsertAgentExecutionInput): Promise<AgentExecutionRecord>;
   insertAgentExecutionIfAbsent(
     input: InsertAgentExecutionInput & { id: string },

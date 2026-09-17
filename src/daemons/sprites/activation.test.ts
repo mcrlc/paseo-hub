@@ -13,7 +13,7 @@ import {
 } from "./activation.js";
 import { SpritesError, type ExecResult } from "./client.js";
 
-const PREFIX = "/.sprite/languages/node/nvm/versions/node/v24.18.0";
+const PREFIX = "/opt/node-v99";
 const PATH = `${PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 
 describe("sprite activation", () => {
@@ -36,6 +36,7 @@ describe("sprite activation", () => {
         .update("npm install -g @anthropic-ai/claude-code\n")
         .digest("hex"),
       memoryMb: 16384,
+      npmPrefix: PREFIX,
     });
     assert.deepEqual(hub.keys, [
       {
@@ -46,11 +47,12 @@ describe("sprite activation", () => {
       },
     ]);
     const password = hub.serviceEnvs[0]?.["PASEO_PASSWORD"];
-    const connectScript = hub.execArgvs[2]?.[2];
+    const connectScript = hub.execArgvs[3]?.[2];
     assert.match(password ?? "", /^[\w-]{43}$/u);
     const daemonEnv = { HOME: "/home/sprite", PASEO_HOME: "/home/sprite/.paseo", PATH };
     assert.deepEqual(hub.calls, [
       { call: "create", args: [{ name, memoryMb: 16384 }] },
+      { call: "exec", args: [name, ["sh", "-c", "npm prefix -g"], undefined] },
       {
         call: "exec",
         args: [name, ["sh", "-c", "npm install -g @getpaseo/cli"], { env: { PATH } }],
@@ -117,7 +119,7 @@ describe("sprite activation", () => {
     assert.equal(machine?.shutdownReason, "bootstrap exited with 3: clone failed");
     assert.deepEqual(
       hub.calls.map(({ call }) => call),
-      ["create", "exec", "exec"],
+      ["create", "exec", "exec", "exec"],
     );
     assert.deepEqual(hub.revoked, ["key-1"]);
   });
@@ -158,7 +160,7 @@ describe("sprite activation", () => {
     );
     assert.deepEqual(
       hub.calls.map(({ call }) => call),
-      ["create", "exec", "exec"],
+      ["create", "exec", "exec", "exec"],
     );
   });
 
@@ -191,6 +193,16 @@ describe("sprite activation", () => {
     assert.deepEqual(hub.calls, []);
     assert.deepEqual(await hub.spriteMachines(), []);
   });
+
+  it("rejects activation on a Hub that cannot provision sprites", async () => {
+    const hub = await setup({ unavailable: true });
+
+    await assert.rejects(
+      hub.store.save({ yaml: spriteYaml(), userId: null }),
+      /run\.target\.kind: Sprite targets are unavailable on this Hub: no public base URL or API keys configured\./u,
+    );
+    assert.deepEqual(await hub.store.list(), []);
+  });
 });
 
 const success: ExecResult = { stdout: "", stderr: "", exitCode: 0 };
@@ -198,6 +210,7 @@ const success: ExecResult = { stdout: "", stderr: "", exitCode: 0 };
 async function setup(
   options: {
     configured?: boolean;
+    unavailable?: boolean;
     create?: () => void;
     exec?: (argv: string[]) => ExecResult;
     resolver?: ConnectionResolver;
@@ -236,6 +249,7 @@ async function setup(
     async exec(name, argv, execOptions) {
       calls.push({ call: "exec", args: [name, argv, execOptions] });
       execArgvs.push(argv);
+      if (argv[2] === "npm prefix -g") return { ...success, stdout: `${PREFIX}\n` };
       return options.exec?.(argv) ?? success;
     },
     async service(name, service, definition) {
@@ -280,7 +294,12 @@ async function setup(
     if (started !== undefined) jobs.push(started.job);
     return started;
   };
-  const store = new OrganizationTriggerStore(database, "org", entitlements, tracked);
+  const store = new OrganizationTriggerStore(
+    database,
+    "org",
+    entitlements,
+    options.unavailable === true ? null : tracked,
+  );
   return {
     store,
     calls,

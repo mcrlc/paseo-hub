@@ -322,6 +322,14 @@ class PgDatabase implements Database {
     }
   }
 
+  async setMachineSpecs(id: string, specs: unknown): Promise<void> {
+    try {
+      await query(this.pool, "update machines set specs = $2 where id = $1", [id, specs]);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
   async transitionMachine(
     id: string,
     toStatus: MachineStatus,

@@ -90,19 +90,12 @@ export class OrganizationTriggerStore {
         },
       ]);
     }
-    if (
-      compiled.environment.kind === "sprite" &&
-      compiled.authored.enabled &&
-      (this.spriteActivation === null ||
-        (await this.database.getOrganizationSpritesConfiguration(this.organizationId)) ===
-          undefined)
-    ) {
-      throw new TriggerDocumentError([
-        {
-          path: ["run", "target", "kind"],
-          message: "Sprites are not configured for this organization.",
-        },
-      ]);
+    const unavailable =
+      compiled.environment.kind === "sprite" && compiled.authored.enabled
+        ? await this.spriteActivationUnavailable()
+        : undefined;
+    if (unavailable !== undefined) {
+      throw new TriggerDocumentError([{ path: ["run", "target", "kind"], message: unavailable }]);
     }
     const resolved = await resolveTriggerConfigurationForOrganization(
       this.database,
@@ -116,6 +109,18 @@ export class OrganizationTriggerStore {
       throw new TriggerDocumentError(resolved.issues);
     }
     return { compiled, resolved };
+  }
+
+  private async spriteActivationUnavailable(): Promise<string | undefined> {
+    if (this.spriteActivation === null) {
+      return "Sprite targets are unavailable on this Hub: no public base URL or API keys configured.";
+    }
+    if (
+      (await this.database.getOrganizationSpritesConfiguration(this.organizationId)) === undefined
+    ) {
+      return "Sprites are not configured for this organization.";
+    }
+    return undefined;
   }
 
   private async canUseSpriteTargets(): Promise<boolean> {
