@@ -5,8 +5,11 @@ daemon. The sprite pauses on its own when nothing runs on it and keeps its files
 target costs storage only. One trigger owns one sprite; two triggers on the same repository get two
 sprites and two checkouts.
 
-Sprite targets need a Sprites org token in the organization's Sprites configuration. Read
-[`SECURITY.md`](../SECURITY.md#sprite-targets) before adding one.
+Sprite targets need a Sprites org token in the organization's Sprites configuration and the
+sprite-targets entitlement. A self-hosted instance running without billing has the entitlement through
+the unlimited template; otherwise an operator grants it with an entitlement override (see
+[Entitlements](entitlements.md)). Without it, saving the trigger fails with "Sprite targets are not
+enabled for this organization." Read [`SECURITY.md`](../SECURITY.md#sprite-targets) before adding one.
 
 ## Reference
 
@@ -18,7 +21,7 @@ target described in the other trigger docs. `kind: sprite` takes these fields:
 | `kind`      | yes      | `sprite`.                                                                                                                                                                                                                                                                             |
 | `bootstrap` | yes      | Shell script run once after the sprite is created, as the `sprite` user. It installs the agent CLIs and populates `cwd`. Hub installs the Paseo CLI before it and enrolls the daemon after it. A non-zero exit fails the sprite.                                                      |
 | `cwd`       | yes      | Absolute directory on the sprite. `bootstrap` makes it exist and makes it a git checkout; Hub does not clone.                                                                                                                                                                         |
-| `memory`    | no       | Memory limit in MB. Defaults to 8192. It is the only shape setting; Sprites offers no CPU or region choice.                                                                                                                                                                           |
+| `memory`    | no       | Memory limit in MB. Defaults to the organization's configured default memory, which is 8192 MB unless the organization changed it in its Sprites configuration. It is the only shape setting; Sprites offers no CPU or region choice.                                                 |
 | `env`       | no       | Environment of the daemon service, set once when Hub writes the service and kept on the sprite. Not a per-execution lease. Connection templates resolve only for connection kinds Hub has; other provider keys are literal values (see [Credentials](#credentials-and-continuation)). |
 | `worktree`  | no       | Same schema and behaviour as on a daemon target.                                                                                                                                                                                                                                      |
 
@@ -52,8 +55,8 @@ run:
 does not control when the provider drops a paused sprite's memory, and only an archived workspace is
 guaranteed to restore.
 
-There is no idle setting. The provider pauses a sprite about 30 seconds after the last execution on it
-ends.
+There is no sprite idle setting: the provider pauses a sprite about 30 seconds after the last hold on it
+is released. `run.idle_timeout` still applies per execution, as on any target.
 
 ## Lifecycle
 

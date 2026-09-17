@@ -4,7 +4,7 @@ Please report security vulnerabilities through GitHub's private vulnerability re
 
 ## Sprite targets
 
-A trigger with a sprite target runs its agent on a Fly Sprite that Hub creates in the operator's Sprites organization. See [`docs/sprite-targets-guide.md`](docs/sprite-targets-guide.md) for how to author one.
+A trigger with a sprite target runs its agent on a Fly Sprite that Hub creates in the Sprites organization whose token the Hub organization configured. See [`docs/sprite-targets-guide.md`](docs/sprite-targets-guide.md) for how to author one.
 
 - **The bootstrap is the trust boundary.** A sprite runs untrusted trigger input, such as pull request comments, with whatever the authored `bootstrap` installed and every credential it placed on the sprite. Install and store only what the agent needs.
 - **The database holds shell access to your sprites.** Hub stores the Sprites org token unencrypted in its database. The token can execute commands in every sprite in the organization. Protect the database, its backups, and anyone with read access to them accordingly.
