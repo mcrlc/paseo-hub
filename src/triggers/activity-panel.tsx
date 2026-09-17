@@ -6,8 +6,11 @@ import { PageHeader } from "../components/app/page.js";
 import { RelativeTime } from "../components/app/relative-time.js";
 import { StatusPill, statusLabel } from "../components/app/status-pill.js";
 import { TwoLine } from "../components/app/two-line.js";
+import { machineTone } from "../daemons/sprites/machine-status.js";
 import { useRouteTenant } from "../projects/context.js";
-import { triggerSnapshot } from "./functions.js";
+import { triggerSnapshot, type TriggerSnapshot } from "./functions.js";
+
+export type ActivityRun = TriggerSnapshot["activity"][number];
 
 const ACTIVITY_COLUMNS = [
   { header: "Trigger" },
@@ -55,25 +58,38 @@ export function TriggerActivityPanel() {
         empty={EMPTY_ACTIVITY}
       >
         {activity.map((run) => (
-          <DataRow key={run.id}>
-            <DataCell>
-              <TwoLine
-                primary={run.triggerName}
-                {...(run.repo === null ? {} : { secondary: run.repo })}
-              />
-            </DataCell>
-            <DataCell>{run.provider}</DataCell>
-            <DataCell>{run.source}</DataCell>
-            <DataCell>
-              <StatusPill tone={tone(run.status)}>{statusLabel(run.status)}</StatusPill>
-            </DataCell>
-            <DataCell muted>
-              <RelativeTime value={run.receivedAt} />
-            </DataCell>
-          </DataRow>
+          <ActivityRow key={run.id} run={run} />
         ))}
       </DataTable>
     </>
+  );
+}
+
+export function ActivityRow({ run }: { run: ActivityRun }) {
+  return (
+    <DataRow>
+      <DataCell>
+        <TwoLine
+          primary={run.triggerName}
+          {...(run.repo === null ? {} : { secondary: run.repo })}
+        />
+      </DataCell>
+      <DataCell>{run.provider}</DataCell>
+      <DataCell>{run.source}</DataCell>
+      <DataCell>
+        <span className="inline-flex items-center gap-1.5">
+          <StatusPill tone={tone(run.status)}>{statusLabel(run.status)}</StatusPill>
+          {run.machineStatus === null ? null : (
+            <StatusPill tone={machineTone(run.machineStatus)}>
+              {statusLabel(run.machineStatus)}
+            </StatusPill>
+          )}
+        </span>
+      </DataCell>
+      <DataCell muted>
+        <RelativeTime value={run.receivedAt} />
+      </DataCell>
+    </DataRow>
   );
 }
 

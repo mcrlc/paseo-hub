@@ -47,6 +47,41 @@ export const saveTrigger = createServerFn({ method: "POST" })
     }
   });
 
+export const recreateSprite = createServerFn({ method: "POST" })
+  .validator(scopeSchema.extend({ triggerId: z.string().uuid() }))
+  .handler(async ({ data }): Promise<Result<{ state: "complete" }>> => {
+    try {
+      const dashboard = (await getApplication()).triggerDashboard;
+      if (dashboard == null) throw new Error("trigger dashboard unavailable");
+      await dashboard.recreateSprite(getRequest(), data.organizationSlug, data.triggerId);
+      return respondOk({ state: "complete" });
+    } catch (error) {
+      return respondWithFailure(
+        error,
+        triggerContext("trigger.sprite.recreate", data.organizationSlug),
+        {
+          fallback: RECREATE_SPRITE_FAILURE,
+          forbidden: "You don't have permission to manage triggers.",
+          conflict: recreateSpriteMessage(error),
+          notFound: "This trigger no longer exists.",
+        },
+      );
+    }
+  });
+
+const RECREATE_SPRITE_FAILURE =
+  "Hub couldn't recreate this sprite. Reload its status before trying again.";
+
+/**
+ * Only `SpriteBusyError` says something the reader can act on. Identified by name, because the
+ * composition root that throws it bundles apart from this handler and loses the class identity.
+ */
+export function recreateSpriteMessage(error: unknown): string {
+  return error instanceof Error && error.name === "SpriteBusyError"
+    ? error.message
+    : RECREATE_SPRITE_FAILURE;
+}
+
 export type TriggerSnapshot = Awaited<ReturnType<TriggerDashboard["snapshot"]>>;
 
 function triggerContext(operation: string, organizationSlug: string) {

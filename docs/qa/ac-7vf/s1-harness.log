@@ -1,0 +1,75 @@
+=== head 1c0c2b3 ===
+=== npx vitest run src/triggers src/daemons src/db/organization-sprites.integration.test.ts src/typography-policy.test.ts ===
+ ✓ src/daemons/daemons.test.ts (105 tests) 424847ms
+ ✓ src/triggers/manual/manual-run.test.ts (5 tests) 18197ms
+ ✓ src/triggers/schedule/schedule.integration.test.ts (10 tests) 10150ms
+ ✓ src/db/organization-sprites.integration.test.ts (2 tests) 3310ms
+ ✓ src/triggers/migration.embedded.integration.test.ts (1 test) 924ms
+ ✓ src/triggers/github/provider.test.ts (18 tests) 1044ms
+ ✓ src/triggers/slack/source/socket.integration.test.ts (7 tests) 114ms
+ ✓ src/daemons/sprites/dispatch.test.ts (22 tests) 105ms
+ ✓ src/daemons/registry.test.ts (16 tests) 76ms
+ ✓ src/typography-policy.test.ts (5 tests) 66ms
+ ✓ src/triggers/schedule/rrule.test.ts (15 tests) 35ms
+ ✓ src/triggers/configuration/legacy-migration.matrix.test.ts (8 tests) 31ms
+ ✓ src/triggers/configuration/editor.test.ts (34 tests) 36ms
+ ✓ src/daemons/sprites/panel.test.tsx (11 tests) 15ms
+ ✓ src/daemons/sprites/activation.test.ts (21 tests) 13ms
+ ✓ src/triggers/schedule/recurrence.test.ts (11 tests) 9ms
+ ✓ src/triggers/slack/provider.test.ts (18 tests) 11ms
+ ✓ src/daemons/lifecycle.test.ts (10 tests) 13ms
+ ✓ src/triggers/linear/provider.test.ts (12 tests) 5ms
+ ✓ src/triggers/schedule/form.test.ts (15 tests) 5ms
+ ✓ src/triggers/slack/client.test.ts (8 tests) 8ms
+ ✓ src/triggers/configuration/index.test.ts (18 tests) 6ms
+ ✓ src/daemons/account-daemons.test.tsx (5 tests) 8ms
+ ✓ src/triggers/github/match.test.ts (28 tests) 3ms
+ ✓ src/triggers/panel.test.tsx (6 tests) 4ms
+ ✓ src/triggers/discord/provider.test.ts (13 tests) 6ms
+ ✓ src/triggers/migration.test.ts (5 tests) 4ms
+ ✓ src/triggers/dashboard.test.ts (3 tests) 5ms
+ ✓ src/daemons/structured-completion.test.ts (1 test) 4ms
+ ✓ src/triggers/slack/webhook.test.ts (7 tests) 3ms
+ ✓ src/daemons/sprites/client.test.ts (14 tests) 2ms
+ ✓ src/triggers/store.test.ts (5 tests) 3ms
+ ✓ src/daemons/agents/index.test.ts (6 tests) 3ms
+ ✓ src/daemons/handoff.test.tsx (11 tests) 3ms
+ ✓ src/triggers/linear/webhook.test.ts (7 tests) 3ms
+ ✓ src/daemons/sprites/settings.test.ts (17 tests) 2ms
+ ✓ src/triggers/manual/provider.test.ts (2 tests) 2ms
+ ✓ src/triggers/github/webhook.test.ts (13 tests) 2ms
+ ✓ src/triggers/configuration/legacy-migration.test.ts (2 tests) 2ms
+ ✓ src/triggers/discord/gateway.test.ts (15 tests) 2ms
+ ✓ src/triggers/discord/bot.test.ts (15 tests) 2ms
+ ✓ src/triggers/functions.test.ts (2 tests) 0ms
+ ✓ src/triggers/manual/source.test.ts (2 tests) 1ms
+ ✓ src/triggers/discord/match.test.ts (10 tests) 1ms
+ ✓ src/triggers/linear/match.test.ts (12 tests) 1ms
+ ✓ src/triggers/activity-panel.test.tsx (2 tests) 1ms
+ ✓ src/triggers/linear/events.test.ts (6 tests) 1ms
+ ✓ src/daemons/status.test.ts (2 tests) 1ms
+ ✓ src/triggers/slack/match.test.ts (3 tests) 1ms
+ ✓ src/triggers/github/reply.test.ts (2 tests) 0ms
+ ✓ src/triggers/audit.test.ts (2 tests) 0ms
+ ✓ src/triggers/invocation.test.ts (15 tests) 1ms
+ ✓ src/triggers/discord/reply.test.ts (6 tests) 1ms
+ ✓ src/triggers/schedule/clock.test.ts (1 test) 0ms
+ ✓ src/triggers/lifecycle.test.ts (2 tests) 0ms
+ ✓ src/triggers/linear/reply.test.ts (2 tests) 0ms
+ ✓ src/daemons/durable-execution.test.ts (1 test) 0ms
+ ✓ src/daemons/provider-catalog.test.ts (1 test) 0ms
+ ✓ src/triggers/slack/reply.test.ts (3 tests) 0ms
+ ✓ src/triggers/provider-catalog.test.ts (2 tests) 0ms
+ ✓ src/triggers/continuation.test.ts (2 tests) 0ms
+ ✓ src/triggers/index.test.ts (2 tests) 0ms
+ ✓ src/triggers/drop-reason.test.ts (1 test) 0ms
+ ↓ src/daemons/sprites/client.real.test.ts (1 test | 1 skipped)
+ ↓ src/triggers/discord/e2e.real.test.ts (1 test | 1 skipped)
+ Test Files  63 passed | 2 skipped (65)
+      Tests  628 passed | 2 skipped (630)
+   Duration  465.84s (transform 2.02s, setup 0ms, collect 6.21s, tests 459.09s, environment 0ms, prepare 143ms)
+
+=== the one failure on its own ===
+ ✓ src/daemons/registry.test.ts (16 tests) 88ms
+ Test Files  1 passed (1)
+      Tests  16 passed (16)

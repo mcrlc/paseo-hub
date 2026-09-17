@@ -1,0 +1,25 @@
+=== 4b refused while an execution runs ===
+running executions on the sprite machine: 1
+[busy] confirmation: "Recreate this sprite?\n\nHub destroys the sprite and revokes its daemon. The next run provisions a new one from the trigger's bootstrap, and continuation starts over.\n\nCancel\nRecreate sprite"
+[busy] buttons: ["Cancel","Recreate sprite"]
+[busy] alerts after confirm: ["Advanced trigger\n\nThis YAML uses features the form cannot represent. Edit it directly; Hub will preserve every advanced field.\n\nSprite targets can only be edited in YAML.","The sprite wasn't recreated\n\nRecreating this sprite destroys it and ends its 1 running execution. Try again once it is idle."]
+[busy] live regions: []
+[busy] rows after: [["Status","Alive"],["Sprite","trigger-3e9b2430-5d24-491d-8aa9-f9f696fdd21f"],["Memory","16384 MB"],["Last run","just now"]]
+[busy] Sprite actions kebab after: 1
+machine + daemon after the refusal: alive / (no reason) / daemon active
+
+=== 4c an error the reader cannot act on: the machines table is renamed away for the one mutation ===
+hide machines: ALTER TABLE
+restore machines: ALTER TABLE
+alert: "The sprite wasn't recreated\n\nHub couldn't recreate this sprite. Reload its status before trying again. If it happens again, quote reference 83f7442c-b31c-4893-9b60-854fcc87ae5a when reporting it."
+
+=== 4a recreate an idle sprite ===
+running executions on the sprite machine: 0
+[idle] confirmation: "Recreate this sprite?\n\nHub destroys the sprite and revokes its daemon. The next run provisions a new one from the trigger's bootstrap, and continuation starts over.\n\nCancel\nRecreate sprite"
+[idle] buttons: ["Cancel","Recreate sprite"]
+[idle] alerts after confirm: ["Advanced trigger\n\nThis YAML uses features the form cannot represent. Edit it directly; Hub will preserve every advanced field.\n\nSprite targets can only be edited in YAML."]
+[idle] live regions: []
+[idle] rows after: [["Status","Terminated"],["Sprite","trigger-3e9b2430-5d24-491d-8aa9-f9f696fdd21f"],["Memory","16384 MB"],["Last run","just now"]]
+[idle] Sprite actions kebab after: 0
+machine after: terminated / recreated from the dashboard / terminated_at set: true
+daemon after:  nightly-deploy / revoked / offline / disconnected_at set: true

@@ -1,0 +1,23 @@
+[run.github] warning present: true
+[run.github] text: "Continuation ends when the leased credential does\n\nConversation continuation and leased credentials cancel each other: run.github and connection templates in run.env are revoked when an execution reaches terminal, which clears the session and gives the next arrival a new agent. Put the credentials in run.target.env, which lives on the sprite and is not a lease."
+[run.github] save "Save YAML" disabled: false
+[run.github] save "Save YAML" disabled: false
+[run.env connection template] warning present: true
+[run.env connection template] text: "Continuation ends when the leased credential does\n\nConversation continuation and leased credentials cancel each other: run.github and connection templates in run.env are revoked when an execution reaches terminal, which clears the session and gives the next arrival a new agent. Put the credentials in run.target.env, which lives on the sprite and is not a lease."
+[run.env connection template] save "Save YAML" disabled: false
+[run.env connection template] save "Save YAML" disabled: false
+[neither (run.github removed)] warning present: false
+[neither (run.github removed)] save "Save YAML" disabled: false
+[neither (run.github removed)] save "Save YAML" disabled: false
+sprite + conversation + run.github: 1 warning(s) at run.continuation.mode
+  message: "Conversation continuation and leased credentials cancel each other: run.github and connection templates in run.env are revoked when an execution reaches terminal, which clears the session and gives the next arrival a new agent. Put the credentials in run.target.env, which lives on the sprite and is not a lease."
+sprite + conversation + run.env template: 1 warning(s) at run.continuation.mode
+  message: "Conversation continuation and leased credentials cancel each other: run.github and connection templates in run.env are revoked when an execution reaches terminal, which clears the session and gives the next arrival a new agent. Put the credentials in run.target.env, which lives on the sprite and is not a lease."
+sprite + conversation + both: 1 warning(s) at run.continuation.mode
+  message: "Conversation continuation and leased credentials cancel each other: run.github and connection templates in run.env are revoked when an execution reaches terminal, which clears the session and gives the next arrival a new agent. Put the credentials in run.target.env, which lives on the sprite and is not a lease."
+sprite + conversation, neither: 0 warning(s)
+sprite + mode new + run.github: 0 warning(s)
+daemon target + conversation + run.github: 0 warning(s)
+daemon target + conversation + run.env template: 0 warning(s)
+document that does not parse: 0 warning(s)
+all cases as expected

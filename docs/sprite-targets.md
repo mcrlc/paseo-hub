@@ -235,7 +235,7 @@ GitHub authority for the agent uses the existing `run.github` grant with per-exe
 Per `docs/design.md`: state through `StatusPill`, never a badge.
 
 - Daemons page: sprite daemons show the owning trigger as the `TwoLine` secondary line and their machine status as a `StatusPill`. Rename is disabled.
-- Trigger detail: a Sprite section with status, last hold, and `RowActions` for Recreate.
+- Trigger detail: a Sprite section with status, sprite name, memory, last run, and `RowActions` for Recreate.
 - Activity run detail: machine status at dispatch time (`spawning` or `alive`) is shown from the `machines` row. Execution status stays the existing closed enum.
 
 ## 6. Lifecycle summary

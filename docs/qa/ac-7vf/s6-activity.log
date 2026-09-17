@@ -1,0 +1,13 @@
+{"label":"sprite run","runId":"76d4eea3-4c11-4077-b2b2-32ffee8ef1ab","stepRunId":"27558459-5d18-4153-9950-c1a6e1b6cb87","executionId":"a08b5300-0f7c-4f74-9a6a-f1c31ea8b930"}
+{"label":"daemon run","runId":"e33977f8-6637-4f99-ba06-8dec79445d89","stepRunId":"08837a63-ba6f-4b14-a3d3-c74d82c2efb2","executionId":"779fd25f-52e9-4e72-8a5e-bb55de70619c"}
+[nightly-deploy] cells: ["nightly-deploy\nacme/hub","github","github.issue_comment","Running\nAlive","5 minutes ago"]
+[nightly-deploy] pill {"text":"Running","className":"bg-neutral-surface text-neutral"}
+[nightly-deploy] pill {"text":"Alive","className":"bg-success-surface text-success"}
+[nightly-lint] cells: ["nightly-lint\nacme/site","github","github.push","Running","5 minutes ago"]
+[nightly-lint] pill {"text":"Running","className":"bg-neutral-surface text-neutral"}
+[dom] badge elements: 0
+
+devbox: row height 44px
+nightly-deploy: row height 47px
+activity nightly-lint: row height 44px
+activity nightly-deploy: row height 47px

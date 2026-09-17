@@ -1,0 +1,21 @@
+=== head ===
+1c0c2b3 fix(triggers): keep the recreate fallback message fixed
+
+=== npm run format:check ===
+All matched files use the correct format.
+Finished in 1600ms on 835 files using 15 threads.
+
+=== npm run lint ===
+Found 0 warnings and 0 errors.
+Found 0 warnings and 0 errors.
+
+=== npm run typecheck (node, start, e2e) ===
+exit 0; no 'error' lines means all three projects are clean
+
+=== npm run db:check ===
+
+No schema changes, nothing to migrate 😴
+
+=== npm run build ===
+✓ built in 5.46s
+✓ built in 1.21s

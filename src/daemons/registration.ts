@@ -4,6 +4,7 @@ import { ProductRequestError, type OrganizationAccessValue } from "../auth/organ
 import type { BrowserOrganizationAccess } from "../auth/browser-organization-access.js";
 import { capabilitiesFor } from "../auth/organization-policy.js";
 import type { Database, DaemonRecord } from "../db/types.js";
+import type { MachineStatus } from "../db/schema.js";
 import type { ActiveDaemonRegistry, DaemonClock } from "./registry.js";
 import { slugify } from "../slug.js";
 import { reportFailure } from "../failures/index.js";
@@ -40,9 +41,17 @@ export class DaemonRegistration {
   async list(request: Request): Promise<Response> {
     const access = await this.browserRouteAccess(request, false);
     if (access instanceof Response) return access;
-    const daemons = await this.options.database.listDaemonsForOrganization(access.organization.id);
+    const [daemons, sprites] = await Promise.all([
+      this.options.database.listDaemonsForOrganization(access.organization.id),
+      this.options.database.listOrganizationSprites(access.organization.id),
+    ]);
+    const spriteFor = new Map(
+      sprites.flatMap(({ daemonId, triggerName, machine }) =>
+        daemonId === null ? [] : [[daemonId, { triggerName, machineStatus: machine.status }]],
+      ),
+    );
     return Response.json({
-      daemons: daemons.map(daemonSummary),
+      daemons: daemons.map((daemon) => daemonSummary(daemon, spriteFor.get(daemon.id))),
       canManage: access.capabilities.manageResources,
     });
   }
@@ -249,7 +258,7 @@ async function parsedJson(request: Request, operation: string): Promise<unknown>
   }
 }
 
-function daemonSummary(daemon: DaemonRecord) {
+function daemonSummary(daemon: DaemonRecord, sprite?: DaemonSprite) {
   return {
     id: daemon.id,
     slug: daemon.slug,
@@ -259,7 +268,13 @@ function daemonSummary(daemon: DaemonRecord) {
     lastSeenAt: daemon.lastSeenAt.toISOString(),
     registeredAt: daemon.createdAt.toISOString(),
     permissions: daemon.permissions,
+    sprite: sprite ?? null,
   };
+}
+
+interface DaemonSprite {
+  triggerName: string;
+  machineStatus: MachineStatus;
 }
 
 function unavailableDaemon(): Response {

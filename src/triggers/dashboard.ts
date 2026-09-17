@@ -1,13 +1,25 @@
 import type { AuthServer } from "../auth/server.js";
 import { capabilitiesFor } from "../auth/organization-policy.js";
-import type { Database, OrganizationTriggerRecord } from "../db/types.js";
+import type { Database, OrganizationSpriteRecord, OrganizationTriggerRecord } from "../db/types.js";
 import { resolveRouteTenant } from "../projects/access.js";
 import { ProjectCommandError } from "../projects/command-error.js";
 import { parseCompiledHubConfig } from "../config/compiler.js";
+import { spriteSpecs } from "../daemons/sprites/activation.js";
 import { projectTriggerForm } from "./configuration/editor.js";
 import { OrganizationTriggerStore } from "./store.js";
 import type { EntitlementsService } from "../entitlements/service.js";
 import type { SpriteActivation } from "../daemons/sprites/activation.js";
+
+export class SpriteBusyError extends Error {
+  readonly code = "conflict";
+
+  constructor(running: number) {
+    super(
+      `Recreating this sprite destroys it and ends its ${String(running)} running execution${running === 1 ? "" : "s"}. Try again once it is idle.`,
+    );
+    this.name = "SpriteBusyError";
+  }
+}
 
 export class TriggerDashboard {
   constructor(
@@ -22,11 +34,18 @@ export class TriggerDashboard {
       organizationSlug,
     });
     const store = new OrganizationTriggerStore(this.database, tenant.organization.id);
-    const [triggers, daemons, connections] = await Promise.all([
+    const [triggers, daemons, connections, sprites] = await Promise.all([
       store.list(),
       this.database.listDaemonsForOrganization(tenant.organization.id),
       this.database.organizationConnectionUsage(tenant.organization.id),
+      this.database.listOrganizationSprites(tenant.organization.id),
     ]);
+    const latestSpriteFor = new Map<string, OrganizationSpriteRecord>();
+    for (const sprite of sprites) {
+      if (sprite.machine.source.kind !== "sprite") continue;
+      const { triggerId } = sprite.machine.source;
+      if (!latestSpriteFor.has(triggerId)) latestSpriteFor.set(triggerId, sprite);
+    }
     const activity = (
       await Promise.all(triggers.map((trigger) => this.activityForTrigger(trigger)))
     )
@@ -42,6 +61,7 @@ export class TriggerDashboard {
             store,
             trigger,
             activity.find(({ triggerId }) => triggerId === trigger.id),
+            latestSpriteFor.get(trigger.id),
           ),
         ),
       ),
@@ -94,22 +114,53 @@ export class TriggerDashboard {
         ? Promise.resolve([])
         : this.database.listProjectActivityRuns(legacyProjectId, 100),
     ]);
-    return [...current, ...historical]
-      .filter(
-        ({ run }) =>
-          current.some((candidate) => candidate.run.id === run.id) ||
-          run.configuredTriggerName === legacyTriggerName,
-      )
-      .map(({ run, receipt }) => ({
-        id: run.id,
-        triggerId: trigger.id,
-        triggerName: trigger.name,
-        provider: receipt.provider,
-        source: receipt.source,
-        repo: receipt.repo,
-        status: run.status,
-        receivedAt: receipt.receivedAt.toISOString(),
-      }));
+    const runs = [...current, ...historical].filter(
+      ({ run }) =>
+        current.some((candidate) => candidate.run.id === run.id) ||
+        run.configuredTriggerName === legacyTriggerName,
+    );
+    const machineStatuses = new Map(
+      (
+        await this.database.listSpriteRunStatuses(
+          trigger.organizationId,
+          runs.map(({ run }) => run.id),
+        )
+      ).map(({ triggerRunId, status }) => [triggerRunId, status]),
+    );
+    return runs.map(({ run, receipt }) => ({
+      id: run.id,
+      triggerId: trigger.id,
+      triggerName: trigger.name,
+      provider: receipt.provider,
+      source: receipt.source,
+      repo: receipt.repo,
+      status: run.status,
+      receivedAt: receipt.receivedAt.toISOString(),
+      machineStatus: machineStatuses.get(run.id) ?? null,
+    }));
+  }
+
+  async recreateSprite(request: Request, organizationSlug: string, triggerId: string) {
+    const { account, tenant } = await resolveRouteTenant(this.auth, this.database, request, {
+      organizationSlug,
+    });
+    if (!capabilitiesFor(tenant.membership.role).manageResources) {
+      throw new ProjectCommandError("forbidden");
+    }
+    const trigger = (
+      await new OrganizationTriggerStore(this.database, tenant.organization.id).list()
+    ).find(({ id }) => id === triggerId);
+    if (trigger === undefined) throw new ProjectCommandError("notFound");
+    const machine = await this.database.findLiveSpriteMachine(triggerId);
+    if (machine === undefined) return;
+    const running = await this.database.findRunningAgentExecutionsForMachine(machine.id);
+    if (running.length > 0) throw new SpriteBusyError(running.length);
+    await this.spriteActivation?.({
+      trigger,
+      target: undefined,
+      userId: account.account.id,
+      reason: "recreated from the dashboard",
+    });
   }
 
   async save(
@@ -142,6 +193,7 @@ async function triggerView(
   lastTriggered:
     | { provider: string; source: string; status: string; receivedAt: string }
     | undefined,
+  sprite: OrganizationSpriteRecord | undefined,
 ) {
   const revision = await store.activeRevision(trigger);
   const evidence = record(revision.sourceEvidence);
@@ -163,6 +215,7 @@ async function triggerView(
       event,
       provider: triggerProvider(event, lastTriggered?.provider),
       lastTriggered: operational,
+      sprite: null,
     };
   }
   const projection = projectTriggerForm(revision.yaml);
@@ -181,6 +234,26 @@ async function triggerView(
       lastTriggered?.provider,
     ),
     lastTriggered: operational,
+    sprite: spriteView(revision.normalizedConfiguration, sprite),
+  };
+}
+
+function spriteView(
+  normalizedConfiguration: unknown,
+  sprite: OrganizationSpriteRecord | undefined,
+) {
+  const targetsSprite = parseCompiledHubConfig(normalizedConfiguration).environments.some(
+    (environment) => environment.kind === "sprite",
+  );
+  if (!targetsSprite) return null;
+  if (sprite === undefined || sprite.machine.source.kind !== "sprite") {
+    return { status: null, name: null, memoryMb: null, lastRunAt: null };
+  }
+  return {
+    status: sprite.machine.status,
+    name: sprite.machine.source.spriteName,
+    memoryMb: spriteSpecs(sprite.machine).memoryMb ?? null,
+    lastRunAt: sprite.lastRunAt?.toISOString() ?? null,
   };
 }
 
