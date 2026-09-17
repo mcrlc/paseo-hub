@@ -1,0 +1,13 @@
+# ac-s5g round 5, scenario 3a: links and anchors
+# HEAD: 88dec43c1764d23be50f90a23047302d764621e6
+# date: 2026-09-17T15:41:20Z
+# command: node docs/qa/ac-s5g/check-links.mjs
+
+ok   SECURITY.md: (docs/sprite-targets-guide.md) -> /Users/mic/.paseo/worktrees/01slizkc/verify-docs-security/docs/sprite-targets-guide.md
+ok   docs/sprite-targets-guide.md: (entitlements.md) -> /Users/mic/.paseo/worktrees/01slizkc/verify-docs-security/docs/entitlements.md
+ok   docs/sprite-targets-guide.md: (../SECURITY.md#sprite-targets) -> /Users/mic/.paseo/worktrees/01slizkc/verify-docs-security/SECURITY.md #sprite-targets found
+ok   docs/sprite-targets-guide.md: (#credentials-and-continuation) -> /Users/mic/.paseo/worktrees/01slizkc/verify-docs-security/docs/sprite-targets-guide.md #credentials-and-continuation found
+ok   docs/sprite-targets-guide.md: (scheduled-triggers.md#timing-and-recovery) -> /Users/mic/.paseo/worktrees/01slizkc/verify-docs-security/docs/scheduled-triggers.md #timing-and-recovery found
+ok   docs/sprite-targets-guide.md: (../SECURITY.md#sprite-targets) -> /Users/mic/.paseo/worktrees/01slizkc/verify-docs-security/SECURITY.md #sprite-targets found
+result: PASS
+exit: 0

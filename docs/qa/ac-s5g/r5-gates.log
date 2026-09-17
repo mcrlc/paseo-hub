@@ -1,0 +1,70 @@
+# ac-s5g round 5, scenario 5: gates
+# HEAD: 88dec43c1764d23be50f90a23047302d764621e6
+# date: 2026-09-17T15:41:25Z
+
+== npm run format:check ==
+
+> @getpaseo/hub@0.9.0 format:check
+> oxfmt --check .
+
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 2141ms on 818 files using 15 threads.
+exit: 
+
+== npm run typecheck ==
+
+> @getpaseo/hub@0.9.0 typecheck
+> npm run typecheck:node && npm run typecheck:start && npm run typecheck:e2e
+
+
+> @getpaseo/hub@0.9.0 typecheck:node
+> tsgo --noEmit -p tsconfig.json
+
+
+> @getpaseo/hub@0.9.0 typecheck:start
+> tsgo --noEmit -p tsconfig.start.json
+
+
+> @getpaseo/hub@0.9.0 typecheck:e2e
+> tsgo --noEmit -p tsconfig.e2e.json
+
+exit: 
+
+== npm run lint ==
+
+> @getpaseo/hub@0.9.0 lint
+> npm run lint:node && npm run lint:start
+
+
+> @getpaseo/hub@0.9.0 lint:node
+> oxlint --config oxlint.json --tsconfig tsconfig.json --ignore-pattern '**/*.tsx' --ignore-pattern '**/*.mjs' src
+
+Found 0 warnings and 0 errors.
+Finished in 2.8s on 464 files with 238 rules using 15 threads.
+
+> @getpaseo/hub@0.9.0 lint:start
+> oxlint --config oxlint.json --tsconfig tsconfig.start.json --ignore-pattern '**/*.mjs' src vite.config.ts drizzle.config.ts
+
+Found 0 warnings and 0 errors.
+Finished in 3.1s on 592 files with 238 rules using 15 threads.
+exit: 
+
+== exit codes (re-run) ==
+format:check exit=0
+typecheck exit=0
+lint exit=0
+
+== gh pr checks 6 --repo mcrlc/paseo-hub --watch ==
+browser-e2e	pass	16m26s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264930525	
+build	pass	58s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264930851	
+docker-smoke	pass	1m35s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264930928	
+format	pass	42s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264930964	
+hub-e2e	pass	6m26s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264930872	
+lint	pass	34s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264930940	
+migrations	pass	28s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264930856	
+test	pass	13m5s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264931068	
+typecheck	pass	41s	https://github.com/mcrlc/paseo-hub/actions/runs/35239780498/job/105264931063	
+exit=0
+PR head: 88dec43c1764d23be50f90a23047302d764621e6

@@ -1,0 +1,11 @@
+# ac-s5g round 5: continuation across an env or memory edit
+# HEAD: 88dec43c1764d23be50f90a23047302d764621e6
+# date: 2026-09-17T15:54:16Z
+# command: LOG_LEVEL=silent npx tsx docs/qa/ac-s5g/r5-continuation.ts
+
+ac-s5g round 5: continuation across an `env` or `memory` edit
+first event, memory 16384:                 ok: action=created agent=agent-1
+second event, same conversation, unchanged: ok: action=continued agent=agent-1
+third event after the memory edit to 4096:  threw: Continuation settings differ from the existing agent; use a different key or choose a new agent
+fourth event, memory back at 16384:        ok: action=continued agent=agent-1
+fifth event after adding env REGION: eu:        threw: Continuation settings differ from the existing agent; use a different key or choose a new agent

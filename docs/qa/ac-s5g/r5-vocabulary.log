@@ -1,0 +1,131 @@
+# ac-s5g round 5, scenario 3b: vocabulary in the guide and SECURITY.md vs the code at 88dec43
+# Round 1's checks (docs/qa/ac-s5g/04-vocabulary.log) re-applied to the current text, plus the
+# terms this round's claims rest on. Every grep is against this worktree at HEAD.
+# HEAD: 88dec43c1764d23be50f90a23047302d764621e6
+# date: 2026-09-17T15:51:51Z
+
+$ grep -n '<target and run fields>' src/triggers/configuration/schema.ts
+39:    label: z.string().min(1).optional(),
+49:    from_users: z.array(z.string().min(1)).optional(),
+57:    connection: z.string().regex(CONNECTION_SLUG).optional(),
+85:      kind: z.literal("daemon").optional().default("daemon"),
+87:      cwd: z.string().min(1),
+88:      worktree: WorktreeTargetSchema.optional(),
+93:      kind: z.literal("sprite"),
+94:      bootstrap: z.string().min(1),
+95:      cwd: z.string().startsWith("/", "must be an absolute path"),
+96:      memory: z.number().int().positive().optional(),
+97:      env: z.record(z.string().min(1), z.string()).optional(),
+98:      worktree: WorktreeTargetSchema.optional(),
+114:    continuation: ContinuationSchema.default({ mode: "conversation" }),
+116:    max_runtime: z.string().min(1).default("2h"),
+117:    idle_timeout: z.string().min(1).default("10m"),
+119:    env: z.record(z.string().min(1), z.string()).optional(),
+126:    auto_archive: z.boolean().default(true),
+137:    max_runtime: z.string().min(1).optional(),
+188:    if (trigger.run.target.kind === "sprite" && !trigger.run.auto_archive) {
+191:        path: ["run", "auto_archive"],
+192:        message: "Sprite targets always archive; auto_archive must be true.",
+
+$ grep -n '<reserved env keys>' src/daemons/sprites/env.ts
+2:const RESERVED_ENV_KEYS = new Set(["HOME", "PATH", "PASEO_HOME", "PASEO_PASSWORD"]);
+3:const VALUE_MAX = 8192;
+9:  if (RESERVED_ENV_KEYS.has(key)) return `Hub sets ${key} on every sprite; choose another name.`;
+15:  if (value.length > VALUE_MAX) return `Keep the value to ${VALUE_MAX} characters or fewer.`;
+
+$ grep -n '<refusal messages>' src/triggers/store.ts
+99:          message: "Sprite targets are not enabled for this organization.",
+138:        message: `${retirement.consequence} and ends its ${String(running.length)} running execution${running.length === 1 ? "" : "s"}. Save again once it is idle.`,
+145:      return "Sprite targets are unavailable on this Hub: no public base URL or API keys configured.";
+150:      return "Sprites are not configured for this organization.";
+185:      consequence: "Changing the target destroys the sprite",
+189:    return { path: ["enabled"], consequence: "Disabling the trigger destroys the sprite" };
+194:    consequence: "Changing bootstrap recreates the sprite",
+
+$ grep -n '<hold, tick, release, recovery>' src/daemons/lifecycle.ts
+82:const SPRITE_HOLD_REFRESH_INTERVAL_MS = 5 * 60_000;
+274:        await provider.hold(machine.source.spriteName, input.executionId, "60m");
+967:    const executions = await this.options.database.findPendingAgentExecutions();
+1007:    for (const machine of await this.options.database.findSpawningSpriteMachines()) {
+1015:          reason: "hub restarted during activation",
+1026:    for (const execution of await this.options.database.findPendingAgentExecutions()) {
+1033:        await provider.hold(machine.source.spriteName, execution.id, "60m");
+1048:    }, this.options.test?.spriteHoldRefreshIntervalMs ?? SPRITE_HOLD_REFRESH_INTERVAL_MS);
+1079:    const executions = await this.options.database.findPendingAgentExecutions();
+1190:    const executions = (await this.options.database.findPendingAgentExecutions()).filter(
+1449:      await this.releaseSpriteHold(execution);
+1508:  private async releaseSpriteHold(execution: AgentExecutionRecord): Promise<void> {
+1556:    if (execution.hubAction === null) await this.releaseSpriteHold(execution);
+
+$ grep -n '<env merge, scrub, retire>' src/daemons/sprites/activation.ts
+94:      "daemons:enroll",
+117:    const secrets = [key.secret, ...Object.values(configuration.env)];
+137:        await database.transitionMachine(machine.id, "terminated", { reason });
+196:  const bootstrapEnv = { PATH, ...input.organizationEnv, ...targetEnv };
+206:  const service = daemonService(npmPrefix, { ...input.organizationEnv, ...targetEnv });
+238:    await retireSprite(
+270:async function retireSprite(
+278:  if (daemon !== undefined) await database.revokeDaemon(daemon.id);
+279:  await database.transitionMachine(machine.id, "terminated", { reason });
+297:  const service = daemonService(npmPrefix, { ...input.organizationEnv, ...targetEnv });
+365:          throw new Error(`env.${key} cannot be resolved without an execution lease`);
+379:    PASEO_PASSWORD: randomBytes(32).toString("base64url"),
+417:const SECRET_MIN_LENGTH = 8;
+422:      secret.length < SECRET_MIN_LENGTH ? scrubbed : scrubbed.replaceAll(secret, "[redacted]"),
+
+$ grep -n '<provider calls>' src/daemons/sprites/client.ts
+128:    await request("POST", `${spritePath(name)}/policy/resources`, {
+146:      const path = `${spritePath(name)}/services/${encodeURIComponent(service)}`;
+147:      await request("DELETE", path, { allowNotFound: true });
+153:    async hold(name: string, task: string, expire: string): Promise<void> {
+155:      await taskRequest(name, ["-X", "PUT", taskPath(task), "-d", body]);
+158:    async release(name: string, task: string): Promise<void> {
+159:      await taskRequest(name, ["-X", "DELETE", taskPath(task)], true);
+162:    async destroy(name: string): Promise<void> {
+172:function taskPath(task: string): string {
+
+$ grep -n '<slug from the trigger name>' src/db/pg.ts
+1666:                  `select name from organization_triggers where id = $1 and organization_id = $2`,
+1672:          triggerName === undefined ? hostnameSlug : slugify(triggerName, hostnameSlug);
+3097:        `select name from organization_triggers where organization_id = $1 for update`,
+
+$ grep -n '<failure reasons>' src/workflows/engine.ts src/agent-sessions/index.ts
+546:          "sprite_unavailable",
+69:            execution.launchIntent !== null && hasTemporaryCredentials(execution.launchIntent),
+99:          "Continuation settings differ from the existing agent; use a different key or choose a new agent",
+156:        throw new AgentSessionError("agent_interrupted");
+159:        await input.connection.restore(session.workspaceId, startupTimeoutMs);
+174:    return session.daemonId === daemonId ? "created" : "reset";
+283:function hasTemporaryCredentials(intent: LaunchMachineIntent): boolean {
+
+$ grep -n '<events and expressions used by the examples>' src/triggers/github/classification.ts src/config/compiler.ts
+14:  "github.pull_request_comment_created",
+16:  "github.pull_request_label_added",
+142:  if (action === "labeled") return "github.pull_request_label_added";
+151:  return isPullRequest ? "github.pull_request_comment_created" : "github.issue_comment_created";
+305:  spriteTargets?: boolean;
+444:  const authored = (options.spriteTargets === true ? TriggerAuthoredSchema : AuthoredSchema).parse(
+1018:        if (!contextAllowed) throw new Error(`${path} uses paseo.context outside a step prompt`);
+
+$ grep -n '<entitlement flag>' src/entitlements/catalog.ts src/organizations/provisioning.ts
+20:    canUseSpriteTargets: z.boolean(),
+52:  canUseSpriteTargets: z.boolean().default(false),
+79:    canUseSpriteTargets: z.boolean(),
+110:export type FlagKey = "canInviteMembers" | "canUseSpriteTargets";
+125:  canUseSpriteTargets: true,
+149:    canUseSpriteTargets: effective.canUseSpriteTargets,
+203:  } else if (key === "canUseSpriteTargets") {
+204:    delete next.canUseSpriteTargets;
+255:    canUseSpriteTargets: overrides.canUseSpriteTargets ?? granted.canUseSpriteTargets,
+5:  UNLIMITED_TEMPLATE,
+32:export const UNLIMITED_PROVISIONING: ProvisioningEntitlement = {
+34:  granted: UNLIMITED_TEMPLATE,
+
+# Terms the guide uses that have no counterpart in src/ (checked, none found):
+sprite idle -> 
+pause setting -> 
+cold sprite -> 
+warm pause -> 
+
+result: PASS (every field name, message, constant and failure reason quoted in
+docs/sprite-targets-guide.md and SECURITY.md appears above; no invented vocabulary)
