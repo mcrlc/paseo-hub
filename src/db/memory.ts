@@ -85,6 +85,8 @@ import type {
   OrganizationEntitlementsRecord,
   OrganizationSpritesConfigurationRecord,
   UpsertOrganizationSpritesConfigurationInput,
+  SetOrganizationSpritesEnvInput,
+  RemoveOrganizationSpritesEnvInput,
   OperatorOrganizationRecord,
   StampOrganizationEntitlementsInput,
   OverrideOrganizationEntitlementsInput,
@@ -2082,8 +2084,40 @@ class MemoryDatabase implements Database {
     if (input.memoryMb < 1) {
       throw new Error("organization_sprites_configuration_memory_mb_check");
     }
-    const record = { ...input, updatedAt: new Date() };
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    const record = { ...input, env: input.env ?? existing?.env ?? {}, updatedAt: new Date() };
     this.organizationSpritesConfigurations.set(input.organizationId, record);
+    return record;
+  }
+
+  async setOrganizationSpritesEnv(
+    input: SetOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    if (existing === undefined) return undefined;
+    return this.writeOrganizationSpritesEnv(
+      existing,
+      { ...existing.env, [input.key]: input.value },
+      input.updatedByUserId,
+    );
+  }
+
+  async removeOrganizationSpritesEnv(
+    input: RemoveOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    if (existing === undefined) return undefined;
+    const { [input.key]: _removed, ...env } = existing.env;
+    return this.writeOrganizationSpritesEnv(existing, env, input.updatedByUserId);
+  }
+
+  private writeOrganizationSpritesEnv(
+    existing: OrganizationSpritesConfigurationRecord,
+    env: Record<string, string>,
+    updatedByUserId: string | null,
+  ): OrganizationSpritesConfigurationRecord {
+    const record = { ...existing, env, updatedByUserId, updatedAt: new Date() };
+    this.organizationSpritesConfigurations.set(existing.organizationId, record);
     return record;
   }
 

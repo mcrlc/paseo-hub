@@ -1,0 +1,1 @@
+ALTER TABLE "organization_sprites_configuration" ADD COLUMN "env" jsonb DEFAULT '{}'::jsonb NOT NULL;

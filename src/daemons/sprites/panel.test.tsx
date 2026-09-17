@@ -1,15 +1,28 @@
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it } from "vitest";
-import { SpritesSettingsContent, spritesFormValues, submitSpritesForm } from "./panel.js";
+import {
+  SpritesEnvCard,
+  SpritesSettingsContent,
+  spritesEnvFormValues,
+  spritesFormValues,
+  submitSpritesForm,
+} from "./panel.js";
 
 const CONFIGURED = {
   configured: true,
   memoryMb: 16384,
+  envKeys: [],
   updatedAt: "2026-09-17T09:00:00.000Z",
   updatedByUserId: "user-1",
 };
-const UNCONFIGURED = { configured: false, memoryMb: null, updatedAt: null, updatedByUserId: null };
+const UNCONFIGURED = {
+  configured: false,
+  memoryMb: null,
+  envKeys: [],
+  updatedAt: null,
+  updatedByUserId: null,
+};
 const ignore = () => undefined;
 
 const REJECTED = { token: "Sprites rejected this token." };
@@ -75,6 +88,61 @@ describe("Sprites settings form", () => {
     assert.match(
       markup(false, true),
       /id="sprites-token-error"[^>]*>Sprites rejected this token\./u,
+    );
+  });
+});
+
+function envMarkup(keys: string[]): string {
+  return renderToStaticMarkup(
+    <SpritesEnvCard
+      keys={keys}
+      formKey="k"
+      busy={false}
+      saved={false}
+      error={undefined}
+      removeError={undefined}
+      onReset={ignore}
+      onSet={ignore}
+      onRemove={ignore}
+    />,
+  );
+}
+
+describe("Sprites daemon environment", () => {
+  it("lists key names with row actions and no values", () => {
+    const html = envMarkup(["API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]);
+    assert.match(html, /aria-label="Daemon environment variables"/u);
+    assert.match(html, />API_KEY</u);
+    assert.match(html, /aria-label="Actions for CLAUDE_CODE_OAUTH_TOKEN"/u);
+    assert.match(html, /write-only/u);
+    assert.doesNotMatch(html, /No variables/u);
+  });
+
+  it("shows the empty state when nothing is set", () => {
+    const html = envMarkup([]);
+    assert.match(html, /No variables/u);
+    assert.doesNotMatch(html, /Daemon environment variables/u);
+  });
+
+  it("offers a name field and an empty password value field", () => {
+    const html = envMarkup([]);
+    assert.match(html, /<input[^>]*name="key"/u);
+    const value = /<input[^>]*name="value"[^>]*>/u.exec(html)?.[0] ?? "";
+    assert.match(value, /type="password"/u);
+    assert.doesNotMatch(value, /value=/u);
+  });
+
+  it("validates the name and value before sending", () => {
+    assert.deepEqual(spritesEnvFormValues(form({ key: "lower", value: " " })).errors, {
+      key: "Use capital letters, digits, and underscores, not starting with a digit.",
+      value: "Enter a value.",
+    });
+    assert.deepEqual(spritesEnvFormValues(form({ key: "PATH", value: "v" })).errors, {
+      key: "Hub sets PATH on every sprite; choose another name.",
+    });
+    assert.deepEqual(
+      spritesEnvFormValues(form({ key: " CLAUDE_CODE_OAUTH_TOKEN ", value: " t " })).values,
+      { key: "CLAUDE_CODE_OAUTH_TOKEN", value: "t" },
     );
   });
 });

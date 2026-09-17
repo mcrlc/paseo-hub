@@ -64,6 +64,7 @@ describe("organization Sprites configuration", () => {
       assert.deepEqual(read, updated);
       assert.equal(read?.token, "second");
       assert.equal(read?.memoryMb, 16384);
+      assert.deepEqual(read?.env, {});
 
       await assert.rejects(
         store.upsertOrganizationSpritesConfiguration({
@@ -73,6 +74,59 @@ describe("organization Sprites configuration", () => {
           updatedByUserId: null,
         }),
         /organization_sprites_configuration_memory_mb_check/u,
+      );
+    }
+  });
+
+  it("sets, replaces, and removes one environment key, keeping it across token upserts", async () => {
+    const organizationId = await seedOrganization();
+    const otherOrganizationId = await seedOrganization();
+
+    for (const store of [database, createMemoryDatabase()]) {
+      const unconfigured = { key: "TOKEN", value: "v", updatedByUserId: null };
+      assert.equal(
+        await store.setOrganizationSpritesEnv({ organizationId, ...unconfigured }),
+        undefined,
+      );
+      for (const id of [organizationId, otherOrganizationId]) {
+        await store.upsertOrganizationSpritesConfiguration({
+          organizationId: id,
+          token: "t",
+          memoryMb: 8192,
+          updatedByUserId: null,
+        });
+      }
+      await store.setOrganizationSpritesEnv({ organizationId, ...unconfigured });
+      await store.setOrganizationSpritesEnv({
+        organizationId,
+        key: "OTHER",
+        value: "o",
+        updatedByUserId: null,
+      });
+      const replaced = await store.setOrganizationSpritesEnv({
+        organizationId,
+        key: "TOKEN",
+        value: "w",
+        updatedByUserId: null,
+      });
+      assert.deepEqual(replaced?.env, { OTHER: "o", TOKEN: "w" });
+
+      await store.upsertOrganizationSpritesConfiguration({
+        organizationId,
+        token: "rotated",
+        memoryMb: 8192,
+        updatedByUserId: null,
+      });
+      const removed = await store.removeOrganizationSpritesEnv({
+        organizationId,
+        key: "OTHER",
+        updatedByUserId: null,
+      });
+      assert.deepEqual(removed?.env, { TOKEN: "w" });
+      assert.deepEqual(await store.getOrganizationSpritesConfiguration(organizationId), removed);
+      assert.deepEqual(
+        (await store.getOrganizationSpritesConfiguration(otherOrganizationId))?.env,
+        {},
       );
     }
   });

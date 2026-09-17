@@ -878,6 +878,7 @@ export interface OrganizationSpritesConfigurationRecord {
   organizationId: string;
   token: string;
   memoryMb: number;
+  env: Record<string, string>;
   updatedAt: Date;
   updatedByUserId: string | null;
 }
@@ -886,6 +887,20 @@ export interface UpsertOrganizationSpritesConfigurationInput {
   organizationId: string;
   token: string;
   memoryMb: number;
+  env?: Record<string, string>;
+  updatedByUserId: string | null;
+}
+
+export interface SetOrganizationSpritesEnvInput {
+  organizationId: string;
+  key: string;
+  value: string;
+  updatedByUserId: string | null;
+}
+
+export interface RemoveOrganizationSpritesEnvInput {
+  organizationId: string;
+  key: string;
   updatedByUserId: string | null;
 }
 
@@ -1417,6 +1432,12 @@ export interface Database {
   upsertOrganizationSpritesConfiguration(
     input: UpsertOrganizationSpritesConfigurationInput,
   ): Promise<OrganizationSpritesConfigurationRecord>;
+  setOrganizationSpritesEnv(
+    input: SetOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined>;
+  removeOrganizationSpritesEnv(
+    input: RemoveOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined>;
   stampOrganizationEntitlements(
     input: StampOrganizationEntitlementsInput,
   ): Promise<OrganizationEntitlementsRecord>;

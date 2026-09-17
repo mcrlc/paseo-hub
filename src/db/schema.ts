@@ -1320,6 +1320,7 @@ export const organizationSpritesConfiguration = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     token: text().notNull(),
     memoryMb: integer("memory_mb").default(8192).notNull(),
+    env: jsonb().$type<Record<string, string>>().default({}).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     updatedByUserId: text("updated_by_user_id").references(() => users.id, {
       onDelete: "set null",

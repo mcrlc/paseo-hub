@@ -53,6 +53,52 @@ export const saveSpritesSettings = createServerFn({ method: "POST" })
     }
   });
 
+const setEnvSchema = scopeSchema.extend({ key: z.string(), value: z.string() });
+const removeEnvSchema = scopeSchema.extend({ key: z.string() });
+
+export const setSpritesEnv = createServerFn({ method: "POST" })
+  .validator(setEnvSchema)
+  .handler(async ({ data }): Promise<Result<{ state: "complete" }>> => {
+    try {
+      const settings = (await getApplication()).spritesSettings;
+      if (settings == null) throw new Error("sprites settings unavailable");
+      await settings.setEnv(getRequest(), data.organizationSlug, {
+        key: data.key,
+        value: data.value,
+      });
+      return respondOk({ state: "complete" });
+    } catch (error) {
+      return respondWithFailure(error, spritesContext("sprites.env.set", data.organizationSlug), {
+        fallback: "Hub couldn't save the variable. The stored environment is unchanged.",
+        forbidden: "You don't have permission to configure Sprites.",
+        ...(error instanceof Error && error.name === "SpritesEnvInputError"
+          ? { validation: error.message }
+          : {}),
+      });
+    }
+  });
+
+export const removeSpritesEnv = createServerFn({ method: "POST" })
+  .validator(removeEnvSchema)
+  .handler(async ({ data }): Promise<Result<{ state: "complete" }>> => {
+    try {
+      const settings = (await getApplication()).spritesSettings;
+      if (settings == null) throw new Error("sprites settings unavailable");
+      await settings.removeEnv(getRequest(), data.organizationSlug, { key: data.key });
+      return respondOk({ state: "complete" });
+    } catch (error) {
+      return respondWithFailure(
+        error,
+        spritesContext("sprites.env.remove", data.organizationSlug),
+        {
+          fallback:
+            "Hub couldn't remove the variable. Reload the page to check whether it is gone.",
+          forbidden: "You don't have permission to configure Sprites.",
+        },
+      );
+    }
+  });
+
 export type SpritesSaveOutcome =
   | { state: "complete" }
   | { state: "invalid"; errors: { token: string } };
