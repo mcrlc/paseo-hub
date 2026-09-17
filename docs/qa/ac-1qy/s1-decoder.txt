@@ -1,0 +1,74 @@
+# Scenario 1: decodeExec against captured bodies
+
+## A. Spike 6 recorded byte sequences and edge variants
+$ npx tsx docs/qa/ac-1qy/s1-decoder.ts
+PASS spike6 HTTP/2: 02 err\n 01 out\n 03 c8 0a
+  body=026572720a016f75740a03c80a
+  got={"stdout":"out\n","stderr":"err\n","exitCode":200}
+PASS spike6 HTTP/1.1 form (no trailing 0a): 02 err\n 01 out\n 03 c8
+  body=026572720a016f75740a03c8
+  got={"stdout":"out\n","stderr":"err\n","exitCode":200}
+PASS spike6 stdout then exit 3: 01 out\n 03 03
+  body=016f75740a0303
+  got={"stdout":"out\n","stderr":"","exitCode":3}
+PASS spike6 exit 0 only: 03 00
+  body=0300
+  got={"stdout":"","stderr":"","exitCode":0}
+PASS spike6 exit 0 over HTTP/2: 03 00 0a
+  body=03000a
+  got={"stdout":"","stderr":"","exitCode":0}
+PASS spike6 no exit frame: 01 ab
+  body=016162
+  got={"stdout":"ab","stderr":"","exitCode":null}
+PASS no exit frame, stdout ends in newline: 01 ab\n
+  body=0161620a
+  got={"stdout":"ab\n","stderr":"","exitCode":null}
+PASS 5000-byte single stdout frame + 03 00
+  body=017878787878787878787878…780a0300 (5003 bytes)
+  got={"stdout":"<5000 chars>","stderr":"","exitCode":0}
+PASS interleaved stdout, stderr, stdout, stderr then exit 7 over HTTP/2
+  body=016c696e65310a026c696e65320a016c696e65330a0265320a03070a
+  got={"stdout":"line1\nline3\n","stderr":"line2\ne2\n","exitCode":7}
+PASS UTF-8 payload split across two stdout frames mid-codepoint
+  body=0168c3a96c6c6f20e2019c9320e697a5e69cac0a0300
+  got={"stdout":"héllo ✓ 日本\n","stderr":"","exitCode":0}
+PASS exit code 10 (0x0a) over HTTP/1.1: 01 hi 03 0a
+  body=016869030a
+  got={"stdout":"hi","stderr":"","exitCode":10}
+PASS exit code 10 over HTTP/2: 01 hi 03 0a 0a
+  body=016869030a0a
+  got={"stdout":"hi","stderr":"","exitCode":10}
+PASS exit code 22 with curl stderr (release 404 shape)
+  body=026375726c3a202832322920…0a03160a (53 bytes)
+  got={"stdout":"","stderr":"curl: (22) The requested URL returned error: 404\n","exitCode":22}
+
+13/13 passed
+
+## B. Bodies captured live from api.sprites.dev today (2026-09-17), decoded with the PR's decodeExec
+$ docs/qa/ac-1qy/s1-s3-live-capture.sh hub-verify-9f31ee
+create http=201
+--- h2-interleaved (12 bytes) head=026572720a016f75740a0303 tail=6f75740a0303
+{"stdout":"out\n","stderr":"err\n","exitCode":3}
+--- h11-interleaved (12 bytes) head=026572720a016f75740a0303 tail=6f75740a0303
+{"stdout":"out\n","stderr":"err\n","exitCode":3}
+--- h2-5000 (5004 bytes) head=017878787878787878787878787878787878787878787878787878787878 tail=7878010a0300
+{"stdout":"<5000 chars, all x: true>","stderr":"","exitCode":0}
+--- h2-utf8 (35 bytes) head=02d0bed188d0b8d0b1d0bad0b00a0168c3a96c6c6f20e29c9320e697a5e6 tail=e69cac0a03c8
+{"stdout":"héllo ✓ 日本\n","stderr":"ошибка\n","exitCode":200}
+--- h11-exit10 (2 bytes) head=030a tail=030a
+{"stdout":"","stderr":"","exitCode":10}
+--- h2-stdin (22 bytes) head=026c696e65320a016c696e65310a6c696e65330a0307 tail=6e65330a0307
+{"stdout":"line1\nline3\n","stderr":"line2\n","exitCode":7}
+=== task PUT on a missing name (hold's upsert), PUT again, DELETE, DELETE again ===
+--- task (97 bytes) head=017b22657870697265735f6174223a22323032362d30392d31375430363a tail=5a227d0a0300
+{"stdout":"{\"expires_at\":\"2026-09-17T06:00:36Z\",\"name\":\"hub-verify\",\"started_at\":\"2026-09-17T05:55:36Z\"}\n","stderr":"","exitCode":0}
+--- task (97 bytes) head=017b22657870697265735f6174223a22323032362d30392d31375430363a tail=5a227d0a0300
+{"stdout":"{\"expires_at\":\"2026-09-17T06:00:37Z\",\"name\":\"hub-verify\",\"started_at\":\"2026-09-17T05:55:37Z\"}\n","stderr":"","exitCode":0}
+--- task (2 bytes) head=0300 tail=0300
+{"stdout":"","stderr":"","exitCode":0}
+--- task (82 bytes) head=026375726c3a20283232292054680265207265717565737465642055524c tail=756e640a0316
+{"stdout":"task \"hub-verify\" not found\n","stderr":"curl: (22) The requested URL returned error: 404\n","exitCode":22}
+destroy http=204
+get after destroy http=404
+$ sprite list   # after
+(empty, exit 0)
