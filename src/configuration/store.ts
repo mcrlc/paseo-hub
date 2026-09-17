@@ -47,10 +47,7 @@ export interface DaemonAgentConfigurationValidator {
 }
 
 export type CompiledProjectConfiguration = Omit<CompiledHubConfig, "environments" | "triggers"> & {
-  environments: readonly (
-    | Exclude<EnvironmentConfig, { kind: "daemon" }>
-    | (Extract<EnvironmentConfig, { kind: "daemon" }> & { daemonId: string })
-  )[];
+  environments: readonly (EnvironmentConfig & { daemonId: string })[];
   triggers: readonly CompiledTrigger[];
 };
 
@@ -338,7 +335,6 @@ export function parseProjectConfiguration(
 
 function toProjectConfiguration(configuration: CompiledHubConfig): CompiledProjectConfiguration {
   const environments = configuration.environments.map((environment) => {
-    if (environment.kind !== "daemon") return environment;
     if (environment.daemonId === undefined) {
       throw new Error("active configuration contains an uncompiled daemon reference");
     }

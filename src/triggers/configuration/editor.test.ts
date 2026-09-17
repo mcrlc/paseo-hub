@@ -85,6 +85,7 @@ describe("trigger form YAML bridge", () => {
     expect(yaml).toContain("# keep this heading");
     const value = TriggerDocumentSchema.parse(parseDocument(yaml).toJS());
     expect(value.run.target).toEqual({
+      kind: "daemon",
       daemon: "office",
       cwd: "/new-workspace",
       worktree: { mode: "branch-off", newBranch: "hub-work" },

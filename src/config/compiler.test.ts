@@ -771,58 +771,6 @@ describe("workflow compiler", () => {
       /compiled without a prompt partial bundle/iu,
     );
   });
-
-  it("rejects workflow steps that resolve to non-daemon environments", () => {
-    const trigger = configuration().triggers[0]!;
-    assert.throws(
-      () =>
-        compileHubConfig({
-          ...configuration(),
-          environments: [{ name: "docker", kind: "docker", image: "paseo/test" }],
-          triggers: [
-            {
-              ...trigger,
-              steps: [{ ...trigger.steps[0]!, environment: "docker" }],
-            },
-          ],
-        }),
-      /daemon environment/iu,
-    );
-    assert.throws(
-      () =>
-        compileHubConfig({
-          ...configuration(),
-          environments: [{ name: "fly", kind: "fly", image: "paseo/test" }],
-          triggers: [
-            {
-              ...trigger,
-              steps: [{ ...trigger.steps[0]!, environment: "fly" }],
-            },
-          ],
-        }),
-      /daemon environment/iu,
-    );
-    assert.throws(
-      () =>
-        compileHubConfig({
-          ...configuration(),
-          environments: [environment, { name: "docker", kind: "docker", image: "paseo/test" }],
-          triggers: [
-            {
-              ...trigger,
-              inputs: { runner: { type: "string", choices: ["runner", "docker"] } },
-              steps: [
-                {
-                  ...trigger.steps[0]!,
-                  environment: "${{ paseo.inputs.runner }}",
-                },
-              ],
-            },
-          ],
-        }),
-      /environment choice docker must be a daemon environment/iu,
-    );
-  });
 });
 
 function setAgent(raw: ReturnType<typeof configuration>, agent: unknown): void {

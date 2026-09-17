@@ -18,6 +18,16 @@ function reportsMissingEvent(error: unknown): boolean {
   );
 }
 
+function reportsUnknownTargetKind(error: unknown): boolean {
+  return (
+    error instanceof TriggerDocumentError &&
+    error.issues.some(
+      ({ path, message }) =>
+        path.join(".") === "run.target.kind" && /expected 'daemon'/iu.test(message),
+    )
+  );
+}
+
 const trigger = `
 name: engineering-requests
 enabled: true
@@ -114,6 +124,50 @@ describe("self-contained trigger documents", () => {
       { type: "slack.reply", max: 5, required: false },
       { type: "github.reply", required: false },
     ]);
+  });
+
+  it("compiles a target without kind to the daemon target", () => {
+    const compiled = compileTriggerDocument(trigger);
+    assert.deepEqual(compiled.environment, {
+      name: "target",
+      kind: "daemon",
+      daemon: "devbox",
+      cwd: "/workspace/company",
+    });
+  });
+
+  it("compiles an explicit daemon kind identically to an omitted kind", () => {
+    const target = `
+  target:
+    daemon: devbox
+    cwd: /workspace/company
+    worktree:
+      mode: branch-off
+      newBranch: hub-work`;
+    const implicit = trigger.replace(
+      "\n  target:\n    daemon: devbox\n    cwd: /workspace/company",
+      target,
+    );
+    const explicit = implicit.replace("  target:\n", "  target:\n    kind: daemon\n");
+    assert.notEqual(explicit, implicit);
+    assert.deepEqual(compileTriggerDocument(explicit).environment, {
+      name: "target",
+      kind: "daemon",
+      daemon: "devbox",
+      cwd: "/workspace/company",
+      worktree: { mode: "branch-off", newBranch: "hub-work" },
+    });
+    assert.deepEqual(
+      compileTriggerDocument(explicit).events,
+      compileTriggerDocument(implicit).events,
+    );
+  });
+
+  it("rejects an unknown target kind", () => {
+    assert.throws(
+      () => parseTriggerDocument(trigger.replace("  target:\n", "  target:\n    kind: fly\n")),
+      reportsUnknownTargetKind,
+    );
   });
 
   it("round-trips the semantic document through canonical YAML", () => {

@@ -1,0 +1,25 @@
+$ npx vitest run src/triggers/configuration/editor.test.ts
+
+ ✓ src/triggers/configuration/editor.test.ts (30 tests) 42ms
+
+ Test Files  1 passed (1)
+      Tests  30 passed (30)
+   Start at  08:55:20
+   Duration  512ms (transform 71ms, setup 0ms, collect 132ms, tests 42ms, environment 0ms, prepare 113ms)
+
+
+$ npx tsx docs/qa/ac-fc6/editor-explicit-kind.ts
+projected form: daemon=office cwd=/workspace
+unchanged form save returns the YAML byte-for-byte: ok
+--- run.target block after form save ---
+  target:
+    kind: daemon
+    daemon: workshop
+    cwd: /new-workspace
+    worktree:
+      mode: branch-off
+      newBranch: hub-work
+comment '# keep this heading' preserved: ok
+explicit 'kind: daemon' line survives form save in place: ok
+parsed run.target: {"kind":"daemon","daemon":"workshop","cwd":"/new-workspace","worktree":{"mode":"branch-off","newBranch":"hub-work"}}
+RESULT: pass

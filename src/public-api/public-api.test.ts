@@ -534,7 +534,8 @@ function installRequest(path: string, requestId: string = randomUUID()): Request
       files: [
         {
           path: ".paseo/hub.yml",
-          content: "environments:\n  runner:\n    kind: docker\n    image: paseo/test\nagents: {}",
+          content:
+            "environments:\n  runner:\n    kind: daemon\n    daemon: runner\n    cwd: /repo\nagents: {}",
         },
       ],
     }),

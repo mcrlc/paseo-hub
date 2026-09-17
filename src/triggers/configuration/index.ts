@@ -39,11 +39,7 @@ export function compileTriggerDocument(yaml: string): CompiledTriggerDocument {
   const authored = parseTriggerDocument(yaml);
   const namedAgents = "choices" in authored.run.agent ? authored.run.agent.choices : undefined;
   const agent = "choices" in authored.run.agent ? authored.run.agent.select : authored.run.agent;
-  const environment = {
-    name: "target",
-    kind: "daemon" as const,
-    ...authored.run.target,
-  };
+  const environment = { name: "target", ...authored.run.target };
   const allowOutputs: NonNullable<AuthoredStep["allow_outputs"]> = [];
   for (const [type, output] of Object.entries(authored.run.outputs ?? {})) {
     const grant: NonNullable<AuthoredStep["allow_outputs"]>[number] = { type };

@@ -1,0 +1,6 @@
+$ npx tsx docs/qa/ac-fc6/unknown-kinds.ts
+kind: fly -> path=run.target.kind message="Invalid discriminator value. Expected 'daemon' | 'undefined'"
+kind: docker -> path=run.target.kind message="Invalid discriminator value. Expected 'daemon' | 'undefined'"
+kind: sprite -> path=run.target.kind message="Invalid discriminator value. Expected 'daemon' | 'undefined'"
+kind: "" -> path=run.target.kind message="Invalid discriminator value. Expected 'daemon' | 'undefined'"
+RESULT: pass (all rejected at run.target.kind)
