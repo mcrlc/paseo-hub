@@ -266,6 +266,14 @@ export class DaemonDispatchLifecycle {
         const provider = await this.spriteProviderFor(machine.orgId);
         await provider.hold(machine.source.spriteName, input.executionId, "60m");
         this.heldSpriteExecutions.add(input.executionId);
+        this.logger.info(
+          {
+            executionId: input.executionId,
+            sprite: machine.source.spriteName,
+            task: input.executionId,
+          },
+          "sprite hold",
+        );
       } catch (error) {
         this.report(error, "sprites.hold", { executionId: input.executionId });
         await database.transitionMachine(machine.id, "terminated", {
@@ -1368,14 +1376,18 @@ export class DaemonDispatchLifecycle {
     const action = execution.hubAction;
     const daemonId = execution.daemonId;
     if (action === null || daemonId === null) return;
-    const connection = this.options.connectionForDaemon(daemonId);
-    if (connection === undefined) return;
-    const completed = await withHubActionTimeout(
-      this.sessionOwner().control(execution, connection.agents, action),
-      this.dispatchTimeoutMs,
-      (callback, delayMs) => this.scheduleDeadline(async () => callback(), delayMs),
-    );
-    if (completed) await this.options.database.completeHubAction(execution.id, action);
+    try {
+      const connection = this.options.connectionForDaemon(daemonId);
+      if (connection === undefined) return;
+      const completed = await withHubActionTimeout(
+        this.sessionOwner().control(execution, connection.agents, action),
+        this.dispatchTimeoutMs,
+        (callback, delayMs) => this.scheduleDeadline(async () => callback(), delayMs),
+      );
+      if (completed) await this.options.database.completeHubAction(execution.id, action);
+    } finally {
+      await this.releaseSpriteHold(execution);
+    }
   }
 
   private async notifyMachineTerminated(
@@ -1443,6 +1455,10 @@ export class DaemonDispatchLifecycle {
       if (machine?.source.kind !== "sprite") return;
       const provider = await this.spriteProviderFor(machine.orgId);
       await provider.release(machine.source.spriteName, execution.id);
+      this.logger.info(
+        { executionId: execution.id, sprite: machine.source.spriteName, task: execution.id },
+        "sprite release",
+      );
     } catch (error) {
       this.report(error, "sprites.release", { executionId: execution.id });
     }
@@ -1465,7 +1481,7 @@ export class DaemonDispatchLifecycle {
   }
 
   private async notifyExecutionTerminal(execution: AgentExecutionRecord): Promise<void> {
-    await this.releaseSpriteHold(execution);
+    if (execution.hubAction === null) await this.releaseSpriteHold(execution);
     const provider = this.findProviderForTriggerContext(execution.triggerContext);
     if (provider !== undefined) {
       await notifyAgentExecutionTerminal({

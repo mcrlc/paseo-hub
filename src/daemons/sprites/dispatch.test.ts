@@ -11,11 +11,14 @@ import type { AgentExecutionRecord } from "../../db/types.js";
 import type { LaunchMachineIntent } from "../../dispatcher/launch-machine-intent.js";
 import { UNLIMITED_TEMPLATE } from "../../entitlements/catalog.js";
 import { EntitlementsService } from "../../entitlements/service.js";
+import { createLogger } from "../../logger.js";
+import { FailureLogStream } from "../../test-utils/failure-logs.js";
 import { OrganizationTriggerStore } from "../../triggers/store.js";
 import { parseInvocation } from "../../triggers/invocation.js";
 import type { AcceptedTriggerProviderMatch, TriggerProvider } from "../../triggers/index.js";
 import { createDurableWorkflowHandler } from "../../workflows/engine.js";
 import { createDaemonDispatchLifecycle } from "../lifecycle.js";
+import type { DaemonConnection } from "../protocol.js";
 import type { SpriteActivation } from "./activation.js";
 import { SpritesError } from "./client.js";
 
@@ -31,8 +34,10 @@ describe("sprite dispatch", () => {
     await hub.claim(5);
 
     assert.equal(hub.dispatches.length, 1);
+    const executionId = hub.dispatches[0]!.executionId;
+    assert.deepEqual(hub.sequence, [`hold:${executionId}`, `dispatch:${executionId}`]);
     assert.deepEqual(hub.providerCalls, [
-      { call: "hold", sprite: hub.spriteName, task: hub.dispatches[0]!.executionId, expire: "60m" },
+      { call: "hold", sprite: hub.spriteName, task: executionId, expire: "60m" },
     ]);
     const environment = hub.dispatches[0]!.intent.environment;
     assert.equal(environment.machineId, hub.machineId);
@@ -62,14 +67,28 @@ describe("sprite dispatch", () => {
   it("defers a spawning sprite without reaching the provider", async () => {
     const hub = await setup();
     hub.socketOpen = true;
-    await hub.startRun();
+    const runId = await hub.startRun();
 
     await hub.claim(3);
 
     assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "spawning");
     assert.deepEqual(hub.providerCalls, []);
     assert.equal(hub.dispatches.length, 0);
-    assert.equal(hub.activations, 1);
+    assert.equal(hub.activations, 0);
+    assert.equal(await hub.runStatus(runId), "running");
+  });
+
+  it("defers an alive sprite whose daemon has not enrolled without reaching the provider", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.database.transitionMachine(hub.machineId, "alive");
+    const runId = await hub.startRun();
+
+    await hub.claim(3);
+
+    assert.deepEqual(hub.providerCalls, []);
+    assert.equal(hub.dispatches.length, 0);
+    assert.equal(await hub.runStatus(runId), "running");
   });
 
   it("recreates a terminated sprite once and defers", async () => {
@@ -80,10 +99,27 @@ describe("sprite dispatch", () => {
 
     await hub.claim(3);
 
-    assert.equal(hub.activations, 2);
+    assert.equal(hub.activations, 1);
     assert.equal(hub.dispatches.length, 0);
     assert.deepEqual(hub.providerCalls, []);
     assert.equal(await hub.runStatus(runId), "running");
+  });
+
+  it("fails the run as sprite_unavailable when the recreated sprite terminates again", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.database.transitionMachine(hub.machineId, "terminated", { reason: "gone" });
+    const runId = await hub.startRun();
+
+    await hub.claim(1);
+    assert.equal(hub.activations, 1);
+    await hub.database.transitionMachine(hub.machineId, "terminated", { reason: "bootstrap" });
+    await hub.claim(1);
+
+    assert.equal(hub.activations, 1);
+    assert.equal(await hub.runStatus(runId), "failed");
+    assert.equal(await hub.runFailure(runId), "sprite_unavailable");
+    assert.equal(hub.dispatches.length, 0);
   });
 
   it("fails the run as sprite_unavailable when recreation fails", async () => {
@@ -113,10 +149,73 @@ describe("sprite dispatch", () => {
     assert.equal(hub.dispatches.length, 0);
 
     await hub.claim(1);
-    assert.equal(hub.activations, 2);
+    assert.equal(hub.activations, 1);
   });
 
-  it("releases the hold once when an execution succeeds and once when one fails", async () => {
+  it("releases the hold only after the archive completes", async () => {
+    const hub = await setup();
+    const control = hub.connectDaemon();
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+    await hub.agentFinished(executionId);
+
+    const completion = hub.complete(executionId);
+    await control.called;
+    assert.equal(hub.sequence.includes(`release:${executionId}`), false);
+    control.resolve();
+    await completion;
+
+    assert.deepEqual(hub.sequence.slice(-2), [
+      `control:archive:${executionId}`,
+      `release:${executionId}`,
+    ]);
+    const execution = await hub.database.findAgentExecutionById(executionId);
+    assert.equal(execution?.status, "succeeded");
+    assert.notEqual(execution?.hubActionCompletedAt, null);
+  });
+
+  it("releases the hold at the end of the archive attempt when the daemon is offline", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+    await hub.agentFinished(executionId);
+
+    await hub.complete(executionId);
+
+    assert.equal(hub.sequence.at(-1), `release:${executionId}`);
+    const execution = await hub.database.findAgentExecutionById(executionId);
+    assert.equal(execution?.status, "succeeded");
+    assert.equal(execution?.hubActionCompletedAt, null);
+  });
+
+  it("releases the hold after the archive attempt when an execution fails", async () => {
+    const hub = await setup();
+    const control = hub.connectDaemon();
+    control.resolve();
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+    await hub.agentFinished(executionId);
+
+    await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
+      hub.machineId,
+      "daemon_revoked",
+    );
+
+    assert.deepEqual(hub.sequence.slice(-2), [
+      `control:archive:${executionId}`,
+      `release:${executionId}`,
+    ]);
+    assert.equal((await hub.database.findAgentExecutionById(executionId))?.status, "failed");
+  });
+
+  it("holds and releases each of two concurrent executions under its own task", async () => {
     const hub = await setup();
     hub.socketOpen = true;
     await hub.enrollSprite();
@@ -124,30 +223,42 @@ describe("sprite dispatch", () => {
     await hub.startRun();
 
     await hub.claim(3);
-
     const [first, second] = hub.dispatches;
     assert.ok(first && second);
     assert.notEqual(first.executionId, second.executionId);
-    assert.deepEqual(
-      new Set(hub.providerCalls.map(({ call, task }) => `${call}:${task}`)),
-      new Set([`hold:${first.executionId}`, `hold:${second.executionId}`]),
-    );
-    assert.equal(hub.providerCalls.length, 2);
-
-    await hub.lifecycle.completeAgentExecutionFromCallback({
-      executionId: first.executionId,
-      token: deriveAgentExecutionCompletionToken(SECRET, first.executionId),
-    });
     await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
       hub.machineId,
       "daemon_revoked",
     );
 
-    assert.deepEqual(
-      hub.providerCalls.filter(({ call }) => call === "release").map(({ task }) => task),
-      [first.executionId, second.executionId],
+    const tasks = (call: string) =>
+      new Set(hub.providerCalls.filter((item) => item.call === call).map(({ task }) => task));
+    const expected = new Set([first.executionId, second.executionId]);
+    assert.deepEqual(tasks("hold"), expected);
+    assert.deepEqual(tasks("release"), expected);
+    assert.equal(hub.providerCalls.length, 4);
+  });
+
+  it("reports a failed release and still completes the terminal transition", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    hub.releaseFails = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+
+    await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
+      hub.machineId,
+      "daemon_revoked",
     );
-    await hub.lifecycle.stop();
+
+    assert.equal((await hub.database.findAgentExecutionById(executionId))?.status, "failed");
+    const failures = hub.logs
+      .records()
+      .filter((record) => record["operation"] === "sprites.release");
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0]!["level"], 50);
   });
 });
 
@@ -161,20 +272,25 @@ async function setup() {
     memoryMb: 8192,
     updatedByUserId: null,
   });
+  const logs = new FailureLogStream();
   const providerCalls: Array<{ call: string; sprite: string; task: string; expire?: string }> = [];
   const dispatches: Array<{ executionId: string; intent: LaunchMachineIntent }> = [];
+  const sequence: string[] = [];
   const state = {
     socketOpen: false,
     activationFails: false,
     holdFails: false,
+    releaseFails: false,
     activations: 0,
     machineId: "",
     apiKeyId: "",
+    daemonId: "",
+    connection: undefined as DaemonConnection | undefined,
   };
   const activation: SpriteActivation = async ({ trigger }) => {
     state.activations += 1;
     if (state.activationFails) throw new Error("Sprites are not configured");
-    state.apiKeyId = `key-${state.activations}`;
+    state.apiKeyId = `key-${randomUUID()}`;
     const machine = await database.insertSpriteMachine({
       orgId: trigger.organizationId,
       source: {
@@ -190,7 +306,7 @@ async function setup() {
   };
   const lifecycle = createDaemonDispatchLifecycle({
     database,
-    connectionForDaemon: () => undefined,
+    connectionForDaemon: () => state.connection,
     publicBaseUrl: "https://hub.test",
     completionTokenSecret: SECRET,
     spriteActivation: activation,
@@ -200,12 +316,16 @@ async function setup() {
         async hold(sprite, task, expire) {
           providerCalls.push({ call: "hold", sprite, task, expire });
           if (state.holdFails) throw new SpritesError(503, "unavailable");
+          sequence.push(`hold:${task}`);
         },
         async release(sprite, task) {
           providerCalls.push({ call: "release", sprite, task });
+          if (state.releaseFails) throw new SpritesError(500, "release failed");
+          sequence.push(`release:${task}`);
         },
       };
     },
+    test: { logger: createLogger(logs) },
   });
   const trigger = await new OrganizationTriggerStore(
     database,
@@ -213,6 +333,7 @@ async function setup() {
     entitlements,
     activation,
   ).save({ yaml: spriteYaml, userId: null });
+  state.activations = 0;
   const revision = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
   assert.ok(revision);
   const configuration = parseCompiledHubConfig(revision.normalizedConfiguration);
@@ -247,6 +368,7 @@ async function setup() {
         intent.workflowStepRunId!,
       );
       assert.ok(execution);
+      sequence.push(`dispatch:${execution.id}`);
       dispatches.push({ executionId: execution.id, intent });
       const prepared: AgentExecutionRecord = await database.prepareAgentExecutionForDispatch(
         execution.id,
@@ -259,13 +381,45 @@ async function setup() {
       return { execution: prepared };
     },
   });
-  const hub = Object.assign(state, {
+  return Object.assign(state, {
     database,
     lifecycle,
+    logs,
     providerCalls,
     dispatches,
-    daemonId: "",
+    sequence,
     spriteName: `trigger-${trigger.id}`,
+    connectDaemon() {
+      state.socketOpen = true;
+      let resolve!: () => void;
+      let markCalled!: () => void;
+      const released = new Promise<void>((done) => {
+        resolve = done;
+      });
+      const called = new Promise<void>((done) => {
+        markCalled = done;
+      });
+      const unused = async (): Promise<never> => {
+        throw new Error("not used");
+      };
+      state.connection = {
+        agents: {
+          create: unused,
+          get: unused,
+          send: unused,
+          restore: unused,
+          watch: unused,
+          async control(agentId, _workspaceId, action) {
+            markCalled();
+            await released;
+            sequence.push(`control:${action}:${agentId}`);
+          },
+        },
+        getProviderSnapshot: unused,
+        refreshProviderSnapshot: unused,
+      };
+      return { called, resolve };
+    },
     async enrollSprite() {
       await database.issueEnrollmentToken({
         id: randomUUID(),
@@ -275,7 +429,7 @@ async function setup() {
         expiresAt: new Date("2099-01-01T00:00:00.000Z"),
         consumedAt: null,
       });
-      const enrolled = await database.enrollDaemon({
+      await database.enrollDaemon({
         daemonId: randomUUID(),
         idempotencyKey: randomUUID(),
         tokenVerifier: "sprite-token",
@@ -286,8 +440,51 @@ async function setup() {
         now: new Date(),
       });
       const daemon = await database.findDaemonByMachineId(state.machineId);
-      assert.ok(daemon, JSON.stringify(enrolled));
-      hub.daemonId = daemon.id;
+      assert.ok(daemon);
+      state.daemonId = daemon.id;
+    },
+    async agentFinished(executionId: string) {
+      const sessionId = randomUUID();
+      await database.saveAgentSession({
+        id: sessionId,
+        organizationId: "org",
+        projectId: trigger.runtimeProjectId,
+        continuationKey: null,
+        daemonId: state.daemonId,
+        agentId: executionId,
+        workspaceId: "workspace",
+        compatibility: "test",
+        capabilityTokenHash: "test",
+        tools: [],
+        creationOptions: {
+          provider: "test",
+          cwd: "/workspace",
+          env: {},
+          toolPolicy: { preapproved: [] },
+        },
+      });
+      await database.attachExecutionToSession(executionId, sessionId);
+      const observedAt = new Date();
+      await database.recordAgentExecutionHubAcknowledgement(executionId, {
+        kind: "finish_execution",
+        callId: "finish",
+        status: "completed",
+        observedAt,
+      });
+      await database.recordAgentExecutionHubAcknowledgement(executionId, {
+        kind: "terminal",
+        observedAt,
+      });
+      await database.recordAgentExecutionHubAcknowledgement(executionId, {
+        kind: "idle",
+        observedAt,
+      });
+    },
+    complete(executionId: string) {
+      return lifecycle.completeAgentExecutionFromCallback(
+        { executionId, token: deriveAgentExecutionCompletionToken(SECRET, executionId) },
+        { deferHubAction: true },
+      );
     },
     async startRun() {
       const receipt = await database.persistManualEvent({
@@ -328,7 +525,6 @@ async function setup() {
       return run?.outcome === "accepted" ? run.failureReason : undefined;
     },
   });
-  return hub;
 }
 
 const spriteYaml = `name: sprite-task
@@ -344,4 +540,5 @@ run:
   prompt: Handle it
   max_runtime: 1h
   idle_timeout: 5m
+  auto_archive: true
 `;
