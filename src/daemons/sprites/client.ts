@@ -112,17 +112,23 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     );
   }
 
+  async function setMemory(name: string, memoryMb: number): Promise<void> {
+    await request("POST", `${spritePath(name)}/policy/resources`, {
+      json: { memory: { limit_mb: memoryMb } },
+    });
+  }
+
   return {
     async create(input: { name: string; memoryMb: number }): Promise<string> {
       const response = await request("POST", "/v1/sprites", { json: { name: input.name } });
       const { id } = CreatedSpriteSchema.parse(await response.json());
-      await request("POST", `${spritePath(input.name)}/policy/resources`, {
-        json: { memory: { limit_mb: input.memoryMb } },
-      });
+      await setMemory(input.name, input.memoryMb);
       return id;
     },
 
     exec,
+
+    setMemory,
 
     async service(name: string, service: string, definition: ServiceDefinition): Promise<void> {
       const path = `${spritePath(name)}/services/${encodeURIComponent(service)}`;

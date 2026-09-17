@@ -152,6 +152,22 @@ describe("sprite dispatch", () => {
     assert.equal(hub.activations, 1);
   });
 
+  it("destroys the sprite when its daemon is revoked", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+
+    await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
+      hub.machineId,
+      "daemon_revoked",
+    );
+
+    assert.deepEqual(hub.providerCalls, [{ call: "destroy", sprite: hub.spriteName }]);
+    const machine = await hub.database.findMachineById(hub.machineId);
+    assert.equal(machine?.status, "terminated");
+    assert.equal(machine?.shutdownReason, "daemon_revoked");
+  });
+
   it("releases the hold only after the archive completes", async () => {
     const hub = await setup();
     const control = hub.connectDaemon();
@@ -236,7 +252,11 @@ describe("sprite dispatch", () => {
     const expected = new Set([first.executionId, second.executionId]);
     assert.deepEqual(tasks("hold"), expected);
     assert.deepEqual(tasks("release"), expected);
-    assert.equal(hub.providerCalls.length, 4);
+    assert.deepEqual(
+      hub.providerCalls.filter(({ call }) => call === "destroy"),
+      [{ call: "destroy", sprite: hub.spriteName }],
+    );
+    assert.equal(hub.providerCalls.length, 5);
   });
 
   it("reports a failed release and still completes the terminal transition", async () => {
@@ -273,7 +293,7 @@ async function setup() {
     updatedByUserId: null,
   });
   const logs = new FailureLogStream();
-  const providerCalls: Array<{ call: string; sprite: string; task: string; expire?: string }> = [];
+  const providerCalls: Array<{ call: string; sprite: string; task?: string; expire?: string }> = [];
   const dispatches: Array<{ executionId: string; intent: LaunchMachineIntent }> = [];
   const sequence: string[] = [];
   const state = {
@@ -322,6 +342,9 @@ async function setup() {
           providerCalls.push({ call: "release", sprite, task });
           if (state.releaseFails) throw new SpritesError(500, "release failed");
           sequence.push(`release:${task}`);
+        },
+        async destroy(sprite) {
+          providerCalls.push({ call: "destroy", sprite });
         },
       };
     },

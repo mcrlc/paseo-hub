@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterEach, describe, it, vi } from "vitest";
 import type { ConnectionResolver } from "../../config/connections.js";
 import { createMemoryDatabase } from "../../db/memory.js";
@@ -10,6 +10,7 @@ import { OrganizationTriggerStore } from "../../triggers/store.js";
 import {
   createSpriteActivation,
   createSpriteServiceRewrite,
+  spriteSpecs,
   type SpriteActivation,
   type SpriteProvider,
 } from "./activation.js";
@@ -40,6 +41,14 @@ describe("sprite activation", () => {
     assert.deepEqual(machine?.specs, {
       bootstrapHash: createHash("sha256")
         .update("npm install -g @anthropic-ai/claude-code\n")
+        .digest("hex"),
+      envHash: createHash("sha256")
+        .update(
+          JSON.stringify([
+            ["ANTHROPIC_API_KEY", "${{ paseo.connections.anthropic.api_key }}"],
+            ["LITERAL", "plain"],
+          ]),
+        )
         .digest("hex"),
       memoryMb: 16384,
       npmPrefix: PREFIX,
@@ -350,6 +359,133 @@ describe("sprite activation", () => {
   });
 });
 
+describe("sprite trigger edits", () => {
+  it("destroys the sprite, revokes its daemon, and terminates the row when the bootstrap changes", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    const daemonId = await hub.enrollSprite();
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("@anthropic-ai/claude-code", "@anthropic-ai/claude-code@2"),
+      userId: null,
+    });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(machine?.status, "terminated");
+    assert.equal(machine?.shutdownReason, "bootstrap changed");
+    assert.deepEqual(hub.calls, [{ call: "destroy", args: [`trigger-${trigger.id}`] }]);
+    assert.equal((await hub.database.findDaemonById(daemonId))?.status, "revoked");
+  });
+
+  it("refuses a bootstrap change while an execution is running on the sprite", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const [machine] = await hub.spriteMachines();
+    await hub.startExecution(trigger.runtimeProjectId, machine!.id);
+    hub.calls.length = 0;
+
+    await assert.rejects(
+      hub.store.save({
+        triggerId: trigger.id,
+        yaml: spriteYaml().replace("@anthropic-ai/claude-code", "@anthropic-ai/claude-code@2"),
+        userId: null,
+      }),
+      /run\.target\.bootstrap: Changing bootstrap recreates the sprite and ends its 1 running execution\. Save again once it is idle\./u,
+    );
+    assert.deepEqual(hub.calls, []);
+    assert.equal((await hub.spriteMachines())[0]?.status, "alive");
+    assert.equal((await hub.store.activeRevision(trigger)).yaml, spriteYaml());
+  });
+
+  it("rewrites the daemon service when only the target env changes", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    hub.calls.length = 0;
+    hub.serviceEnvs.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("LITERAL: plain", "LITERAL: rotated"),
+      userId: null,
+    });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(machine?.status, "alive");
+    assert.deepEqual(
+      hub.calls.map(({ call, args }) => [call, args[0], args[1]]),
+      [["service", `trigger-${trigger.id}`, "paseo"]],
+    );
+    assert.equal(hub.serviceEnvs[0]?.["LITERAL"], "rotated");
+  });
+
+  it("updates the resources policy when only the memory changes", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("memory: 16384", "memory: 4096"),
+      userId: null,
+    });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(machine?.status, "alive");
+    assert.deepEqual(hub.calls, [{ call: "setMemory", args: [`trigger-${trigger.id}`, 4096] }]);
+    assert.equal(spriteSpecs(machine).memoryMb, 4096);
+  });
+
+  it("destroys the sprite when the trigger stops targeting one", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    hub.calls.length = 0;
+
+    await hub.store.save({ triggerId: trigger.id, yaml: daemonYaml, userId: null });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(machine?.status, "terminated");
+    assert.equal(machine?.shutdownReason, "trigger no longer targets a sprite");
+    assert.deepEqual(hub.calls, [{ call: "destroy", args: [`trigger-${trigger.id}`] }]);
+  });
+
+  it("recreates the sprite on the next save once the row is terminated", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const changed = spriteYaml().replace(
+      "@anthropic-ai/claude-code",
+      "@anthropic-ai/claude-code@2",
+    );
+    await hub.store.save({ triggerId: trigger.id, yaml: changed, userId: null });
+    await hub.settled();
+    hub.calls.length = 0;
+
+    await hub.store.save({ triggerId: trigger.id, yaml: changed, userId: null });
+    await hub.settled();
+
+    const machines = await hub.spriteMachines();
+    assert.equal(machines.length, 2);
+    assert.equal(machines[1]?.status, "spawning");
+    assert.equal(hub.calls.filter(({ call }) => call === "create").length, 1);
+  });
+});
+
 const success: ExecResult = { stdout: "", stderr: "", exitCode: 0 };
 
 async function setup(
@@ -410,6 +546,9 @@ async function setup(
       serviceEnvs.push(definition.env);
       options.service?.(name);
     },
+    async setMemory(name, memoryMb) {
+      calls.push({ call: "setMemory", args: [name, memoryMb] });
+    },
   };
   const connectionsForProject = () =>
     options.resolver ?? ((slug: string, value: string) => `resolved:${slug}.${value}`);
@@ -468,6 +607,40 @@ async function setup(
     revoked,
     settled: () => Promise.all(jobs),
     spriteMachines: () => Promise.all(machineIds.map((id) => database.findMachineById(id))),
+    async startExecution(projectId: string, machineId: string) {
+      const revision = await database.findActiveProjectConfiguration(projectId);
+      assert.ok(revision);
+      await database.insertAgentExecution({
+        organizationId: "org",
+        projectId,
+        machineId,
+        triggerContext: {},
+        outputContext: {},
+        configurationRevisionId: revision.id,
+      });
+    },
+    async enrollSprite(apiKeyId = "key-1") {
+      await database.issueEnrollmentToken({
+        id: randomUUID(),
+        verifier: apiKeyId,
+        organizationId: "org",
+        issuedByApiKeyId: apiKeyId,
+        expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+        consumedAt: null,
+      });
+      const daemonId = randomUUID();
+      await database.enrollDaemon({
+        daemonId,
+        idempotencyKey: daemonId,
+        tokenVerifier: apiKeyId,
+        serverId: "sprite-server",
+        daemonPublicKey: "public-key",
+        credentialVerifier: "credential-verifier",
+        permissions: ["hub.execute"],
+        now: new Date("2026-09-17T00:00:00.000Z"),
+      });
+      return daemonId;
+    },
   };
 }
 

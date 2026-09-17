@@ -6,7 +6,12 @@ import type {
 import { resolveTriggerConfigurationForOrganization } from "../configuration/store.js";
 import { EntitlementDenied } from "../entitlements/catalog.js";
 import type { EntitlementsService } from "../entitlements/service.js";
-import type { SpriteActivation } from "../daemons/sprites/activation.js";
+import {
+  bootstrapHash,
+  spriteSpecs,
+  type SpriteActivation,
+  type SpriteTarget,
+} from "../daemons/sprites/activation.js";
 import { compileTriggerDocument, TriggerDocumentError } from "./configuration/index.js";
 
 export interface SaveTriggerInput {
@@ -46,6 +51,10 @@ export class OrganizationTriggerStore {
   async save(input: SaveTriggerInput): Promise<OrganizationTriggerRecord> {
     const unchangedLegacyAuthoring = await this.isUnchangedExistingYaml(input);
     const prepared = await this.validate(input.yaml, !unchangedLegacyAuthoring);
+    const environment = prepared.compiled.environment;
+    if (input.triggerId !== undefined && environment.kind === "sprite") {
+      await this.requireIdleSpriteForBootstrapChange(input.triggerId, environment);
+    }
     const recurrence = prepared.compiled.authored.on["schedule.tick"]?.recurrence;
     const trigger = await this.database.saveOrganizationTrigger({
       organizationId: this.organizationId,
@@ -65,13 +74,11 @@ export class OrganizationTriggerStore {
       createdByUserId: input.userId,
       routes: prepared.compiled.authored.enabled ? prepared.resolved.routes : [],
     });
-    if (prepared.compiled.environment.kind === "sprite" && trigger.enabled) {
-      await this.spriteActivation?.({
-        trigger,
-        target: prepared.compiled.environment,
-        userId: input.userId,
-      });
-    }
+    await this.spriteActivation?.({
+      trigger,
+      target: environment.kind === "sprite" && trigger.enabled ? environment : undefined,
+      userId: input.userId,
+    });
     return trigger;
   }
 
@@ -109,6 +116,23 @@ export class OrganizationTriggerStore {
       throw new TriggerDocumentError(resolved.issues);
     }
     return { compiled, resolved };
+  }
+
+  private async requireIdleSpriteForBootstrapChange(
+    triggerId: string,
+    target: SpriteTarget,
+  ): Promise<void> {
+    const machine = await this.database.findLiveSpriteMachine(triggerId);
+    if (machine === undefined) return;
+    if (spriteSpecs(machine).bootstrapHash === bootstrapHash(target.bootstrap)) return;
+    const running = await this.database.findRunningAgentExecutionsForMachine(machine.id);
+    if (running.length === 0) return;
+    throw new TriggerDocumentError([
+      {
+        path: ["run", "target", "bootstrap"],
+        message: `Changing bootstrap recreates the sprite and ends its ${String(running.length)} running execution${running.length === 1 ? "" : "s"}. Save again once it is idle.`,
+      },
+    ]);
   }
 
   private async spriteActivationUnavailable(): Promise<string | undefined> {

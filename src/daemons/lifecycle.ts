@@ -110,7 +110,7 @@ export interface DaemonDispatchLifecycleOptions {
   publicBaseUrl?: string;
   completionTokenSecret?: string;
   spriteActivation?: SpriteActivation | null;
-  spriteProvider?: (token: string) => Pick<SpritesClient, "hold" | "release">;
+  spriteProvider?: (token: string) => Pick<SpritesClient, "hold" | "release" | "destroy">;
   test?: {
     logger?: Logger;
     dispatchTimeoutMs?: number;
@@ -1144,6 +1144,7 @@ export class DaemonDispatchLifecycle {
     await this.options.database.transitionMachine(machineId, "terminated", {
       reason,
     });
+    await this.destroySprite(machineId);
 
     await Promise.all(
       failedExecutions.map((execution) =>
@@ -1464,6 +1465,18 @@ export class DaemonDispatchLifecycle {
     }
   }
 
+  private async destroySprite(machineId: string): Promise<void> {
+    const machine = await this.options.database.findMachineById(machineId);
+    if (machine?.source.kind !== "sprite") return;
+    try {
+      const provider = await this.spriteProviderFor(machine.orgId);
+      await provider.destroy(machine.source.spriteName);
+      this.logger.info({ machineId, sprite: machine.source.spriteName }, "sprite destroyed");
+    } catch (error) {
+      this.report(error, "sprites.destroy", { machineId });
+    }
+  }
+
   private forgetSpriteExecution(executionId: string): void {
     this.heldSpriteExecutions.delete(executionId);
     this.recreatedSpriteExecutions.delete(executionId);
@@ -1471,7 +1484,7 @@ export class DaemonDispatchLifecycle {
 
   private async spriteProviderFor(
     organizationId: string,
-  ): Promise<Pick<SpritesClient, "hold" | "release">> {
+  ): Promise<Pick<SpritesClient, "hold" | "release" | "destroy">> {
     const configuration =
       await this.options.database.getOrganizationSpritesConfiguration(organizationId);
     if (configuration === undefined) throw new Error("Sprites are not configured");
