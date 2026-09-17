@@ -32,6 +32,15 @@ export class SpritesEnvInputError extends Error {
   }
 }
 
+export class SpritesEnvNotFoundError extends Error {
+  readonly code = "notFound";
+
+  constructor() {
+    super("No such variable.");
+    this.name = "SpritesEnvNotFoundError";
+  }
+}
+
 export class SpritesSettings {
   private readonly fetch: typeof fetch;
 
@@ -76,7 +85,7 @@ export class SpritesSettings {
   }
 
   async setEnv(request: Request, organizationSlug: string, input: { key: string; value: string }) {
-    const { account, tenant } = await this.manager(request, organizationSlug);
+    const { tenant } = await this.manager(request, organizationSlug);
     const value = input.value.trim();
     const error = spritesEnvKeyError(input.key) ?? spritesEnvValueError(value);
     if (error !== undefined) throw new SpritesEnvInputError(error);
@@ -84,7 +93,6 @@ export class SpritesSettings {
       organizationId: tenant.organization.id,
       key: input.key,
       value,
-      updatedByUserId: account.account.id,
     });
     if (stored === undefined) {
       throw new SpritesEnvInputError("Connect Sprites with an organization token first.");
@@ -92,12 +100,12 @@ export class SpritesSettings {
   }
 
   async removeEnv(request: Request, organizationSlug: string, input: { key: string }) {
-    const { account, tenant } = await this.manager(request, organizationSlug);
-    await this.database.removeOrganizationSpritesEnv({
+    const { tenant } = await this.manager(request, organizationSlug);
+    const stored = await this.database.removeOrganizationSpritesEnv({
       organizationId: tenant.organization.id,
       key: input.key,
-      updatedByUserId: account.account.id,
     });
+    if (stored === undefined) throw new SpritesEnvNotFoundError();
   }
 
   private async manager(request: Request, organizationSlug: string) {

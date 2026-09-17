@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it } from "vitest";
+import type { AuthServer } from "../../auth/server.js";
+import { createMemoryDatabase } from "../../db/memory.js";
 import {
   SpritesEnvCard,
   SpritesSettingsContent,
@@ -8,6 +10,7 @@ import {
   spritesFormValues,
   submitSpritesForm,
 } from "./panel.js";
+import { SpritesSettings, type SpritesSettingsSnapshot } from "./settings.js";
 
 const CONFIGURED = {
   configured: true,
@@ -92,15 +95,15 @@ describe("Sprites settings form", () => {
   });
 });
 
-function envMarkup(keys: string[]): string {
+function envMarkup(keys: string[], removeError?: string): string {
   return renderToStaticMarkup(
     <SpritesEnvCard
       keys={keys}
-      formKey="k"
+      formKey={0}
       busy={false}
       saved={false}
       error={undefined}
-      removeError={undefined}
+      removeError={removeError}
       onReset={ignore}
       onSet={ignore}
       onRemove={ignore}
@@ -144,5 +147,67 @@ describe("Sprites daemon environment", () => {
       spritesEnvFormValues(form({ key: " CLAUDE_CODE_OAUTH_TOKEN ", value: " t " })).values,
       { key: "CLAUDE_CODE_OAUTH_TOKEN", value: "t" },
     );
+  });
+
+  it("shows a failed remove as a form-level failure", () => {
+    assert.match(
+      envMarkup(["TOKEN"], "No such variable."),
+      /Variable not removed[\s\S]*No such variable\./u,
+    );
+  });
+
+  it("keeps the token card, its form key, and its updated time across variable writes", async () => {
+    const request = new Request("https://hub.test/o/acme/settings/sprites");
+    const database = createMemoryDatabase({
+      memberships: [
+        {
+          userId: "user-1",
+          organizationId: "org-1",
+          organizationName: "Acme",
+          organizationSlug: "acme",
+          membershipId: "membership-1",
+          role: "owner",
+        },
+      ],
+    });
+    const auth: AuthServer = {
+      handle: () => Promise.resolve(new Response()),
+      resources: () => Promise.reject(new Error("unused")),
+      resolveOrganizationAccess: () => Promise.reject(new Error("unused")),
+      resolveAccount: () =>
+        Promise.resolve({
+          session: { id: "session-1", activeOrganizationId: "org-1" },
+          account: { id: "user-1", name: "User", email: "user@example.test" },
+          isInstanceOperator: false,
+        }),
+      rejectCookieMutation: () => undefined,
+      close: () => Promise.resolve(),
+    };
+    const settings = new SpritesSettings(database, auth);
+    await database.upsertOrganizationSpritesConfiguration({
+      organizationId: "org-1",
+      token: "t",
+      memoryMb: 8192,
+      updatedByUserId: "user-1",
+    });
+    const tokenCard = (snapshot: SpritesSettingsSnapshot) =>
+      renderToStaticMarkup(
+        <SpritesSettingsContent
+          snapshot={snapshot}
+          busy={false}
+          saved={false}
+          error={undefined}
+          onReset={ignore}
+          onSave={ignore}
+        />,
+      );
+
+    const before = await settings.snapshot(request, "acme");
+    await settings.setEnv(request, "acme", { key: "CLAUDE_CODE_OAUTH_TOKEN", value: "v" });
+    const after = await settings.snapshot(request, "acme");
+
+    assert.deepEqual(after.envKeys, ["CLAUDE_CODE_OAUTH_TOKEN"]);
+    assert.equal(after.updatedAt, before.updatedAt);
+    assert.equal(tokenCard(after), tokenCard(before));
   });
 });

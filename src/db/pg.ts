@@ -2508,12 +2508,10 @@ class PgDatabase implements Database {
     const rows = await query<OrganizationSpritesConfigurationRow>(
       this.pool,
       `update organization_sprites_configuration
-         set env = env || jsonb_build_object($2::text, $3::text),
-             updated_by_user_id = $4,
-             updated_at = clock_timestamp()
+         set env = env || jsonb_build_object($2::text, $3::text)
        where organization_id = $1
        returning *`,
-      [input.organizationId, input.key, input.value, input.updatedByUserId],
+      [input.organizationId, input.key, input.value],
     );
     return rows.rows[0] === undefined
       ? undefined
@@ -2526,12 +2524,10 @@ class PgDatabase implements Database {
     const rows = await query<OrganizationSpritesConfigurationRow>(
       this.pool,
       `update organization_sprites_configuration
-         set env = env - $2::text,
-             updated_by_user_id = $3,
-             updated_at = clock_timestamp()
-       where organization_id = $1
+         set env = env - $2::text
+       where organization_id = $1 and env -> $2::text is not null
        returning *`,
-      [input.organizationId, input.key, input.updatedByUserId],
+      [input.organizationId, input.key],
     );
     return rows.rows[0] === undefined
       ? undefined

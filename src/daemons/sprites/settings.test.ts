@@ -108,6 +108,35 @@ describe("Sprites organization settings", () => {
     assert.deepEqual((await settings.snapshot(request, "acme")).envKeys, []);
   });
 
+  it("leaves the token's update time and author alone on variable writes", async () => {
+    const { settings, database } = setup("owner");
+    await database.upsertOrganizationSpritesConfiguration({
+      organizationId: "org-1",
+      token: "t",
+      memoryMb: 8192,
+      updatedByUserId: null,
+    });
+    const before = await settings.snapshot(request, "acme");
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: "v" });
+    await settings.setEnv(request, "acme", { key: "OTHER", value: "o" });
+    await settings.removeEnv(request, "acme", { key: "OTHER" });
+    const after = await settings.snapshot(request, "acme");
+    assert.equal(after.updatedAt, before.updatedAt);
+    assert.equal(after.updatedByUserId, null);
+  });
+
+  it("refuses to remove a variable that does not exist", async () => {
+    const { settings } = setup("owner");
+    const notFound = {
+      name: "SpritesEnvNotFoundError",
+      code: "notFound",
+      message: "No such variable.",
+    };
+    await assert.rejects(settings.removeEnv(request, "acme", { key: "TOKEN" }), notFound);
+    await settings.save(request, "acme", { token: "t", memoryMb: 8192 });
+    await assert.rejects(settings.removeEnv(request, "acme", { key: "TOKEN" }), notFound);
+  });
+
   it("keeps the environment when the token is replaced", async () => {
     const { settings } = setup("owner");
     await settings.save(request, "acme", { token: "first", memoryMb: 8192 });

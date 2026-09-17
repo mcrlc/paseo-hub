@@ -94,6 +94,9 @@ export const removeSpritesEnv = createServerFn({ method: "POST" })
           fallback:
             "Hub couldn't remove the variable. Reload the page to check whether it is gone.",
           forbidden: "You don't have permission to configure Sprites.",
+          ...(error instanceof Error && error.name === "SpritesEnvNotFoundError"
+            ? { notFound: error.message }
+            : {}),
         },
       );
     }

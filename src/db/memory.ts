@@ -2095,29 +2095,19 @@ class MemoryDatabase implements Database {
   ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
     const existing = this.organizationSpritesConfigurations.get(input.organizationId);
     if (existing === undefined) return undefined;
-    return this.writeOrganizationSpritesEnv(
-      existing,
-      { ...existing.env, [input.key]: input.value },
-      input.updatedByUserId,
-    );
+    const record = { ...existing, env: { ...existing.env, [input.key]: input.value } };
+    this.organizationSpritesConfigurations.set(input.organizationId, record);
+    return record;
   }
 
   async removeOrganizationSpritesEnv(
     input: RemoveOrganizationSpritesEnvInput,
   ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
     const existing = this.organizationSpritesConfigurations.get(input.organizationId);
-    if (existing === undefined) return undefined;
+    if (existing === undefined || !Object.hasOwn(existing.env, input.key)) return undefined;
     const { [input.key]: _removed, ...env } = existing.env;
-    return this.writeOrganizationSpritesEnv(existing, env, input.updatedByUserId);
-  }
-
-  private writeOrganizationSpritesEnv(
-    existing: OrganizationSpritesConfigurationRecord,
-    env: Record<string, string>,
-    updatedByUserId: string | null,
-  ): OrganizationSpritesConfigurationRecord {
-    const record = { ...existing, env, updatedByUserId, updatedAt: new Date() };
-    this.organizationSpritesConfigurations.set(existing.organizationId, record);
+    const record = { ...existing, env };
+    this.organizationSpritesConfigurations.set(input.organizationId, record);
     return record;
   }
 

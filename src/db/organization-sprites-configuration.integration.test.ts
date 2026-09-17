@@ -33,6 +33,17 @@ describe("organization Sprites configuration", () => {
     return organizationId;
   }
 
+  async function seedUser(): Promise<string> {
+    const userId = `user-${randomUUID()}`;
+    const client = await createPostgresQueryRuntime(postgres.getConnectionUri());
+    try {
+      await client.query(`insert into "user" (id, name, email) values ($1, $1, $1)`, [userId]);
+    } finally {
+      await client.close();
+    }
+    return userId;
+  }
+
   it("reads nothing for an unconfigured organization", async () => {
     const organizationId = await seedOrganization();
 
@@ -78,14 +89,18 @@ describe("organization Sprites configuration", () => {
     }
   });
 
-  it("sets, replaces, and removes one environment key, keeping it across token upserts", async () => {
+  it("sets, replaces, and removes one environment key without touching the token audit", async () => {
     const organizationId = await seedOrganization();
     const otherOrganizationId = await seedOrganization();
+    const userId = await seedUser();
 
     for (const store of [database, createMemoryDatabase()]) {
-      const unconfigured = { key: "TOKEN", value: "v", updatedByUserId: null };
       assert.equal(
-        await store.setOrganizationSpritesEnv({ organizationId, ...unconfigured }),
+        await store.setOrganizationSpritesEnv({ organizationId, key: "TOKEN", value: "v" }),
+        undefined,
+      );
+      assert.equal(
+        await store.removeOrganizationSpritesEnv({ organizationId, key: "TOKEN" }),
         undefined,
       );
       for (const id of [organizationId, otherOrganizationId]) {
@@ -93,37 +108,36 @@ describe("organization Sprites configuration", () => {
           organizationId: id,
           token: "t",
           memoryMb: 8192,
-          updatedByUserId: null,
+          updatedByUserId: userId,
         });
       }
-      await store.setOrganizationSpritesEnv({ organizationId, ...unconfigured });
-      await store.setOrganizationSpritesEnv({
-        organizationId,
-        key: "OTHER",
-        value: "o",
-        updatedByUserId: null,
-      });
+      const saved = await store.getOrganizationSpritesConfiguration(organizationId);
+      await store.setOrganizationSpritesEnv({ organizationId, key: "TOKEN", value: "v" });
+      await store.setOrganizationSpritesEnv({ organizationId, key: "OTHER", value: "o" });
       const replaced = await store.setOrganizationSpritesEnv({
         organizationId,
         key: "TOKEN",
         value: "w",
-        updatedByUserId: null,
       });
       assert.deepEqual(replaced?.env, { OTHER: "o", TOKEN: "w" });
 
-      await store.upsertOrganizationSpritesConfiguration({
+      const removed = await store.removeOrganizationSpritesEnv({ organizationId, key: "OTHER" });
+      assert.deepEqual(removed?.env, { TOKEN: "w" });
+      assert.deepEqual(removed?.updatedAt, saved?.updatedAt);
+      assert.equal(removed?.updatedByUserId, userId);
+      assert.equal(
+        await store.removeOrganizationSpritesEnv({ organizationId, key: "OTHER" }),
+        undefined,
+      );
+      assert.deepEqual(await store.getOrganizationSpritesConfiguration(organizationId), removed);
+
+      const rotated = await store.upsertOrganizationSpritesConfiguration({
         organizationId,
         token: "rotated",
         memoryMb: 8192,
         updatedByUserId: null,
       });
-      const removed = await store.removeOrganizationSpritesEnv({
-        organizationId,
-        key: "OTHER",
-        updatedByUserId: null,
-      });
-      assert.deepEqual(removed?.env, { TOKEN: "w" });
-      assert.deepEqual(await store.getOrganizationSpritesConfiguration(organizationId), removed);
+      assert.deepEqual(rotated.env, { TOKEN: "w" });
       assert.deepEqual(
         (await store.getOrganizationSpritesConfiguration(otherOrganizationId))?.env,
         {},

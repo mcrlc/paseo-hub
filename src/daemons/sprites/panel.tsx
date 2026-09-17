@@ -151,12 +151,15 @@ function SpritesEnvironment({
 }) {
   const queryClient = useQueryClient();
   const queryKey = ["sprites-settings", organizationId];
+  const [savedCount, setSavedCount] = useState(0);
   const setEnv = useMutation({
     mutationFn: useServerFn(setSpritesEnv) as (
       input: Parameters<typeof setSpritesEnv>[0],
     ) => Promise<Completion>,
     onSuccess: async (result) => {
-      if (result.status === "ok") await queryClient.invalidateQueries({ queryKey });
+      if (result.status !== "ok") return;
+      setSavedCount((count) => count + 1);
+      await queryClient.invalidateQueries({ queryKey });
     },
   });
   const removeEnv = useMutation({
@@ -193,7 +196,7 @@ function SpritesEnvironment({
   return (
     <SpritesEnvCard
       keys={snapshot.envKeys}
-      formKey={snapshot.updatedAt ?? "unconfigured"}
+      formKey={savedCount}
       busy={setEnv.isPending || removeEnv.isPending}
       saved={setEnv.data?.status === "ok"}
       error={setError}
@@ -217,7 +220,7 @@ export function SpritesEnvCard({
   onRemove,
 }: {
   keys: string[];
-  formKey: string;
+  formKey: number;
   busy: boolean;
   saved: boolean;
   error: Failure;
@@ -238,68 +241,70 @@ export function SpritesEnvCard({
     [onReset, onSet],
   );
   return (
-    <Card
-      title="Daemon environment"
-      description="Variables set on every sprite's daemon and inherited by every agent on it. Values are write-only: Hub never shows them again."
-    >
-      {removeError === undefined ? null : (
-        <FailureAlert
-          title="Variable not removed"
-          error={removeError}
-          fallback={ENV_REMOVE_FAILURE}
-        />
-      )}
-      {keys.length === 0 ? (
-        <EmptyState
-          title="No variables"
-          description="Add CLAUDE_CODE_OAUTH_TOKEN or another provider credential below."
-        />
-      ) : (
-        <RecordList label="Daemon environment variables">
-          {keys.map((key) => (
-            <SpritesEnvRow key={key} name={key} busy={busy} onRemove={onRemove} />
-          ))}
-        </RecordList>
-      )}
-      <form
-        key={formKey}
-        aria-label="Set daemon environment variable"
-        noValidate
-        onSubmit={submit}
-        className="grid gap-4"
+    <Section>
+      <Card
+        title="Daemon environment"
+        description="Variables set on every sprite's daemon and inherited by every agent on it. Values are write-only: Hub never shows them again."
       >
-        {saved ? <NoticeAlert tone="success">Variable saved.</NoticeAlert> : null}
-        {error === undefined ? null : (
-          <FailureAlert title="Variable not saved" error={error} fallback={ENV_SAVE_FAILURE} />
+        {removeError === undefined ? null : (
+          <FailureAlert
+            title="Variable not removed"
+            error={removeError}
+            fallback={ENV_REMOVE_FAILURE}
+          />
         )}
-        <FormField
-          id="sprites-env-key"
-          name="key"
-          kind="text"
-          label="Name"
-          description="Setting an existing name replaces its value."
-          placeholder="CLAUDE_CODE_OAUTH_TOKEN"
-          autoComplete="off"
-          required
-          disabled={busy}
-          {...(errors.key === undefined ? {} : { error: errors.key })}
-        />
-        <FormField
-          id="sprites-env-value"
-          name="value"
-          kind="secret"
-          label="Value"
-          required
-          disabled={busy}
-          {...(errors.value === undefined ? {} : { error: errors.value })}
-        />
-        <FormActions>
-          <Button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save variable"}
-          </Button>
-        </FormActions>
-      </form>
-    </Card>
+        {keys.length === 0 ? (
+          <EmptyState
+            title="No variables"
+            description="Add CLAUDE_CODE_OAUTH_TOKEN or another provider credential below."
+          />
+        ) : (
+          <RecordList label="Daemon environment variables">
+            {keys.map((key) => (
+              <SpritesEnvRow key={key} name={key} busy={busy} onRemove={onRemove} />
+            ))}
+          </RecordList>
+        )}
+        <form
+          key={formKey}
+          aria-label="Set daemon environment variable"
+          noValidate
+          onSubmit={submit}
+          className="grid gap-4"
+        >
+          {saved ? <NoticeAlert tone="success">Variable saved.</NoticeAlert> : null}
+          {error === undefined ? null : (
+            <FailureAlert title="Variable not saved" error={error} fallback={ENV_SAVE_FAILURE} />
+          )}
+          <FormField
+            id="sprites-env-key"
+            name="key"
+            kind="text"
+            label="Name"
+            description="Setting an existing name replaces its value."
+            placeholder="CLAUDE_CODE_OAUTH_TOKEN"
+            autoComplete="off"
+            required
+            disabled={busy}
+            {...(errors.key === undefined ? {} : { error: errors.key })}
+          />
+          <FormField
+            id="sprites-env-value"
+            name="value"
+            kind="secret"
+            label="Value"
+            required
+            disabled={busy}
+            {...(errors.value === undefined ? {} : { error: errors.value })}
+          />
+          <FormActions>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Saving…" : "Save variable"}
+            </Button>
+          </FormActions>
+        </form>
+      </Card>
+    </Section>
   );
 }
 
@@ -399,51 +404,53 @@ export function SpritesSettingsContent({
           <SummaryPanel label="Sprites configuration" rows={summary} />
         </Section>
       )}
-      <Card
-        title={snapshot.configured ? "Replace token" : "Connect Sprites"}
-        description="The token is stored write-only. Hub never shows it again."
-      >
-        <form
-          key={snapshot.updatedAt ?? "unconfigured"}
-          aria-label="Sprites configuration"
-          noValidate
-          onSubmit={submit}
-          className="grid gap-4"
+      <Section>
+        <Card
+          title={snapshot.configured ? "Replace token" : "Connect Sprites"}
+          description="The token is stored write-only. Hub never shows it again."
         >
-          {saved ? <NoticeAlert tone="success">Sprites configuration saved.</NoticeAlert> : null}
-          {error === undefined ? null : (
-            <FailureAlert title="Configuration not saved" error={error} fallback={SAVE_FAILURE} />
-          )}
-          <FormField
-            id="sprites-token"
-            name="token"
-            kind="secret"
-            label={snapshot.configured ? "New token (replaces the stored token)" : "Token"}
-            required
-            disabled={busy}
-            {...(errors.token === undefined ? {} : { error: errors.token })}
-          />
-          <FormField
-            id="sprites-memory"
-            name="memoryMb"
-            kind="number"
-            label="Default memory (MB)"
-            description="Memory limit for each sprite unless its trigger sets one."
-            required
-            min={1}
-            step={1}
-            inputMode="numeric"
-            defaultValue={String(snapshot.memoryMb ?? DEFAULT_MEMORY_MB)}
-            disabled={busy}
-            {...(errors.memoryMb === undefined ? {} : { error: errors.memoryMb })}
-          />
-          <FormActions>
-            <Button type="submit" disabled={busy}>
-              {busy ? "Saving…" : "Save"}
-            </Button>
-          </FormActions>
-        </form>
-      </Card>
+          <form
+            key={snapshot.updatedAt ?? "unconfigured"}
+            aria-label="Sprites configuration"
+            noValidate
+            onSubmit={submit}
+            className="grid gap-4"
+          >
+            {saved ? <NoticeAlert tone="success">Sprites configuration saved.</NoticeAlert> : null}
+            {error === undefined ? null : (
+              <FailureAlert title="Configuration not saved" error={error} fallback={SAVE_FAILURE} />
+            )}
+            <FormField
+              id="sprites-token"
+              name="token"
+              kind="secret"
+              label={snapshot.configured ? "New token (replaces the stored token)" : "Token"}
+              required
+              disabled={busy}
+              {...(errors.token === undefined ? {} : { error: errors.token })}
+            />
+            <FormField
+              id="sprites-memory"
+              name="memoryMb"
+              kind="number"
+              label="Default memory (MB)"
+              description="Memory limit for each sprite unless its trigger sets one."
+              required
+              min={1}
+              step={1}
+              inputMode="numeric"
+              defaultValue={String(snapshot.memoryMb ?? DEFAULT_MEMORY_MB)}
+              disabled={busy}
+              {...(errors.memoryMb === undefined ? {} : { error: errors.memoryMb })}
+            />
+            <FormActions>
+              <Button type="submit" disabled={busy}>
+                {busy ? "Saving…" : "Save"}
+              </Button>
+            </FormActions>
+          </form>
+        </Card>
+      </Section>
     </>
   );
 }

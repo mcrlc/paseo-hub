@@ -895,13 +895,11 @@ export interface SetOrganizationSpritesEnvInput {
   organizationId: string;
   key: string;
   value: string;
-  updatedByUserId: string | null;
 }
 
 export interface RemoveOrganizationSpritesEnvInput {
   organizationId: string;
   key: string;
-  updatedByUserId: string | null;
 }
 
 /** An organization as the instance-operator surface sees it — identity only, no membership. */
