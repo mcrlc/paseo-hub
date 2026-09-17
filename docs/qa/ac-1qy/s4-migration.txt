@@ -1,0 +1,67 @@
+# Scenario 4: migration on a fresh Postgres 17 (same image as the integration tests: postgres:17-alpine)
+
+$ docker run -d --rm --name ac1qy-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=paseo_hub -p 55432:5432 postgres:17-alpine
+$ DATABASE_URL=postgres://postgres:postgres@localhost:55432/paseo_hub npm run db:migrate
+> @getpaseo/hub@0.9.0 db:migrate
+> tsx src/db/migrate.ts
+(exit 0)
+
+$ docker exec ac1qy-pg psql -U postgres -d paseo_hub -c '\d organization_sprites_configuration'
+               Table "public.organization_sprites_configuration"
+       Column       |           Type           | Collation | Nullable | Default 
+--------------------+--------------------------+-----------+----------+---------
+ organization_id    | text                     |           | not null | 
+ token              | text                     |           | not null | 
+ memory_mb          | integer                  |           | not null | 8192
+ updated_at         | timestamp with time zone |           | not null | now()
+ updated_by_user_id | text                     |           |          | 
+Indexes:
+    "organization_sprites_configuration_pkey" PRIMARY KEY, btree (organization_id)
+Check constraints:
+    "organization_sprites_configuration_memory_mb_check" CHECK (memory_mb > 0)
+Foreign-key constraints:
+    "organization_sprites_configuration_organization_id_organization" FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE
+    "organization_sprites_configuration_updated_by_user_id_user_id_f" FOREIGN KEY (updated_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL
+
+$ psql ... -c "select conname, contype, pg_get_constraintdef(oid) from pg_constraint where conrelid='organization_sprites_configuration'::regclass order by conname"
+ organization_sprites_configuration_memory_mb_check              | c | CHECK ((memory_mb > 0))
+ organization_sprites_configuration_organization_id_organization | f | FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE
+ organization_sprites_configuration_pkey                         | p | PRIMARY KEY (organization_id)
+ organization_sprites_configuration_updated_by_user_id_user_id_f | f | FOREIGN KEY (updated_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL
+
+$ psql ... -c "select count(*) as applied_migrations from drizzle.__drizzle_migrations"
+ applied_migrations 
+--------------------
+                 50
+
+## Migration count 49 -> 50
+$ git show main:drizzle/meta/_journal.json | grep -c '"tag"'
+49
+$ grep -c '"tag"' drizzle/meta/_journal.json
+50
+$ git ls-tree main drizzle/ | grep -c '\.sql'   ->  49
+$ ls drizzle/*.sql | wc -l                      ->  50
+src/db/migrations.integration.test.ts asserts drizzleMigrations: 50 (was 49) and passes (see s7-gates.txt).
+
+## FK names are truncated by Postgres to 63 bytes (NAMEDATALEN)
+$ grep -ho 'CONSTRAINT "[^"]*"' drizzle/0049*.sql | awk '{print length($2)-2, $2}'
+50 "organization_sprites_configuration_memory_mb_check"
+69 "organization_sprites_configuration_organization_id_organization_id_fk"
+64 "organization_sprites_configuration_updated_by_user_id_user_id_fk"
+$ psql ... -tAc "select count(*) from pg_constraint where length(conname)=63"
+11      (the repo already has other truncated constraint names; not new to this PR)
+
+## npm run db:check
+
+> @getpaseo/hub@0.9.0 db:check
+> scripts/check-drizzle.sh
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-sprites-provider-client-1/drizzle.config.ts'
+Everything's fine 🐶🔥
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-sprites-provider-client-1/drizzle.config.ts'
+50 tables
+
+No schema changes, nothing to migrate 😴
+exit=0

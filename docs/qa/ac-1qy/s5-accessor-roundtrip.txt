@@ -1,0 +1,30 @@
+# Scenario 5: accessor round trip and constraints
+
+$ DATABASE_URL=postgres://postgres:postgres@localhost:55432/paseo_hub npx tsx docs/qa/ac-1qy/s5-accessor-roundtrip.ts
+(fresh postgres:17-alpine migrated with npm run db:migrate; tokens shown as <value>)
+
+=== postgres ===
+read before configure: undefined
+upsert #1 (insert): {"organizationId":"org-b2586873-ab23-48a3-9667-6772971896ad","token":"<first>","memoryMb":8192,"updatedAt":"2026-09-17T06:01:01.470Z","updatedByUserId":"user-cbed869a-b7a3-4382-8bfe-e18f8a6c8261"}
+upsert #2 (update): {"organizationId":"org-b2586873-ab23-48a3-9667-6772971896ad","token":"<second>","memoryMb":16384,"updatedAt":"2026-09-17T06:01:01.496Z","updatedByUserId":null}
+read after: {"organizationId":"org-b2586873-ab23-48a3-9667-6772971896ad","token":"<second>","memoryMb":16384,"updatedAt":"2026-09-17T06:01:01.496Z","updatedByUserId":null}
+token updated: true; memory updated: true; updated_at later: true (+26ms); read equals upsert #2 return: true
+upsert memoryMb=0: REJECTED -> new row for relation "organization_sprites_configuration" violates check constraint "organization_sprites_configuration_memory_mb_check" {"code":"23514","constraint":"organization_sprites_configuration_memory_mb_check"}
+row after rejected 0 still: [{"organization_id":"org-b2586873-ab23-48a3-9667-6772971896ad","memory_mb":16384}]
+insert for unknown organization: REJECTED -> insert or update on table "organization_sprites_configuration" violates foreign key constraint "organization_sprites_configuration_organization_id_organization"
+insert without memory_mb defaults to: [{"memory_mb":8192}]
+after deleting updater user: {"organizationId":"org-8a3a240f-6b43-413e-97f7-957afa68f0fe","token":"<y>","memoryMb":1024,"updatedAt":"2026-09-17T06:01:01.532Z","updatedByUserId":null}
+after deleting organization: read=undefined; rows=[{"n":0}]
+
+=== in-memory ===
+read before configure: undefined
+upsert #1 (insert): {"organizationId":"org-b2586873-ab23-48a3-9667-6772971896ad","token":"<first>","memoryMb":8192,"updatedByUserId":"user-cbed869a-b7a3-4382-8bfe-e18f8a6c8261","updatedAt":"2026-09-17T06:01:01.545Z"}
+upsert #2 (update): {"organizationId":"org-b2586873-ab23-48a3-9667-6772971896ad","token":"<second>","memoryMb":16384,"updatedByUserId":null,"updatedAt":"2026-09-17T06:01:01.566Z"}
+read after: {"organizationId":"org-b2586873-ab23-48a3-9667-6772971896ad","token":"<second>","memoryMb":16384,"updatedByUserId":null,"updatedAt":"2026-09-17T06:01:01.566Z"}
+token updated: true; memory updated: true; updated_at later: true (+21ms); read equals upsert #2 return: true
+upsert memoryMb=0: ACCEPTED -> {"organizationId":"org-b2586873-ab23-48a3-9667-6772971896ad","token":"<zero>","memoryMb":0,"updatedByUserId":null,"updatedAt":"2026-09-17T06:01:01.566Z"}
+in-memory: no organization deletion exists on the Database interface; cascade is not applicable
+
+## PR integration test (Postgres testcontainer + in-memory)
+$ npx vitest run src/db/organization-sprites-configuration.integration.test.ts   # run as part of s7
+ ✓ src/db/organization-sprites-configuration.integration.test.ts (2 tests) 4578ms
