@@ -3,6 +3,9 @@ import { describe, it } from "vitest";
 import type { AuthServer } from "../auth/server.js";
 import { createMemoryDatabase } from "../db/memory.js";
 import { enrollTestDaemon, TEST_DAEMON_SLUG } from "../test-utils/project-configuration.js";
+import { UNLIMITED_TEMPLATE } from "../entitlements/catalog.js";
+import { EntitlementsService } from "../entitlements/service.js";
+import { createSpriteActivation, type SpriteProvider } from "../daemons/sprites/activation.js";
 import { TriggerDashboard } from "./dashboard.js";
 import { OrganizationTriggerStore } from "./store.js";
 
@@ -92,4 +95,156 @@ function accountAuth(): AuthServer {
     rejectCookieMutation: () => undefined,
     close: () => Promise.resolve(),
   };
+}
+
+describe("sprite triggers on the dashboard", () => {
+  it("summarises the live sprite and recreates it once it is idle", async () => {
+    const hub = await spriteHub();
+    const trigger = await hub.store.save({ yaml: spriteYaml, userId: "user-1" });
+    await hub.settled();
+    const [machine] = await hub.database.listOrganizationSprites("org-1");
+    assert.ok(machine);
+
+    const before = await hub.dashboard.snapshot(hub.request, "acme");
+    assert.deepEqual(before.triggers[0]?.sprite, {
+      status: "alive",
+      name: `trigger-${trigger.id}`,
+      memoryMb: 16384,
+      lastRunAt: null,
+    });
+
+    await hub.dashboard.recreateSprite(hub.request, "acme", trigger.id);
+
+    const after = await hub.dashboard.snapshot(hub.request, "acme");
+    assert.equal(after.triggers[0]?.sprite?.status, "terminated");
+    assert.equal(await hub.database.findLiveSpriteMachine(trigger.id), undefined);
+    assert.equal((await hub.database.findDaemonByMachineId(machine.machine.id))?.status, "revoked");
+  });
+
+  it("refuses to recreate a sprite that is still running an execution", async () => {
+    const hub = await spriteHub();
+    const trigger = await hub.store.save({ yaml: spriteYaml, userId: "user-1" });
+    await hub.settled();
+    const [sprite] = await hub.database.listOrganizationSprites("org-1");
+    assert.ok(sprite);
+    const revision = await hub.database.findActiveProjectConfiguration(trigger.runtimeProjectId);
+    assert.ok(revision);
+    await hub.database.insertAgentExecution({
+      organizationId: "org-1",
+      projectId: trigger.runtimeProjectId,
+      machineId: sprite.machine.id,
+      triggerContext: {},
+      outputContext: {},
+      configurationRevisionId: revision.id,
+    });
+
+    await assert.rejects(
+      hub.dashboard.recreateSprite(hub.request, "acme", trigger.id),
+      /destroys it and ends its 1 running execution\. Try again once it is idle\./u,
+    );
+    assert.equal((await hub.database.findLiveSpriteMachine(trigger.id))?.status, "alive");
+  });
+});
+
+const spriteYaml = `name: reviewer
+enabled: true
+on:
+  manual.run: {}
+run:
+  target:
+    kind: sprite
+    bootstrap: |
+      npm install -g @anthropic-ai/claude-code
+    cwd: /workspace
+    memory: 16384
+  agent: { provider: test, mode: full-access }
+  prompt: Handle it
+`;
+
+async function spriteHub() {
+  const database = createMemoryDatabase({
+    memberships: [
+      {
+        userId: "user-1",
+        organizationId: "org-1",
+        organizationName: "Acme",
+        organizationSlug: "acme",
+        membershipId: "membership-1",
+        role: "owner",
+      },
+    ],
+  });
+  const entitlements = new EntitlementsService(database, { seats: async () => 0 });
+  await entitlements.stamp("org-1", UNLIMITED_TEMPLATE, { source: "provisioning", planId: null });
+  await database.upsertOrganizationSpritesConfiguration({
+    organizationId: "org-1",
+    token: "sprites-token",
+    memoryMb: 8192,
+    updatedByUserId: null,
+  });
+  const provider: SpriteProvider = {
+    create: async () => "sprite-id",
+    destroy: async () => undefined,
+    exec: async () => ({ exitCode: 0, stdout: "/opt/node\n", stderr: "" }),
+    service: async () => undefined,
+    setMemory: async () => undefined,
+  };
+  const jobs: Promise<void>[] = [];
+  const activate = createSpriteActivation({
+    database,
+    apiKeys: {
+      create: async (organizationId, _userId, name, scopes) => ({
+        secret: "secret",
+        summary: {
+          id: "key-1",
+          name,
+          prefix: "key-1",
+          scopes,
+          createdAt: new Date(),
+          lastUsedAt: null,
+          revokedAt: null,
+        },
+      }),
+      revoke: async () => true,
+    },
+    connectionsForProject: () => (slug: string, value: string) => `resolved:${slug}.${value}`,
+    hubOrigin: "https://hub.test",
+    provider: () => provider,
+  });
+  const spriteActivation: typeof activate = async (input) => {
+    const started = await activate(input);
+    if (started !== undefined) jobs.push(started.job);
+    return started;
+  };
+  return {
+    database,
+    store: new OrganizationTriggerStore(database, "org-1", entitlements, spriteActivation),
+    dashboard: new TriggerDashboard(database, accountAuth(), entitlements, spriteActivation),
+    request: new Request("https://hub.test/o/acme/triggers"),
+    settled: async () => {
+      await Promise.all(jobs);
+      await enrollSprite(database);
+    },
+  };
+}
+
+async function enrollSprite(database: ReturnType<typeof createMemoryDatabase>) {
+  await database.issueEnrollmentToken({
+    id: "sprite-token",
+    verifier: "sprite-token-verifier",
+    organizationId: "org-1",
+    issuedByApiKeyId: "key-1",
+    expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+    consumedAt: null,
+  });
+  await database.enrollDaemon({
+    daemonId: "22222222-2222-4222-8222-222222222222",
+    idempotencyKey: "sprite-daemon",
+    tokenVerifier: "sprite-token-verifier",
+    serverId: "sprite-server",
+    daemonPublicKey: "public-key",
+    credentialVerifier: "credential-verifier",
+    permissions: ["hub.execute"],
+    now: new Date("2026-09-17T00:00:00.000Z"),
+  });
 }

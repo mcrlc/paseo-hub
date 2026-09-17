@@ -1,4 +1,5 @@
 import { EDITOR_EVENTS } from "./events.js";
+import assert from "node:assert/strict";
 import { describe, expect, test } from "vitest";
 import { parseDocument } from "yaml";
 import { TriggerDocumentSchema } from "./schema.js";
@@ -9,6 +10,7 @@ import {
   patchTriggerYaml,
   projectTriggerForm,
   splitAgentId,
+  triggerDocumentWarnings,
   triggerFormErrors,
 } from "./editor.js";
 
@@ -472,4 +474,62 @@ test("continuation policies round-trip through the form and YAML", () => {
     expect(next).toMatchObject({ status: "editable", value: { continuationMode: mode } });
     expect(yaml).toContain("# keep this heading");
   }
+});
+
+const SPRITE_TRIGGER = `name: reviewer
+on:
+  github.issue_comment: {}
+run:
+  target: { kind: sprite, bootstrap: install, cwd: /workspace }
+  agent: { provider: claude, mode: bypassPermissions }
+  prompt: Review it.
+`;
+
+const DAEMON_TRIGGER = SPRITE_TRIGGER.replace(
+  "{ kind: sprite, bootstrap: install, cwd: /workspace }",
+  "{ daemon: devbox, cwd: /workspace }",
+);
+
+function withRun(yaml: string, lines: string): string {
+  return yaml.replace("  prompt: Review it.\n", `  prompt: Review it.\n${lines}`);
+}
+
+describe("sprite continuation warnings", () => {
+  test("warns when leased credentials meet conversation continuation on a sprite", () => {
+    const granted = withRun(SPRITE_TRIGGER, "  github: { connection: acme-github }\n");
+    const templated = withRun(
+      SPRITE_TRIGGER,
+      "  env:\n    TOKEN: ${{ paseo.connections.acme-github.token }}\n",
+    );
+
+    for (const yaml of [granted, templated]) {
+      const warnings = triggerDocumentWarnings(yaml);
+      assert.deepEqual(
+        warnings.map(({ path }) => path.join(".")),
+        ["run.continuation.mode"],
+      );
+      assert.match(warnings[0]!.message, /leased/iu);
+    }
+  });
+
+  test("stays quiet without a sprite, without leased credentials, or off conversation mode", () => {
+    assert.deepEqual(
+      triggerDocumentWarnings(withRun(DAEMON_TRIGGER, "  github: { connection: acme-github }\n")),
+      [],
+    );
+    assert.deepEqual(triggerDocumentWarnings(SPRITE_TRIGGER), []);
+    assert.deepEqual(
+      triggerDocumentWarnings(
+        withRun(
+          SPRITE_TRIGGER,
+          "  github: { connection: acme-github }\n  continuation: { mode: new }\n",
+        ),
+      ),
+      [],
+    );
+  });
+
+  test("says nothing about a document that does not parse", () => {
+    assert.deepEqual(triggerDocumentWarnings("name: [unterminated"), []);
+  });
 });

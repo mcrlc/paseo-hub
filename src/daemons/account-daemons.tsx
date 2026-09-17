@@ -17,7 +17,7 @@ import { FormField } from "../components/app/form-field.js";
 import { PageHeader } from "../components/app/page.js";
 import { RelativeTime } from "../components/app/relative-time.js";
 import { RowActions } from "../components/app/row-actions.js";
-import { StatusPill } from "../components/app/status-pill.js";
+import { StatusPill, statusLabel } from "../components/app/status-pill.js";
 import { TwoLine } from "../components/app/two-line.js";
 import { Button } from "../components/ui/button.js";
 import { DropdownMenuItem } from "../components/ui/dropdown-menu.js";
@@ -31,6 +31,7 @@ import {
 import type { Result } from "../contract/respond.js";
 import { DAEMON_MUTATION_KEY } from "../auth/tenant-mutation.js";
 import { daemonLoginCommand } from "./handoff.js";
+import { machineTone } from "./sprites/machine-status.js";
 import { daemonsQueryKey, refreshDaemons } from "./status.js";
 
 const DAEMON_COLUMNS: readonly DataColumn[] = [
@@ -186,7 +187,12 @@ export function DaemonsPanel({
   );
 }
 
-function DaemonRow({
+/** A sprite daemon's slug is its trigger's name, so renaming it happens in the trigger. */
+export function canRenameDaemon(daemon: BrowserDaemon): boolean {
+  return daemon.sprite === null;
+}
+
+export function DaemonRow({
   daemon,
   canManage,
   busy,
@@ -209,13 +215,23 @@ function DaemonRow({
   return (
     <DataRow>
       <DataCell className="min-w-0">
-        <TwoLine primary={daemon.slug} />
+        <TwoLine
+          primary={daemon.slug}
+          {...(daemon.sprite === null ? {} : { secondary: daemon.sprite.triggerName })}
+        />
       </DataCell>
       <DataCell muted>
         <span className="font-mono text-xs">{daemon.id.slice(0, 8)}</span>
       </DataCell>
       <DataCell>
-        <DaemonStatus daemon={daemon} />
+        <span className="flex flex-wrap items-center gap-1.5">
+          <DaemonStatus daemon={daemon} />
+          {daemon.sprite === null ? null : (
+            <StatusPill tone={machineTone(daemon.sprite.machineStatus)}>
+              {statusLabel(daemon.sprite.machineStatus)}
+            </StatusPill>
+          )}
+        </span>
       </DataCell>
       <DataCell muted>
         {daemon.permissions.includes("hub.execute") ? "Hub automations" : "Connected only"}
@@ -230,7 +246,10 @@ function DaemonRow({
         {canManage ? (
           <>
             <RowActions label={`Actions for ${daemon.slug}`}>
-              <DropdownMenuItem disabled={busy} onSelect={requestRename}>
+              <DropdownMenuItem
+                disabled={busy || !canRenameDaemon(daemon)}
+                onSelect={requestRename}
+              >
                 Rename
               </DropdownMenuItem>
               {daemon.status === "revoked" ? null : (

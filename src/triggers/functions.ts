@@ -47,6 +47,29 @@ export const saveTrigger = createServerFn({ method: "POST" })
     }
   });
 
+export const recreateSprite = createServerFn({ method: "POST" })
+  .validator(scopeSchema.extend({ triggerId: z.string().uuid() }))
+  .handler(async ({ data }): Promise<Result<{ state: "complete" }>> => {
+    try {
+      const dashboard = (await getApplication()).triggerDashboard;
+      if (dashboard == null) throw new Error("trigger dashboard unavailable");
+      await dashboard.recreateSprite(getRequest(), data.organizationSlug, data.triggerId);
+      return respondOk({ state: "complete" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : undefined;
+      return respondWithFailure(
+        error,
+        triggerContext("trigger.sprite.recreate", data.organizationSlug),
+        {
+          fallback: message ?? "Hub couldn't recreate this sprite.",
+          forbidden: "You don't have permission to manage triggers.",
+          conflict: message ?? "This sprite is busy.",
+          notFound: "This trigger no longer exists.",
+        },
+      );
+    }
+  });
+
 export type TriggerSnapshot = Awaited<ReturnType<TriggerDashboard["snapshot"]>>;
 
 function triggerContext(operation: string, organizationSlug: string) {

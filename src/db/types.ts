@@ -737,6 +737,13 @@ export interface ProjectActivityRunRecord {
   steps: readonly WorkflowStepRunRecord[];
 }
 
+export interface OrganizationSpriteRecord {
+  machine: MachineRecord;
+  triggerName: string;
+  daemonId: string | null;
+  lastRunAt: Date | null;
+}
+
 export interface ProjectActivityRunListRecord {
   run: TriggerRunRecord;
   receipt: ProviderEventReceiptSummary;
@@ -1318,6 +1325,11 @@ export interface Database {
   ): Promise<AttachmentRecord | undefined>;
   insertMachine(input: InsertMachineInput): Promise<MachineRecord>;
   findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined>;
+  listOrganizationSprites(organizationId: string): Promise<OrganizationSpriteRecord[]>;
+  listSpriteRunStatuses(
+    organizationId: string,
+    triggerRunIds: readonly string[],
+  ): Promise<{ triggerRunId: string; status: MachineStatus }[]>;
   findSpawningSpriteMachines(): Promise<MachineRecord[]>;
   /** Resolves undefined when a non-terminated sprite machine already exists for the trigger. */
   insertSpriteMachine(input: {

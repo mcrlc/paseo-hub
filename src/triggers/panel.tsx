@@ -7,6 +7,7 @@ import { ArrowLeft, Braces, FileText, LockKeyhole, Plus } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Card } from "../components/app/card.js";
+import { ConfirmMenuItem } from "../components/app/confirm-action.js";
 import { Combobox, type ComboboxOption } from "../components/app/combobox.js";
 import { CheckboxField } from "../components/app/checkbox-field.js";
 import { CopyButton } from "../components/app/copy-field.js";
@@ -19,7 +20,10 @@ import { LoadingLine, Spinner } from "../components/app/loading.js";
 import { PageHeader, PageHeaderSkeleton } from "../components/app/page.js";
 import { RelativeTime } from "../components/app/relative-time.js";
 import { Steps } from "../components/app/steps.js";
+import { RowActions } from "../components/app/row-actions.js";
+import { Section } from "../components/app/section.js";
 import { SegmentedControl, type SegmentedOption } from "../components/app/segmented-control.js";
+import { SummaryPanel } from "../components/app/summary-panel.js";
 import { StatusPill, statusLabel } from "../components/app/status-pill.js";
 import { TwoLine } from "../components/app/two-line.js";
 import { Button } from "../components/ui/button.js";
@@ -34,18 +38,21 @@ import {
   changeTriggerEvent,
   mergeTriggerForm,
   projectTriggerForm,
+  triggerDocumentWarnings,
   triggerFormErrors,
   type TriggerFieldErrors,
   type TriggerFormValue,
 } from "./configuration/editor.js";
-import { saveTrigger, triggerSnapshot, type TriggerSnapshot } from "./functions.js";
+import { recreateSprite, saveTrigger, triggerSnapshot, type TriggerSnapshot } from "./functions.js";
 import { daemonProviderSnapshot } from "../daemons/functions.js";
+import { machineTone } from "../daemons/sprites/machine-status.js";
 import type { HubProviderSnapshot, HubProviderSnapshotEntry } from "../hub/protocol.js";
 import { EventFields } from "./event-fields.js";
 import { EDITOR_EVENTS, eventDefinition, parseEditorEvent } from "./configuration/events.js";
 import { selectedProviderModel } from "./provider-catalog.js";
 
 type BrowserTrigger = TriggerSnapshot["triggers"][number];
+export type TriggerSprite = NonNullable<BrowserTrigger["sprite"]>;
 type EditorMode = "form" | "yaml";
 
 /** Every form value the operator types into a control, i.e. everything but the event and the switch. */
@@ -351,6 +358,7 @@ function TriggerEditor({
           advanced={editor.mode === "yaml" && editor.yamlOnly}
           reason={editor.mode === "yaml" ? editor.blocked : undefined}
         />
+        <TriggerDocumentWarnings yaml={editor.documentYaml} />
         {saveError === undefined ? null : (
           <FailureAlert
             title="Trigger not saved"
@@ -400,6 +408,11 @@ function TriggerEditor({
             </Button>
           </FormActions>
         </form>
+        <TriggerSpriteSection
+          trigger={trigger}
+          organizationSlug={snapshot.organization.slug}
+          canManage={snapshot.canManage}
+        />
       </div>
     </>
   );
@@ -462,9 +475,14 @@ function useTriggerEditorState(
     else if (other.status === "ok") onSave(other.yaml);
     else refuse();
   };
+  // The document as it stands, whichever view is on screen: what a warning has to read, and
+  // empty while the form cannot serialise to one yet.
+  let documentYaml = yaml;
+  if (mode === "form") documentYaml = other.status === "ok" ? other.yaml : "";
   return {
     mode,
     yaml,
+    documentYaml,
     form,
     errors: refused ? errors : NO_FIELD_ERRORS,
     // Legacy workflows are explained by their own alert; repeating the schema error underneath it
@@ -983,6 +1001,135 @@ const AUDIENCE_OPTIONS: readonly SegmentedOption[] = [
  * description are the same every time, so they render for real; only the trigger's own name and
  * field values are placeholders.
  */
+function TriggerSpriteSection({
+  trigger,
+  organizationSlug,
+  canManage,
+}: {
+  trigger: BrowserTrigger | null;
+  organizationSlug: string;
+  canManage: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const recreate = useMutation({
+    mutationFn: useServerFn(recreateSprite) as (input: {
+      data: { organizationSlug: string; triggerId: string };
+    }) => Promise<Result<{ state: "complete" }>>,
+    onSuccess: async (result) => {
+      if (result.status !== "ok") return;
+      await queryClient.invalidateQueries({ queryKey: ["triggers", organizationSlug] });
+    },
+  });
+  const sprite = trigger?.sprite;
+  if (trigger === null || sprite === null || sprite === undefined) return null;
+  return (
+    <SpriteSection
+      sprite={sprite}
+      canManage={canManage}
+      busy={recreate.isPending}
+      error={recreate.data?.status === "error" ? recreate.data.error.message : undefined}
+      onRecreate={() => recreate.mutate({ data: { organizationSlug, triggerId: trigger.id } })}
+    />
+  );
+}
+
+/**
+ * A trigger that targets a sprite it has never activated gets this panel too, so the reader
+ * learns there is no machine yet rather than finding nothing on the page.
+ */
+export function SpriteSection({
+  sprite,
+  canManage,
+  busy,
+  error,
+  onRecreate,
+}: {
+  sprite: TriggerSprite;
+  canManage: boolean;
+  busy: boolean;
+  error: string | undefined;
+  onRecreate: () => void;
+}) {
+  const live = sprite.status === "spawning" || sprite.status === "alive";
+  return (
+    <Section
+      title="Sprite"
+      description="The machine Hub creates for this trigger and pauses when it is idle."
+      {...(canManage && live
+        ? {
+            action: (
+              <RowActions label="Sprite actions">
+                <ConfirmMenuItem
+                  busy={busy}
+                  destructive
+                  label="Recreate"
+                  title="Recreate this sprite?"
+                  description="Hub destroys the sprite and revokes its daemon. The next run provisions a new one from the trigger's bootstrap, and continuation starts over."
+                  cancelLabel="Cancel"
+                  confirmLabel="Recreate sprite"
+                  onConfirm={onRecreate}
+                />
+              </RowActions>
+            ),
+          }
+        : {})}
+    >
+      {error === undefined ? null : (
+        <FailureAlert
+          title="The sprite wasn't recreated"
+          error={error}
+          fallback="Hub couldn't recreate this sprite. Reload its status before trying again."
+        />
+      )}
+      <SummaryPanel
+        label="Sprite"
+        rows={[
+          {
+            label: "Status",
+            value:
+              sprite.status === null ? (
+                <StatusPill tone="neutral">Not created</StatusPill>
+              ) : (
+                <StatusPill tone={machineTone(sprite.status)}>
+                  {statusLabel(sprite.status)}
+                </StatusPill>
+              ),
+          },
+          {
+            label: "Sprite",
+            value:
+              sprite.name === null ? "—" : <span className="font-mono text-xs">{sprite.name}</span>,
+          },
+          {
+            label: "Memory",
+            value: sprite.memoryMb === null ? "—" : `${String(sprite.memoryMb)} MB`,
+          },
+          {
+            label: "Last run",
+            value: sprite.lastRunAt === null ? "Never" : <RelativeTime value={sprite.lastRunAt} />,
+          },
+        ]}
+      />
+    </Section>
+  );
+}
+
+/**
+ * What the document asks for and will not get. Nothing here blocks a save: the two settings are
+ * both legal, they just cancel, and only the author can decide which one they meant.
+ */
+export function TriggerDocumentWarnings({ yaml }: { yaml: string }) {
+  const warnings = triggerDocumentWarnings(yaml);
+  if (warnings.length === 0) return null;
+  return (
+    <WarningAlert title="Continuation ends when the leased credential does">
+      {warnings.map((warning) => (
+        <p key={warning.path.join(".")}>{warning.message}</p>
+      ))}
+    </WarningAlert>
+  );
+}
+
 function TriggerEditorSkeleton() {
   return (
     <div aria-busy="true">

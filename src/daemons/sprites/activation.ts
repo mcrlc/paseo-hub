@@ -66,16 +66,25 @@ export type SpriteActivation = (input: {
   trigger: OrganizationTriggerRecord;
   target: SpriteTarget | undefined;
   userId: string | null;
+  /** What the machine row records for a retirement the trigger document did not ask for. */
+  reason?: string;
 }) => Promise<{ job: Promise<void> } | undefined>;
 
 export function createSpriteActivation(options: SpriteActivationOptions): SpriteActivation {
   const providerFor = options.provider ?? ((token) => createSpritesClient({ token }));
-  return async ({ trigger, target, userId }) => {
+  return async ({ trigger, target, userId, reason: retirementReason }) => {
     const { database, apiKeys } = options;
     const live = await database.findLiveSpriteMachine(trigger.id);
     if (live !== undefined) {
       try {
-        await reconcileSprite({ ...options, providerFor, trigger, machine: live, target });
+        await reconcileSprite({
+          ...options,
+          providerFor,
+          trigger,
+          machine: live,
+          target,
+          ...(retirementReason === undefined ? {} : { reason: retirementReason }),
+        });
       } catch (error) {
         reportFailure(error, {
           operation: "sprites.reconcile",
@@ -226,6 +235,7 @@ async function reconcileSprite(
     trigger: OrganizationTriggerRecord;
     machine: MachineRecord;
     target: SpriteTarget | undefined;
+    reason?: string;
   },
 ): Promise<void> {
   const { database, machine, target } = input;
@@ -239,7 +249,8 @@ async function reconcileSprite(
       database,
       provider,
       machine,
-      target === undefined ? "trigger no longer targets a sprite" : "bootstrap changed",
+      input.reason ??
+        (target === undefined ? "trigger no longer targets a sprite" : "bootstrap changed"),
     );
     return;
   }
