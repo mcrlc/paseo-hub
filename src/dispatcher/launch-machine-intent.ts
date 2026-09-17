@@ -9,11 +9,17 @@ export const DEFAULT_STARTUP_TIMEOUT_MS = 120_000;
 export interface DaemonEnvironmentTarget {
   kind: "daemon";
   daemonId: string;
+  machineId?: string;
   authoredSlug: string;
   cwd: string;
   env?: Record<string, string>;
   worktree?: WorktreeTarget;
 }
+
+export type SpriteDispatchReadiness =
+  | { status: "ready"; machineId: string; daemonId: string }
+  | { status: "deferred" }
+  | { status: "unavailable" };
 
 export interface LaunchMachineIntent {
   continuation?: { key: string | null; compatibility: unknown };

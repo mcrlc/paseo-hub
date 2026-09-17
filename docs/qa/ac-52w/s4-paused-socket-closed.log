@@ -1,0 +1,24 @@
+# s4: paused sprite, daemon socket closed (UTC, 2026-09-17). Machine 20a8b9a8, daemon eb616a99, key qa-ac52w-v4.
+# Only DB polling (fastwatch.sh) and GET /v1/sprites/:name ran between the pause and the run: nothing but the hold could wake it.
+
+10:57:31  sprite last_warming_at (paused)
+10:57:39  status warm, daemons.presence connected
+10:59:31.553 daemons.disconnected_at, presence offline   (120 s after the pause)
+10:59:48  fire qa-run-2 (sprite warm, presence offline)
+10:59:49.062 Hub "manual event intake completed" receipt 16a4013a
+10:59:49  hold task fcc0340c-3602-525a-af4b-d9a5a29a3166 started_at 10:59:49Z (listed at 11:00:14)
+10:59:49.7 run a44c7af9 running, NO execution row, daemon offline   <- deferred
+10:59:49.593 daemon log (guest clock): "Client disconnected; waiting for reconnect" (the dead socket, seen on resume)
+10:59:50.417 daemons.connected_at, presence connected   (daemon log: "Client connected via hello" 10:59:50.456)
+10:59:50.509 archive hub action of the previous execution 35e7ace7 completes
+10:59:50.555 execution fcc0340c row created (handoff), intent machineId 20a8b9a8
+10:59:50.981 daemon log: "Created agent befb321c-1089-415f-873d-b2ea80b1a069"
+10:59:52  execution running
+11:01:52.831 execution failed step_idle_timeout -> run failed
+11:01:53  sprite warm (last_warming_at 11:01:53), tasks: []   <- released
+11:02:23.094 Hub ERROR daemon.execution.hub-action failed {executionId fcc0340c, hubAction archive}
+11:18:46.056 archive for fcc0340c completes, on the next unrelated wake
+
+Timings: intake -> reconnect 1.36 s; hold (between 10:59:49.062 and 10:59:50.0) -> reconnect 0.4 to 1.4 s;
+hold -> handoff 0.6 to 1.5 s; reconnect -> handoff 0.14 s.
+Result: pass.

@@ -23,6 +23,7 @@ import type { EntitlementsService } from "../entitlements/service.js";
 import {
   buildLaunchMachineIntent,
   type LaunchMachineIntent,
+  type SpriteDispatchReadiness,
 } from "../dispatcher/launch-machine-intent.js";
 import type {
   TriggerDispatchOutcome,
@@ -53,6 +54,11 @@ type AcceptedWorkflowRun = Extract<
   Awaited<ReturnType<Database["findTriggerRunById"]>>,
   { outcome: "accepted" }
 >;
+type CompiledStep = CompiledProjectConfiguration["triggers"][number]["steps"][number];
+type SpriteEnvironment = Extract<
+  CompiledProjectConfiguration["environments"][number],
+  { kind: "sprite" }
+>;
 type WorkflowStepRun = Awaited<ReturnType<Database["listWorkflowStepRunsForTriggerRun"]>>[number];
 interface PreparedWorkflowWakeup {
   run: AcceptedWorkflowRun;
@@ -72,6 +78,12 @@ export interface DurableWorkflowEngineOptions {
   providers?: readonly TriggerProvider[];
   dispatchLaunchMachineIntent?: (intent: LaunchMachineIntent) => Promise<unknown>;
   canDispatchToDaemon?: (daemonId: string) => boolean;
+  prepareSpriteDispatch?: (input: {
+    organizationId: string;
+    projectId: string;
+    executionId: string;
+    target: SpriteEnvironment;
+  }) => Promise<SpriteDispatchReadiness>;
   validateLaunchMachineIntent?: (intent: LaunchMachineIntent) => void;
   configurationRevisionId?: string;
   leaseMs?: number;
@@ -298,8 +310,8 @@ export class DurableWorkflowEngine {
       deadlineAt,
     );
     if (preparedIntent === undefined) return;
+    if (preparedIntent === "deferred") return this.deferDispatch(wakeup);
     const { executionId, intent } = preparedIntent;
-    if (await this.deferUnavailableDispatch(intent, wakeup)) return "deferred";
     if (await this.failInvalidLaunchIntent(database, run, step, intent)) return;
     const reservation = await this.reserveExecution(run.organizationId);
     const created = await database.createWorkflowStepExecution({
@@ -363,17 +375,13 @@ export class DurableWorkflowEngine {
     await this.finishPersistedExecution(execution);
   }
 
-  private async deferUnavailableDispatch(
-    intent: LaunchMachineIntent,
-    wakeup: WorkflowWakeupRecord,
-  ): Promise<boolean> {
-    if (this.options.canDispatchToDaemon?.(intent.environment.daemonId) !== false) return false;
+  private async deferDispatch(wakeup: WorkflowWakeupRecord): Promise<"deferred"> {
     await this.options.database!.releaseWorkflowWakeup(
       wakeup.triggerRunId,
       this.now(),
       wakeup.leaseExpiresAt!,
     );
-    return true;
+    return "deferred";
   }
 
   private async linkWorkflowStepAndNotifyStart(
@@ -521,10 +529,26 @@ export class DurableWorkflowEngine {
     stepRunId: string,
     deadlineAt: Date,
     executionId: string,
-  ): Promise<LaunchMachineIntent | undefined> {
+  ): Promise<LaunchMachineIntent | "deferred" | undefined> {
     const database = this.options.database;
     if (database === null) return undefined;
     try {
+      const { environment } = stepEnvironment(configuration, step, context);
+      const sprite =
+        environment?.kind === "sprite"
+          ? await this.prepareSpriteDispatch(run, executionId, environment)
+          : undefined;
+      if (sprite?.status === "deferred") return "deferred";
+      if (sprite?.status === "unavailable") {
+        const failed = await database.failWorkflowRun(
+          run.id,
+          "failed",
+          "sprite_unavailable",
+          step.id,
+        );
+        if (failed?.transitioned === true) await this.notifyWorkflowRunTerminal(failed.run);
+        return undefined;
+      }
       return buildStepIntent(
         configuration,
         trigger,
@@ -534,23 +558,34 @@ export class DurableWorkflowEngine {
         stepRunId,
         deadlineAt,
         executionId,
+        sprite,
       );
     } catch (error) {
-      if (
-        !(error instanceof ExpressionEvaluationError) &&
-        !(error instanceof SpriteDispatchUnsupportedError)
-      )
-        throw error;
-      this.report(
-        error,
-        "workflow.launch-expression.evaluate",
-        { triggerRunId: run.id, stepId: step.id },
-        error instanceof SpriteDispatchUnsupportedError ? "validation" : undefined,
-      );
+      if (!(error instanceof ExpressionEvaluationError)) throw error;
+      this.report(error, "workflow.launch-expression.evaluate", {
+        triggerRunId: run.id,
+        stepId: step.id,
+      });
       const failed = await database.failWorkflowRun(run.id, "failed", error.message, step.id);
       if (failed?.transitioned === true) await this.notifyWorkflowRunTerminal(failed.run);
       return undefined;
     }
+  }
+
+  private prepareSpriteDispatch(
+    run: AcceptedWorkflowRun,
+    executionId: string,
+    target: SpriteEnvironment,
+  ): Promise<SpriteDispatchReadiness> {
+    if (this.options.prepareSpriteDispatch === undefined) {
+      throw new Error("no sprite dispatch handler registered");
+    }
+    return this.options.prepareSpriteDispatch({
+      organizationId: run.organizationId,
+      projectId: run.projectId,
+      executionId,
+      target,
+    });
   }
 
   private async materializeStepContextOrFail(
@@ -606,10 +641,10 @@ export class DurableWorkflowEngine {
     context: ExpressionContext,
     stepRunId: string,
     deadlineAt: Date,
-  ): Promise<{ executionId: string; intent: LaunchMachineIntent } | undefined> {
+  ): Promise<{ executionId: string; intent: LaunchMachineIntent } | "deferred" | undefined> {
     const existing = await this.options.database?.findAgentExecutionByWorkflowStepRunId(stepRunId);
     if (existing?.launchIntent !== null && existing?.launchIntent !== undefined) {
-      return { executionId: existing.id, intent: existing.launchIntent };
+      return this.dispatchable({ executionId: existing.id, intent: existing.launchIntent });
     }
     const executionId = durableExecutionId({
       triggerRunId: run.id,
@@ -629,11 +664,17 @@ export class DurableWorkflowEngine {
       deadlineAt,
       executionId,
     );
-    if (intent === undefined) return undefined;
+    if (intent === undefined || intent === "deferred") return intent;
     if (durableExecutionId(intent) !== executionId) {
       throw new Error("workflow execution identity changed during context materialization");
     }
-    return { executionId, intent };
+    return this.dispatchable({ executionId, intent });
+  }
+
+  private dispatchable(prepared: { executionId: string; intent: LaunchMachineIntent }) {
+    return this.options.canDispatchToDaemon?.(prepared.intent.environment.daemonId) === false
+      ? "deferred"
+      : prepared;
   }
 
   private async failInvalidLaunchIntent(
@@ -920,13 +961,30 @@ export class DurableWorkflowEngine {
   }
 }
 
-class SpriteDispatchUnsupportedError extends Error {
-  constructor(environmentName: string) {
-    super(
-      `workflow environment ${environmentName} is a sprite target, which cannot be dispatched yet`,
-    );
-    this.name = "SpriteDispatchUnsupportedError";
+function launchTarget(
+  environment: CompiledProjectConfiguration["environments"][number] | undefined,
+  sprite: Extract<SpriteDispatchReadiness, { status: "ready" }> | undefined,
+) {
+  if (environment?.kind === "daemon") {
+    return { daemonId: environment.daemonId, authoredSlug: environment.daemon };
   }
+  if (environment?.kind !== "sprite" || sprite === undefined) return undefined;
+  return { daemonId: sprite.daemonId, machineId: sprite.machineId, authoredSlug: environment.name };
+}
+
+function stepEnvironment(
+  configuration: CompiledProjectConfiguration,
+  step: CompiledStep,
+  context: ExpressionContext,
+) {
+  const environmentName = authorityString(
+    renderExpressionTemplate(step.environment, context),
+    "environment",
+  );
+  const environment = configuration.environments.find(
+    (candidate) => candidate.name === environmentName,
+  );
+  return { environmentName, environment };
 }
 
 function buildStepIntent(
@@ -938,20 +996,11 @@ function buildStepIntent(
   stepRunId: string,
   deadlineAt: Date,
   executionId: string,
+  sprite: Extract<SpriteDispatchReadiness, { status: "ready" }> | undefined,
 ): LaunchMachineIntent {
-  const environmentName = authorityString(
-    renderExpressionTemplate(step.environment, context),
-    "environment",
-  );
-  const environment = configuration.environments.find(
-    (candidate) => candidate.name === environmentName,
-  );
-  if (environment?.kind === "sprite") throw new SpriteDispatchUnsupportedError(environmentName);
-  if (
-    environment === undefined ||
-    environment.kind !== "daemon" ||
-    environment.daemonId === undefined
-  ) {
+  const { environmentName, environment } = stepEnvironment(configuration, step, context);
+  const target = launchTarget(environment, sprite);
+  if (environment === undefined || target === undefined) {
     throw new Error(`workflow environment ${environmentName} is unavailable`);
   }
   const agent = materializeAgent(step.agent, context);
@@ -964,8 +1013,7 @@ function buildStepIntent(
       environmentName,
       environment: {
         kind: "daemon",
-        daemonId: environment.daemonId,
-        authoredSlug: environment.daemon,
+        ...target,
         cwd: environment.cwd,
         ...(environment.worktree === undefined
           ? {}

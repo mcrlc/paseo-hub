@@ -1357,6 +1357,7 @@ export interface Database {
     slug: string,
   ): Promise<DaemonRecord | undefined>;
   findDaemonById(id: string): Promise<DaemonRecord | undefined>;
+  findDaemonByMachineId(machineId: string): Promise<DaemonRecord | undefined>;
   findDaemonForOrganization(organizationId: string, id: string): Promise<DaemonRecord | undefined>;
   listDaemonsForOrganization(organizationId: string): Promise<DaemonRecord[]>;
   renameDaemonForOrganization(

@@ -213,6 +213,9 @@ export function createHubApplication(options: HubRuntimeOptions): HubApplication
           onWorkflowDeadlineExceeded: async (recovery: WorkflowDeadlineRecovery) => {
             await daemonModule.lifecycle.recoverWorkflowDeadlineExecutions(recovery.executionIds);
           },
+          prepareSpriteDispatch: (
+            input: Parameters<DaemonModule["lifecycle"]["prepareSpriteDispatch"]>[0],
+          ) => daemonModule.lifecycle.prepareSpriteDispatch(input),
           onWorkflowRunAccepted: (run: AcceptedTriggerRunRecord) =>
             daemonModule.lifecycle.notifyWorkflowRunAccepted(run),
           onWorkflowRunStarted: (run: AcceptedTriggerRunRecord) =>
@@ -469,6 +472,7 @@ function createAppDaemonModule(
       ? {}
       : { executionAuthority: options.executionAuthority }),
     ...(options.publicBaseUrl === undefined ? {} : { publicBaseUrl: options.publicBaseUrl }),
+    ...(options.spriteActivation == null ? {} : { spriteActivation: options.spriteActivation }),
     ...(usesTestTiming
       ? {
           test: {
