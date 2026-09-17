@@ -3,9 +3,11 @@
 A sprite target runs a trigger's agent on a Fly Sprite that Hub creates, bootstraps, and enrolls as a
 daemon. The sprite pauses on its own when nothing runs on it and keeps its filesystem; Fly bills a
 paused sprite for its storage. One trigger owns one sprite; two triggers on the same repository get two
-sprites and two checkouts. The first daemon of a trigger appears on the Daemons page under the trigger's
-name. A recreated sprite enrols as `<trigger-name>-<first 8 characters of the daemon id>`, because the
-revoked daemon keeps the plain name.
+sprites and two checkouts. A trigger's sprite daemon appears on the Daemons page under the trigger's name,
+and a recreated sprite enrols under that name again: Hub renames the revoked daemon to
+`<slug>-revoked-<first 8 characters of its id>`, which is how the retired one stays listed. Beside each
+daemon's own status the page shows its machine status, so a sprite still being built or already gone is
+visible there.
 
 Sprite targets need a Sprites org token in the organization's Sprites configuration and the
 sprite-targets entitlement. A self-hosted instance running without billing has the entitlement through
@@ -85,13 +87,6 @@ any target.
 - **`env` changed.** Hub rewrites the daemon service, which restarts the daemon. The sprite, its filesystem,
   and its daemon identity are kept.
 - **`memory` changed.** Hub updates the resources policy in place.
-
-Neither an `env` nor a `memory` edit recreates the sprite, but both change the compiled target, which is
-part of the continuation compatibility. The next event on a conversation that already has an agent
-therefore fails with "Continuation settings differ from the existing agent; use a different key or choose
-a new agent"; change the continuation key or wait for the conversation to end. This is Hub's general
-continuation rule and is not specific to sprites.
-
 - **Trigger disabled, or switched to a daemon target.** Hub destroys the sprite. Re-enabling the trigger
   activates a new one immediately, without waiting for an event.
 - **Daemon revoked.** Hub destroys the sprite and terminates the row; the next event creates a new one.
@@ -99,6 +94,15 @@ continuation rule and is not specific to sprites.
 A save that would end running executions is refused, naming the field that caused it: "Changing bootstrap
 recreates the sprite and ends its 1 running execution. Save again once it is idle." Disabling the trigger
 and switching its target are refused the same way. Edits that keep the sprite, `env` and `memory`, are not.
+
+Neither an `env` nor a `memory` edit recreates the sprite or ends a conversation. A sprite target's
+continuation compatibility covers its `bootstrap`, `cwd`, and `worktree` only, so the next event
+continues the same agent: after an `env` edit the daemon restarts with the new environment, interrupting
+an agent mid-turn, which then resumes from its persisted state, and a `memory` edit lands in place. Only a
+`bootstrap` change recreates the sprite, and that starts a fresh conversation.
+
+The trigger page has a Sprite section showing the machine's state, with a Recreate action that destroys
+the sprite so the next run builds a new one; it is refused while the sprite has running executions.
 
 A tick every five minutes re-holds every execution that is still spawning or running, which also recreates
 a hold the provider lost. When Hub restarts it re-holds from the execution rows and resolves every sprite
@@ -174,6 +178,10 @@ template there cannot be used today: activation fails either way. A GitHub conne
 "env.<KEY> cannot be resolved without an execution lease", because its token is a per-execution lease;
 every other connection kind fails earlier, with "connection capability is unavailable: <slug>", because it
 has no resolver outside an execution.
+
+The trigger editor warns, without refusing the save, when a sprite target combines
+`continuation.mode: conversation` with `run.github` or a connection template in `run.env`: both settings
+are legal, they simply cancel. The alert is titled "Continuation ends when the leased credential does".
 
 Credentials in the daemon environment are not leases. They live in the daemon service for the life of the
 sprite and every agent on it inherits them, so an agent keeps its memory across idle days. A reviewer that

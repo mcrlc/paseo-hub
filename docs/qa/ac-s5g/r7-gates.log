@@ -1,0 +1,16 @@
+# Round 7 (post-merge): gates at 26ff62a on 2026-09-17T17:42:54Z
+
+$ npm run format:check
+
+All matched files use the correct format.
+Finished in 1917ms on 845 files using 15 threads.
+
+$ npm run typecheck
+> @getpaseo/hub@0.9.0 typecheck:e2e
+> tsgo --noEmit -p tsconfig.e2e.json
+
+
+$ npm run lint
+
+Found 0 warnings and 0 errors.
+Finished in 2.2s on 598 files with 238 rules using 15 threads.
