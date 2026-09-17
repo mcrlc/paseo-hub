@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { respondOk, type Err, type Result } from "../contract/respond.js";
+import { respondOk, type Result } from "../contract/respond.js";
 import { respondWithFailure } from "../failures/index.js";
 import { getApplication } from "../server/runtime.js";
 import type { TriggerDashboard } from "./dashboard.js";
@@ -56,7 +56,16 @@ export const recreateSprite = createServerFn({ method: "POST" })
       await dashboard.recreateSprite(getRequest(), data.organizationSlug, data.triggerId);
       return respondOk({ state: "complete" });
     } catch (error) {
-      return recreateSpriteFailure(error, data.organizationSlug);
+      return respondWithFailure(
+        error,
+        triggerContext("trigger.sprite.recreate", data.organizationSlug),
+        {
+          fallback: RECREATE_SPRITE_FAILURE,
+          forbidden: "You don't have permission to manage triggers.",
+          conflict: recreateSpriteMessage(error),
+          notFound: "This trigger no longer exists.",
+        },
+      );
     }
   });
 
@@ -64,16 +73,13 @@ const RECREATE_SPRITE_FAILURE =
   "Hub couldn't recreate this sprite. Reload its status before trying again.";
 
 /**
- * Only `SpriteBusyError` has anything the reader can act on; a database, provider, or internal
- * error says the same fixed sentence rather than handing its own text to the browser.
+ * Only `SpriteBusyError` says something the reader can act on. Identified by name, because the
+ * composition root that throws it bundles apart from this handler and loses the class identity.
  */
-export function recreateSpriteFailure(error: unknown, organizationSlug: string): Err {
-  return respondWithFailure(error, triggerContext("trigger.sprite.recreate", organizationSlug), {
-    fallback: RECREATE_SPRITE_FAILURE,
-    forbidden: "You don't have permission to manage triggers.",
-    conflict: error instanceof Error ? error.message : RECREATE_SPRITE_FAILURE,
-    notFound: "This trigger no longer exists.",
-  });
+export function recreateSpriteMessage(error: unknown): string {
+  return error instanceof Error && error.name === "SpriteBusyError"
+    ? error.message
+    : RECREATE_SPRITE_FAILURE;
 }
 
 export type TriggerSnapshot = Awaited<ReturnType<TriggerDashboard["snapshot"]>>;
