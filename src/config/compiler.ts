@@ -24,6 +24,7 @@ import {
   validateGitHubAuthority,
   type CompiledGitHubAuthority,
 } from "./github-authority.js";
+import { spritesEnvKeyError } from "../daemons/sprites/env.js";
 import { validateConnectionTemplate } from "./connection-template.js";
 
 const IDENTIFIER = /^[a-z][a-z0-9_-]*$/u;
@@ -1191,6 +1192,8 @@ function validateEnvironmentTemplates(
     if (environment.kind === "sprite") {
       for (const [key, value] of Object.entries(environment.env ?? {})) {
         compileAt(["environments", environment.name, "env", key], () => {
+          const keyError = spritesEnvKeyError(key);
+          if (keyError !== undefined) throw new Error(keyError);
           validateConnectionTemplate(value, `environment ${environment.name} env.${key}`);
         });
       }

@@ -136,6 +136,37 @@ describe("workflow compiler", () => {
     },
   );
 
+  it.each([
+    ["HOME", /Hub sets HOME on every sprite/u],
+    ["PATH", /Hub sets PATH on every sprite/u],
+    ["PASEO_HOME", /Hub sets PASEO_HOME on every sprite/u],
+    ["PASEO_PASSWORD", /Hub sets PASEO_PASSWORD on every sprite/u],
+    ["lowercase", /Use capital letters, digits, and underscores/u],
+  ])("rejects sprite env key %s at its field", (key, message) => {
+    assert.throws(
+      () => compileHubConfig(spriteConfiguration({ [key]: "x" }), { spriteTargets: true }),
+      (error) => {
+        assert.ok(error instanceof Error);
+        assert.deepEqual(Reflect.get(error, "path"), ["environments", "runner", "env", key]);
+        assert.match(error.message, message);
+        return true;
+      },
+    );
+  });
+
+  it("accepts a provider credential name in sprite env", () => {
+    const compiled = compileHubConfig(spriteConfiguration({ CLAUDE_CODE_OAUTH_TOKEN: "secret" }), {
+      spriteTargets: true,
+    });
+    assert.deepEqual(compiled.environments[0], {
+      name: "runner",
+      kind: "sprite",
+      bootstrap: "install",
+      cwd: "/repo",
+      env: { CLAUDE_CODE_OAUTH_TOKEN: "secret" },
+    });
+  });
+
   it("accepts a connection template in sprite env", () => {
     const value = "${{ paseo.connections.anthropic.api_key }}";
     const compiled = compileHubConfig(spriteConfiguration({ TOKEN: value }), {
