@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { it } from "vitest";
 import { Route } from "./routes/agent-executions/$executionId/mcp.js";
+import { Route as SessionRoute } from "./routes/agent-sessions/$sessionId/mcp.js";
 
 /**
  * TanStack's `Constrain<ObjectLiteral, Fn>` handlers type resolves member
@@ -11,6 +12,10 @@ import { Route } from "./routes/agent-executions/$executionId/mcp.js";
 interface McpRouteMethodHandlers {
   GET(): Response | Promise<Response>;
   DELETE(): Response | Promise<Response>;
+}
+
+interface SessionMcpRouteHandlers {
+  ANY(): Response | Promise<Response>;
 }
 
 // The execution capability MCP server is stateless and POST-only. Before this
@@ -32,6 +37,15 @@ it("rejects DELETE on the MCP route with 405 and an Allow: POST header", async (
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- the generated route type cannot express calling one handler directly
   const handlers = Route.options.server?.handlers as unknown as McpRouteMethodHandlers;
   const response = await handlers.DELETE();
+
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get("allow"), "POST");
+});
+
+it("rejects non-POST methods on the session MCP route with 405 and an Allow: POST header", async () => {
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- the generated route type cannot express calling one handler directly
+  const handlers = SessionRoute.options.server?.handlers as unknown as SessionMcpRouteHandlers;
+  const response = await handlers.ANY();
 
   assert.equal(response.status, 405);
   assert.equal(response.headers.get("allow"), "POST");

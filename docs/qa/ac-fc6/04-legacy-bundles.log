@@ -1,0 +1,102 @@
+$ npx tsx docs/qa/ac-fc6/legacy-bundles.ts   # HEAD dd22822
+== A. compileHubBundle ==
+fly: HubBundleError: .paseo/hub.yml.environments.runner.kind: Invalid discriminator value. Expected 'daemon'
+fly: issues=[{"path":[".paseo/hub.yml","environments","runner","kind"],"message":"Invalid discriminator value. Expected 'daemon'"}]
+docker: HubBundleError: .paseo/hub.yml.environments.runner.kind: Invalid discriminator value. Expected 'daemon'
+docker: issues=[{"path":[".paseo/hub.yml","environments","runner","kind"],"message":"Invalid discriminator value. Expected 'daemon'"}]
+
+== B. POST /api/v1/configurations/install ==
+--> POST /api/v1/configurations/install (fly)
+{
+  "projectSlug": "payments",
+  "files": [
+    {
+      "path": ".paseo/hub.yml",
+      "content": "environments:\n  runner:\n    kind: fly\n    image: paseo/test\nagents: {}"
+    },
+    {
+      "path": ".paseo/workflows/request.yml",
+      "content": "name: request\non: manual.run\nmax_runtime: 1h\nsteps:\n  - id: work\n    environment: runner\n    max_runtime: 10m\n    idle_timeout: 1m\n    agent: { provider: test }\n    prompt: [{ text: Do it. }]"
+    }
+  ]
+}
+<-- HTTP 422 application/problem+json
+{
+  "type": "https://paseo.sh/problems/invalid-configuration-bundle",
+  "title": "Invalid configuration bundle",
+  "status": 422,
+  "detail": "Correct the canonical Hub bundle files and submit them again.",
+  "code": "invalid_configuration_bundle",
+  "requestId": "qa-fly",
+  "issues": [
+    {
+      "path": [
+        ".paseo/hub.yml",
+        "environments",
+        "runner",
+        "kind"
+      ],
+      "message": "Invalid discriminator value. Expected 'daemon'"
+    }
+  ]
+}
+fly: RESULT pass (4xx)
+--> POST /api/v1/configurations/install (docker)
+{
+  "projectSlug": "payments",
+  "files": [
+    {
+      "path": ".paseo/hub.yml",
+      "content": "environments:\n  runner:\n    kind: docker\n    image: paseo/test\nagents: {}"
+    },
+    {
+      "path": ".paseo/workflows/request.yml",
+      "content": "name: request\non: manual.run\nmax_runtime: 1h\nsteps:\n  - id: work\n    environment: runner\n    max_runtime: 10m\n    idle_timeout: 1m\n    agent: { provider: test }\n    prompt: [{ text: Do it. }]"
+    }
+  ]
+}
+<-- HTTP 422 application/problem+json
+{
+  "type": "https://paseo.sh/problems/invalid-configuration-bundle",
+  "title": "Invalid configuration bundle",
+  "status": 422,
+  "detail": "Correct the canonical Hub bundle files and submit them again.",
+  "code": "invalid_configuration_bundle",
+  "requestId": "qa-docker",
+  "issues": [
+    {
+      "path": [
+        ".paseo/hub.yml",
+        "environments",
+        "runner",
+        "kind"
+      ],
+      "message": "Invalid discriminator value. Expected 'daemon'"
+    }
+  ]
+}
+docker: RESULT pass (4xx)
+
+# contrast: same script on origin/main (rejected later, at the step environment check)
+fly: HubBundleError: .paseo/workflows/request.yml.steps.work.environment: trigger request step work environment runner must be a daemon environment
+fly: issues=[{"path":[".paseo/workflows/request.yml","steps","work","environment"],"message":"trigger request step work environment runner must be a daemon environment"}]
+docker: HubBundleError: .paseo/workflows/request.yml.steps.work.environment: trigger request step work environment runner must be a daemon environment
+docker: issues=[{"path":[".paseo/workflows/request.yml","steps","work","environment"],"message":"trigger request step work environment runner must be a daemon environment"}]
+<-- HTTP 422 application/problem+json
+      "message": "trigger request step work environment runner must be a daemon environment"
+fly: RESULT pass (4xx)
+<-- HTTP 422 application/problem+json
+      "message": "trigger request step work environment runner must be a daemon environment"
+docker: RESULT pass (4xx)
+
+$ npx tsx docs/qa/ac-fc6/unused-legacy-environment.ts   # a fly environment no step references
+origin/main: ACCEPTED environments: [{"name":"runner","kind":"daemon","daemon":"devbox","cwd":"/repo"},{"name":"spare","kind":"fly","image":"paseo/test"}]
+HEAD:        REJECTED: .paseo/hub.yml.environments.spare.kind: Invalid discriminator value. Expected 'daemon'
+
+$ npx tsx docs/qa/ac-fc6/unused-legacy-environment.ts (full, both trees)
+origin/main:
+ACCEPTED environments: [{"name":"runner","kind":"daemon","daemon":"devbox","cwd":"/repo"},{"name":"spare","kind":"fly","image":"paseo/test"}]
+stored normalized config with a fly environment: parsed
+HEAD:
+REJECTED: .paseo/hub.yml.environments.spare.kind: Invalid discriminator value. Expected 'daemon'
+stored normalized config with a fly environment: REJECTED: active configuration contains an invalid compiled workflow contract

@@ -1,0 +1,79 @@
+# Scenario 6: no route, serializer, or view reads the Sprites configuration
+
+$ git grep -n -E "organization_sprites_configuration|organizationSpritesConfiguration|OrganizationSpritesConfiguration|SpritesConfiguration" -- . ":!drizzle/meta" ":!docs/qa/ac-1qy"
+drizzle/0049_organization_sprites_configuration.sql:1:CREATE TABLE "organization_sprites_configuration" (
+drizzle/0049_organization_sprites_configuration.sql:7:	CONSTRAINT "organization_sprites_configuration_memory_mb_check" CHECK ("organization_sprites_configuration"."memory_mb" > 0)
+drizzle/0049_organization_sprites_configuration.sql:10:ALTER TABLE "organization_sprites_configuration" ADD CONSTRAINT "organization_sprites_configuration_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+drizzle/0049_organization_sprites_configuration.sql:11:ALTER TABLE "organization_sprites_configuration" ADD CONSTRAINT "organization_sprites_configuration_updated_by_user_id_user_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;
+src/db/memory.ts:86:  OrganizationSpritesConfigurationRecord,
+src/db/memory.ts:87:  UpsertOrganizationSpritesConfigurationInput,
+src/db/memory.ts:187:  private readonly organizationSpritesConfigurations = new Map<
+src/db/memory.ts:189:    OrganizationSpritesConfigurationRecord
+src/db/memory.ts:2073:  async getOrganizationSpritesConfiguration(
+src/db/memory.ts:2075:  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+src/db/memory.ts:2076:    return this.organizationSpritesConfigurations.get(organizationId);
+src/db/memory.ts:2079:  async upsertOrganizationSpritesConfiguration(
+src/db/memory.ts:2080:    input: UpsertOrganizationSpritesConfigurationInput,
+src/db/memory.ts:2081:  ): Promise<OrganizationSpritesConfigurationRecord> {
+src/db/memory.ts:2083:    this.organizationSpritesConfigurations.set(input.organizationId, record);
+src/db/organization-sprites-configuration.integration.test.ts:39:    assert.equal(await database.getOrganizationSpritesConfiguration(organizationId), undefined);
+src/db/organization-sprites-configuration.integration.test.ts:41:      await createMemoryDatabase().getOrganizationSpritesConfiguration(organizationId),
+src/db/organization-sprites-configuration.integration.test.ts:50:      await store.upsertOrganizationSpritesConfiguration({
+src/db/organization-sprites-configuration.integration.test.ts:56:      const updated = await store.upsertOrganizationSpritesConfiguration({
+src/db/organization-sprites-configuration.integration.test.ts:62:      const read = await store.getOrganizationSpritesConfiguration(organizationId);
+src/db/pg.ts:106:  OrganizationSpritesConfigurationRecord,
+src/db/pg.ts:107:  UpsertOrganizationSpritesConfigurationInput,
+src/db/pg.ts:2464:  async getOrganizationSpritesConfiguration(
+src/db/pg.ts:2466:  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+src/db/pg.ts:2467:    const rows = await query<OrganizationSpritesConfigurationRow>(
+src/db/pg.ts:2469:      `select * from organization_sprites_configuration where organization_id = $1`,
+src/db/pg.ts:2474:      : toOrganizationSpritesConfigurationRecord(rows.rows[0]);
+src/db/pg.ts:2477:  async upsertOrganizationSpritesConfiguration(
+src/db/pg.ts:2478:    input: UpsertOrganizationSpritesConfigurationInput,
+src/db/pg.ts:2479:  ): Promise<OrganizationSpritesConfigurationRecord> {
+src/db/pg.ts:2480:    const rows = await query<OrganizationSpritesConfigurationRow>(
+src/db/pg.ts:2482:      `insert into organization_sprites_configuration
+src/db/pg.ts:2493:    return toOrganizationSpritesConfigurationRecord(rows.rows[0]!);
+src/db/pg.ts:4849:interface OrganizationSpritesConfigurationRow extends QueryRow {
+src/db/pg.ts:4857:function toOrganizationSpritesConfigurationRecord(
+src/db/pg.ts:4858:  row: OrganizationSpritesConfigurationRow,
+src/db/pg.ts:4859:): OrganizationSpritesConfigurationRecord {
+src/db/schema.ts:1315:export const organizationSpritesConfiguration = pgTable(
+src/db/schema.ts:1316:  "organization_sprites_configuration",
+src/db/schema.ts:1329:    check("organization_sprites_configuration_memory_mb_check", sql`${table.memoryMb} > 0`),
+src/db/types.ts:877:export interface OrganizationSpritesConfigurationRecord {
+src/db/types.ts:885:export interface UpsertOrganizationSpritesConfigurationInput {
+src/db/types.ts:1414:  getOrganizationSpritesConfiguration(
+src/db/types.ts:1416:  ): Promise<OrganizationSpritesConfigurationRecord | undefined>;
+src/db/types.ts:1417:  upsertOrganizationSpritesConfiguration(
+src/db/types.ts:1418:    input: UpsertOrganizationSpritesConfigurationInput,
+src/db/types.ts:1419:  ): Promise<OrganizationSpritesConfigurationRecord>;
+
+$ git grep -n -E "sprites/client|createSpritesClient|SpritesClient" -- src ":!src/daemons/sprites"
+(exit 1 = no matches)
+
+$ git grep -n -i "sprite" -- "src/**/*.tsx" "src/routes" "src/api" "src/server"
+(exit 1 = no matches)
+
+$ git grep -l -i sprite -- src
+src/daemons/sprites/client.real.test.ts
+src/daemons/sprites/client.test.ts
+src/daemons/sprites/client.ts
+src/db/memory.ts
+src/db/organization-sprites-configuration.integration.test.ts
+src/db/pg.ts
+src/db/schema.ts
+src/db/types.ts
+$ git grep -n -E "Object\.(values|entries|keys)\(schema\)|import \* as schema|getTableColumns|information_schema\.tables|pg_tables" -- src ":!**/*.test.ts"
+src/auth/server.ts:5:import * as schema from "../db/schema.js";
+src/db/connections.ts:10:import * as schema from "./schema.js";
+src/db/runtime/internal/embedded.ts:7:import * as schema from "../../schema.js";
+src/db/runtime/internal/postgres.ts:7:import * as schema from "../../schema.js";
+src/db/trigger-acceptance.ts:4:import * as schema from "./schema.js";
+(exit 0)
+$ git grep -n -E "new Proxy\(" -- src ":!**/*.test.ts"
+src/daemons/test-utils/hub-harness.ts:1947:    return new Proxy(database, {
+src/entitlements/test-utils.ts:16:  const autoStamping = new Proxy(database, {
+(exit 0)
+
+Notes: the `import * as schema` hits are drizzle runtime wiring (src/db/runtime/internal/*, src/db/connections.ts), better-auth table mapping (users/sessions/accounts/verifications only), and trigger acceptance (project trigger routes). Both Proxy hits are test utilities. No .tsx, route, API, or server file mentions sprites.

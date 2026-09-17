@@ -1,0 +1,3 @@
+# origin/main vs HEAD dd22822, persisted parts: environment + events (normalizedConfiguration input); authoredHash identical too (see -full.diff)
+# (cd <tree> && npx tsx docs/qa/ac-fc6/compile-triggers.ts --part=environment-events)
+# exit=0 (0 = byte-identical, empty diff)

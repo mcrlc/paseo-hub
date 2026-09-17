@@ -1,0 +1,129 @@
+# Scenario 2: request shapes recorded through a fetch stub
+$ npx tsx docs/qa/ac-1qy/s2-http-requests.ts
+
+=== create ===
+  POST https://api.sprites.dev/v1/sprites
+    headers: {"authorization":"Bearer tok_TEST","content-type":"application/json"}
+    body: {"name":"hub-a"}
+    <- canned 200
+  POST https://api.sprites.dev/v1/sprites/hub-a/policy/resources
+    headers: {"authorization":"Bearer tok_TEST","content-type":"application/json"}
+    body: {"memory":{"limit_mb":16384}}
+    <- canned 204
+  result: "sprite_123"
+
+=== exec without stdin (repeated cmd and env, dir) ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=sh&cmd=-c&cmd=echo+%22%24FOO+%24PWD%22%3B+echo+err+%3E%262%3B+exit+3&env=FOO%3Dbar&env=EQ%3Da%3Db%26c&dir=%2Ftmp
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    query: cmd=["sh","-c","echo \"$FOO $PWD\"; echo err >&2; exit 3"] env=["FOO=bar","EQ=a=b&c"] dir=/tmp stdin=null
+    <- canned 200
+  result: {"stdout":"bar /tmp\n","stderr":"err\n","exitCode":3}
+
+=== exec with stdin ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=sh&cmd=-s&stdin=true
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: echo line2 >&2
+exit 7
+
+    query: cmd=["sh","-s"] env=[] dir=null stdin=true
+    <- canned 200
+  result: {"stdout":"","stderr":"line2\n","exitCode":7}
+
+=== service (DELETE then PUT) ===
+  DELETE https://api.sprites.dev/v1/sprites/hub-a/services/paseo
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    <- canned 204
+  PUT https://api.sprites.dev/v1/sprites/hub-a/services/paseo
+    headers: {"authorization":"Bearer tok_TEST","content-type":"application/json"}
+    body: {"cmd":"/bin/sh","args":["-c","exec paseo daemon"],"env":{"PROBE":"2"},"dir":"/home/sprite"}
+    <- canned 200
+  result: undefined
+
+=== service when DELETE is 404 (first install) ===
+  DELETE https://api.sprites.dev/v1/sprites/hub-a/services/paseo
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    <- canned 404
+  PUT https://api.sprites.dev/v1/sprites/hub-a/services/paseo
+    headers: {"authorization":"Bearer tok_TEST","content-type":"application/json"}
+    body: {"cmd":"/bin/sh","args":[],"env":{},"dir":"/home/sprite"}
+    <- canned 200
+  result: undefined
+
+=== hold ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=sprite-env&cmd=curl&cmd=-s&cmd=-X&cmd=PUT&cmd=%2Fv1%2Ftasks%2Fhub-hold&cmd=-d&cmd=%7B%22name%22%3A%22hub-hold%22%2C%22expire%22%3A%225m%22%7D
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    query: cmd=["sprite-env","curl","-s","-X","PUT","/v1/tasks/hub-hold","-d","{\"name\":\"hub-hold\",\"expire\":\"5m\"}"] env=[] dir=null stdin=null
+    <- canned 200
+  result: undefined
+
+=== release (exit 0) ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=sprite-env&cmd=curl&cmd=-s&cmd=-X&cmd=DELETE&cmd=%2Fv1%2Ftasks%2Fhub-hold
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    query: cmd=["sprite-env","curl","-s","-X","DELETE","/v1/tasks/hub-hold"] env=[] dir=null stdin=null
+    <- canned 200
+  result: undefined
+
+=== release: exit 22 + 'returned error: 404' on stderr -> success ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=sprite-env&cmd=curl&cmd=-s&cmd=-X&cmd=DELETE&cmd=%2Fv1%2Ftasks%2Fhub-hold
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    query: cmd=["sprite-env","curl","-s","-X","DELETE","/v1/tasks/hub-hold"] env=[] dir=null stdin=null
+    <- canned 200
+  result: undefined
+
+=== release: exit 22 + 'returned error: 500' on stderr -> throws ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=sprite-env&cmd=curl&cmd=-s&cmd=-X&cmd=DELETE&cmd=%2Fv1%2Ftasks%2Fhub-hold
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    query: cmd=["sprite-env","curl","-s","-X","DELETE","/v1/tasks/hub-hold"] env=[] dir=null stdin=null
+    <- canned 200
+  threw SpritesError: status=22 body="curl: (22) The requested URL returned error: 500\n" message="Sprites API 22: curl: (22) The requested URL returned error: 500\n"
+
+=== hold: exit 22 + 'returned error: 404' -> throws (404 only tolerated on release) ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=sprite-env&cmd=curl&cmd=-s&cmd=-X&cmd=PUT&cmd=%2Fv1%2Ftasks%2Fhub-hold&cmd=-d&cmd=%7B%22name%22%3A%22hub-hold%22%2C%22expire%22%3A%225m%22%7D
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    query: cmd=["sprite-env","curl","-s","-X","PUT","/v1/tasks/hub-hold","-d","{\"name\":\"hub-hold\",\"expire\":\"5m\"}"] env=[] dir=null stdin=null
+    <- canned 200
+  threw SpritesError: status=22 body="curl: (22) The requested URL returned error: 404\n" message="Sprites API 22: curl: (22) The requested URL returned error: 404\n"
+
+=== destroy (204) ===
+  DELETE https://api.sprites.dev/v1/sprites/hub-a
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    <- canned 204
+  result: undefined
+
+=== destroy (404 -> success) ===
+  DELETE https://api.sprites.dev/v1/sprites/hub-a
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    <- canned 404
+  result: undefined
+
+=== destroy (500 -> throws with HTTP status and body) ===
+  DELETE https://api.sprites.dev/v1/sprites/hub-a
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    <- canned 500
+  threw SpritesError: status=500 body="internal boom" message="Sprites API 500: internal boom"
+
+=== create (400 -> throws with HTTP status and body) ===
+  POST https://api.sprites.dev/v1/sprites
+    headers: {"authorization":"Bearer tok_TEST","content-type":"application/json"}
+    body: {"name":"hub-a"}
+    <- canned 400
+  threw SpritesError: status=400 body="unknown field \"memory_mb\"" message="Sprites API 400: unknown field \"memory_mb\""
+
+=== exec (401 -> throws) ===
+  POST https://api.sprites.dev/v1/sprites/hub-a/exec?cmd=true
+    headers: {"authorization":"Bearer tok_TEST"}
+    body: <none>
+    query: cmd=["true"] env=[] dir=null stdin=null
+    <- canned 401
+  threw SpritesError: status=401 body="unauthorized" message="Sprites API 401: unauthorized"

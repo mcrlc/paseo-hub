@@ -1312,6 +1312,24 @@ export const organizationApiKeys = pgTable(
   ],
 );
 
+export const organizationSpritesConfiguration = pgTable(
+  "organization_sprites_configuration",
+  {
+    organizationId: text("organization_id")
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    token: text().notNull(),
+    memoryMb: integer("memory_mb").default(8192).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedByUserId: text("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    check("organization_sprites_configuration_memory_mb_check", sql`${table.memoryMb} > 0`),
+  ],
+);
+
 export const ENTITLEMENT_CHANGE_SOURCES = ["provisioning", "plan_stamp", "override"] as const;
 
 export const organizationEntitlements = pgTable("organization_entitlements", {

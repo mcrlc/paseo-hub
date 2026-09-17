@@ -1,0 +1,42 @@
+# Prereqs: Paseo source at PASEO_E2E_COMMIT 433e67b18b7964a92d593bdc78c518143accfc8b (from .github/workflows/ci.yml)
+#   git -C <paseo> worktree add --detach /tmp/paseo-e2e 433e67b1... && (cd /tmp/paseo-e2e && npm ci && npm run build:server)
+#   npm run build   # Hub .output/, required by the harness Hub child
+# Docker is required (the harness starts postgres:17-alpine via testcontainers).
+
+$ RUN_HUB_E2E=1 PASEO_E2E_WORKTREE=/tmp/paseo-e2e npx vitest run src/e2e/hub-foundation.e2e.test.ts -t "completes an isolated manual run|delivers a long prompt"
+ RUN  v3.2.4 /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-prefactor-target-kind-1
+Hub E2E shutdown {"durationMs":394,"hubMs":65,"daemonMs":57,"ownedProcesses":[…],"leakedProcesses":[]}
+Hub E2E shutdown {"durationMs":424,"hubMs":71,"daemonMs":73,"ownedProcesses":[…],"leakedProcesses":[]}
+ ✓ src/e2e/hub-foundation.e2e.test.ts (9 tests | 7 skipped) 40172ms
+   ✓ Paseo Hub cross-repository contract > delivers a long prompt through ordinary agent creation without enabling continuation  14335ms
+   ✓ Paseo Hub cross-repository contract > connects a real daemon and completes an isolated manual run without relay authority  17810ms
+ Test Files  1 passed (1)
+      Tests  2 passed | 7 skipped (9)
+   Start at  08:59:03
+   Duration  42.39s (transform 271ms, setup 0ms, collect 1.90s, tests 40.17s, environment 0ms, prepare 76ms)
+exit=0
+
+# What the passing test asserts (src/e2e/hub-foundation.e2e.test.ts:139-187, harness src/e2e/harness/index.ts:350-380):
+#   installProductionConfiguration() installs environments: [{ name: phase-five, kind: daemon, daemon: <connected slug>, cwd }]
+#   with trigger 'deploy' on manual.run through the Hub; runManual() dispatches it; completedRun() must deepEqual
+#   { prompt: 'Deploy requested for phase-five-operator', output: 'phase-five:requested', status: 'succeeded',
+#     daemonId: <enrolled daemon>, agentId: <run agent> }  -> the run reached the source-built daemon and succeeded.
+# Note: the harness only installs legacy bundles; it has no single-run trigger-document install. The trigger-document
+# path (compileTriggerDocument -> daemon dispatch through a fake daemon port) is covered below.
+
+$ npx vitest run src/triggers/schedule/schedule.integration.test.ts src/triggers/store.test.ts
+ ✓ src/triggers/schedule/schedule.integration.test.ts (10 tests) 14718ms
+   ✓ schedule on embedded > atomically coalesces downtime, skips overlap, preserves execution edits, and honors disable/re-enable  1330ms
+   ✓ schedule on embedded > persists finite exhaustion and retains one catch-up after the final occurrence  1155ms
+   ✓ schedule on embedded > rolls back occurrence identity and advancement together, and recovers after reopening storage  2123ms
+   ✓ schedule on postgres > atomically coalesces downtime, skips overlap, preserves execution edits, and honors disable/re-enable  451ms
+   ✓ schedule on postgres > persists finite exhaustion and retains one catch-up after the final occurrence  323ms
+   ✓ schedule on postgres > rolls back occurrence identity and advancement together, and recovers after reopening storage  413ms
+   ✓ two independent Hub workers leave queued work for the process with the daemon connection  423ms
+   ✓ Hub runtime dispatches through the peer daemon port and completes ordinary scheduled history  580ms
+   ✓ an expired worker cannot release a newer worker’s wakeup lease  368ms
+   ✓ validates, installs, exports and edits scheduled YAML through the existing public API  2405ms
+ ✓ src/triggers/store.test.ts (4 tests) 4ms
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+exit=0
