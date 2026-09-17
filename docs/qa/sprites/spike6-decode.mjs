@@ -22,20 +22,13 @@ export function decodeExec(buf) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   for (const [hex, want] of [
-    [
-      "026572720a016f75740a03c80a",
-      { stdout: "out\n", stderr: "err\n", exitCode: 200 },
-    ],
+    ["026572720a016f75740a03c80a", { stdout: "out\n", stderr: "err\n", exitCode: 200 }],
     ["016f75740a0303", { stdout: "out\n", stderr: "", exitCode: 3 }],
     ["0300", { stdout: "", stderr: "", exitCode: 0 }],
     ["016162", { stdout: "ab", stderr: "", exitCode: null }],
   ]) {
     const got = decodeExec(Buffer.from(hex, "hex"));
-    console.assert(
-      JSON.stringify(got) === JSON.stringify(want),
-      `framing self-check ${hex}`,
-      got,
-    );
+    console.assert(JSON.stringify(got) === JSON.stringify(want), `framing self-check ${hex}`, got);
   }
   if (!process.stdin.isTTY) {
     const chunks = [];
