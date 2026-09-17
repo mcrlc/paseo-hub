@@ -13,6 +13,7 @@ describe("Sprites organization settings", () => {
     assert.deepEqual(await settings.snapshot(request, "acme"), {
       configured: false,
       memoryMb: null,
+      envKeys: [],
       updatedAt: null,
       updatedByUserId: null,
     });
@@ -79,6 +80,121 @@ describe("Sprites organization settings", () => {
       { name: "ProjectCommandError", code: "forbidden" },
     );
     assert.equal(await database.getOrganizationSpritesConfiguration("org-1"), undefined);
+  });
+  it("lists environment keys sorted and never their values", async () => {
+    const { settings } = setup("owner");
+    await settings.save(request, "acme", { token: "sprites-secret", memoryMb: 8192 });
+    await settings.setEnv(request, "acme", {
+      key: "CLAUDE_CODE_OAUTH_TOKEN",
+      value: " oauth-secret ",
+    });
+    await settings.setEnv(request, "acme", { key: "API_KEY", value: "api-secret" });
+
+    const snapshot = await settings.snapshot(request, "acme");
+    assert.deepEqual(snapshot.envKeys, ["API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]);
+    assert.doesNotMatch(JSON.stringify(snapshot), /secret/u);
+  });
+
+  it("replaces a key in place and removes it", async () => {
+    const { settings, database } = setup("admin");
+    await settings.save(request, "acme", { token: "t", memoryMb: 8192 });
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: "first" });
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: " second " });
+    assert.deepEqual((await database.getOrganizationSpritesConfiguration("org-1"))?.env, {
+      TOKEN: "second",
+    });
+
+    await settings.removeEnv(request, "acme", { key: "TOKEN" });
+    assert.deepEqual((await settings.snapshot(request, "acme")).envKeys, []);
+  });
+
+  it("leaves the token's update time and author alone on variable writes", async () => {
+    const { settings, database } = setup("owner");
+    await database.upsertOrganizationSpritesConfiguration({
+      organizationId: "org-1",
+      token: "t",
+      memoryMb: 8192,
+      updatedByUserId: null,
+    });
+    const before = await settings.snapshot(request, "acme");
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: "v" });
+    await settings.setEnv(request, "acme", { key: "OTHER", value: "o" });
+    await settings.removeEnv(request, "acme", { key: "OTHER" });
+    const after = await settings.snapshot(request, "acme");
+    assert.equal(after.updatedAt, before.updatedAt);
+    assert.equal(after.updatedByUserId, null);
+  });
+
+  it("refuses to remove a variable that does not exist", async () => {
+    const { settings } = setup("owner");
+    const notFound = {
+      name: "SpritesEnvNotFoundError",
+      code: "notFound",
+      message: "No such variable.",
+    };
+    await assert.rejects(settings.removeEnv(request, "acme", { key: "TOKEN" }), notFound);
+    await settings.save(request, "acme", { token: "t", memoryMb: 8192 });
+    await assert.rejects(settings.removeEnv(request, "acme", { key: "TOKEN" }), notFound);
+  });
+
+  it("keeps the environment when the token is replaced", async () => {
+    const { settings } = setup("owner");
+    await settings.save(request, "acme", { token: "first", memoryMb: 8192 });
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: "v" });
+    await settings.save(request, "acme", { token: "second", memoryMb: 8192 });
+    assert.deepEqual((await settings.snapshot(request, "acme")).envKeys, ["TOKEN"]);
+  });
+
+  it("rejects invalid and Hub-owned names and empty or oversized values", async () => {
+    const { settings } = setup("owner");
+    await settings.save(request, "acme", { token: "t", memoryMb: 8192 });
+    const invalidName = {
+      name: "SpritesEnvInputError",
+      code: "invalidInput",
+      message: "Use capital letters, digits, and underscores, not starting with a digit.",
+    };
+    for (const key of ["lower", "1ST", "WITH-DASH", ""]) {
+      await assert.rejects(settings.setEnv(request, "acme", { key, value: "v" }), invalidName);
+    }
+    for (const key of ["HOME", "PATH", "PASEO_HOME", "PASEO_PASSWORD"]) {
+      await assert.rejects(settings.setEnv(request, "acme", { key, value: "v" }), {
+        name: "SpritesEnvInputError",
+        message: `Hub sets ${key} on every sprite; choose another name.`,
+      });
+    }
+    await assert.rejects(settings.setEnv(request, "acme", { key: "K", value: "  " }), {
+      message: "Enter a value.",
+    });
+    await assert.rejects(settings.setEnv(request, "acme", { key: "K", value: "x".repeat(8193) }), {
+      message: "Keep the value to 8192 characters or fewer.",
+    });
+    await settings.setEnv(request, "acme", { key: "K", value: "x".repeat(8192) });
+  });
+
+  it("refuses environment before Sprites is connected", async () => {
+    const { settings, database } = setup("owner");
+    await assert.rejects(settings.setEnv(request, "acme", { key: "TOKEN", value: "v" }), {
+      name: "SpritesEnvInputError",
+      message: "Connect Sprites with an organization token first.",
+    });
+    assert.equal(await database.getOrganizationSpritesConfiguration("org-1"), undefined);
+  });
+
+  it("forbids a member without manage-resources from setting or removing", async () => {
+    const { settings, database } = setup("member");
+    await database.upsertOrganizationSpritesConfiguration({
+      organizationId: "org-1",
+      token: "t",
+      memoryMb: 8192,
+      env: { TOKEN: "kept" },
+      updatedByUserId: null,
+    });
+    const forbidden = { name: "ProjectCommandError", code: "forbidden" };
+    await assert.rejects(settings.setEnv(request, "acme", { key: "TOKEN", value: "v" }), forbidden);
+    await assert.rejects(settings.removeEnv(request, "acme", { key: "TOKEN" }), forbidden);
+    assert.deepEqual((await database.getOrganizationSpritesConfiguration("org-1"))?.env, {
+      TOKEN: "kept",
+    });
   });
 });
 

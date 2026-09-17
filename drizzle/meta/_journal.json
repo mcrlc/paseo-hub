@@ -351,6 +351,13 @@
       "when": 1789621485917,
       "tag": "0049_organization_sprites_configuration",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789636863548,
+      "tag": "0050_organization_sprites_env",
+      "breakpoints": true
     }
   ]
 }

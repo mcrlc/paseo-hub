@@ -1,0 +1,3 @@
+summary before: "Default memory\n8192 MB\nUpdated\n2 minutes ago"
+token field before env save: "half-typed-replacement-token"
+token field after env save: ""

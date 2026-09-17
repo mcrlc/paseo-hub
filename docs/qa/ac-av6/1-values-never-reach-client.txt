@@ -1,0 +1,131 @@
+# Scenario 1: env values never reach the browser or logs
+
+Build: merged tree 13a64ea (PR head e3ef498 + origin/main 07d15dd), npm run build, node dist/index.js on postgres:17-alpine (acav6-pg), PORT 4117.
+Sentinel values: A=acav6-alpha-9f3KqZ7w-sentinel (CLAUDE_CODE_OAUTH_TOKEN, set in the UI), B=acav6-bravo-2mXcP4tR-sentinel (OPENAI_API_KEY, set in the UI, removed in the UI, set again on the wire).
+Also grepped for the temporary Sprites org token (value withheld) and org2's other-org-value.
+
+## A. Every response the admin's browser received during ui-journey.ts
+responses captured: 165
+server-function POSTs: 6  (1 save token, 3 setSpritesEnv, 2 removeSpritesEnv)
+grep -cF A: 0
+grep -cF B: 0
+grep -cF <sprites token>: 0
+(browser-bodies.txt in this folder: same capture with static asset bodies trimmed after counting)
+rendered DOM after reload with both keys stored (ui-journey.log [07b]): contains A=false, B=false
+
+## B. Raw wire (wire-scenarios.sh s1)
+# Scenario 1 (wire part): values never reach a client
+values: A=<value-a> (29 chars, set in the UI as CLAUDE_CODE_OAUTH_TOKEN), B=<value-b> (29 chars)
+
+## Store B again through the wire as OPENAI_API_KEY (UI journey removed it)
+> POST http://127.0.0.1:4117/_serverFn/a9da5ccd0f56ebd45c44089e07123b9139f99bda31a6270a4c5cfa2780b80deb  cookie: <session of admin>
+HTTP/1.1 200 OK
+  => status=ok
+stored env keys: CLAUDE_CODE_OAUTH_TOKEN,OPENAI_API_KEY
+stored value lengths: CLAUDE_CODE_OAUTH_TOKEN=29,OPENAI_API_KEY=29
+
+## Raw snapshot as admin
+HTTP/1.1 200 OK
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["configured","memoryMb","envKeys","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":8192},{"t":9,"i":3,"a":[{"t":1,"s":"CLAUDE_CODE_OAUTH_TOKEN"},{"t":1,"s":"OPENAI_API_KEY"}],"o":0},{"t":1,"s":"2026-09-17T09:50:00.131Z"},{"t":1,"s":"liUbbCAddOCgtpF6kPA1AVWI2O5wdLK8"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":4,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+hits: A=0 B=0
+
+## Raw snapshot as owner
+HTTP/1.1 200 OK
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["configured","memoryMb","envKeys","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":8192},{"t":9,"i":3,"a":[{"t":1,"s":"CLAUDE_CODE_OAUTH_TOKEN"},{"t":1,"s":"OPENAI_API_KEY"}],"o":0},{"t":1,"s":"2026-09-17T09:50:00.131Z"},{"t":1,"s":"liUbbCAddOCgtpF6kPA1AVWI2O5wdLK8"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":4,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+hits: A=0 B=0
+
+## Raw snapshot as member
+HTTP/1.1 200 OK
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"You don't have permission to configure Sprites."}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+hits: A=0 B=0
+
+## Raw snapshot as none
+HTTP/1.1 200 OK
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"Hub couldn't load the Sprites configuration. Reload the page."}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+hits: A=0 B=0
+
+## SSR page /o/acme-56b508fa/settings/sprites as admin: 8464 bytes, HTTP/1.1 200 OK
+contains envKeys: 0; hits: A=0 B=0
+
+## SSR page /o/acme-56b508fa/settings/sprites as owner: 8464 bytes, HTTP/1.1 200 OK
+contains envKeys: 0; hits: A=0 B=0
+
+## C. Hub log (hub.log, 777 lines, covers scenarios 1, 2, 3, 5)
+grep -cF A: 0
+grep -cF B: 0
+grep -cF other-org-value: 0
+grep -cF <sprites token>: 0
+grep -c for the wire-scenario values (member-value, member-overwrite, admin-value, before-token, "kept", a run of 40 x from the 8193-char value): 0
+
+## D. Code paths that read the stored env (merged tree)
+$ git grep -n "getOrganizationSpritesConfiguration\|setOrganizationSpritesEnv\|removeOrganizationSpritesEnv\|upsertOrganizationSpritesConfiguration" -- src ":!*.test.ts" ":!*.test.tsx"
+src/daemons/sprites/activation.ts:45:    const configuration = await database.getOrganizationSpritesConfiguration(
+src/daemons/sprites/settings.ts:48:    const stored = await this.database.getOrganizationSpritesConfiguration(tenant.organization.id);
+src/daemons/sprites/settings.ts:70:    await this.database.upsertOrganizationSpritesConfiguration({
+src/daemons/sprites/settings.ts:83:    const stored = await this.database.setOrganizationSpritesEnv({
+src/daemons/sprites/settings.ts:96:    await this.database.removeOrganizationSpritesEnv({
+src/db/memory.ts:2107:  async getOrganizationSpritesConfiguration(
+src/db/memory.ts:2113:  async upsertOrganizationSpritesConfiguration(
+src/db/memory.ts:2125:  async setOrganizationSpritesEnv(
+src/db/memory.ts:2137:  async removeOrganizationSpritesEnv(
+src/db/pg.ts:2537:  async getOrganizationSpritesConfiguration(
+src/db/pg.ts:2550:  async upsertOrganizationSpritesConfiguration(
+src/db/pg.ts:2576:  async setOrganizationSpritesEnv(
+src/db/pg.ts:2594:  async removeOrganizationSpritesEnv(
+src/db/types.ts:1442:  getOrganizationSpritesConfiguration(
+src/db/types.ts:1445:  upsertOrganizationSpritesConfiguration(
+src/db/types.ts:1448:  setOrganizationSpritesEnv(
+src/db/types.ts:1451:  removeOrganizationSpritesEnv(
+src/triggers/store.ts:119:      (await this.database.getOrganizationSpritesConfiguration(this.organizationId)) === undefined
+
+$ git grep -n "\.env" -- src/daemons/sprites ":!*.test.*"
+src/daemons/sprites/activation.ts:159:  for (const [key, template] of Object.entries(target.env ?? {})) {
+src/daemons/sprites/client.ts:85:    for (const [key, value] of Object.entries(execOptions.env ?? {})) {
+src/daemons/sprites/functions.ts:71:      return respondWithFailure(error, spritesContext("sprites.env.set", data.organizationSlug), {
+src/daemons/sprites/functions.ts:92:        spritesContext("sprites.env.remove", data.organizationSlug),
+src/daemons/sprites/settings.ts:52:      envKeys: Object.keys(stored?.env ?? {}).sort(),
+
+$ git grep -n "spritesSettings\|SpritesSettings(" -- src ":!*.test.*"
+src/application-runtime.ts:154:    spritesSettings: spritesSettingsFor(options),
+src/application-runtime.ts:393:    : new SpritesSettings(options.database, options.auth);
+src/daemons/sprites/functions.ts:19:      const settings = (await getApplication()).spritesSettings;
+src/daemons/sprites/functions.ts:34:      const settings = (await getApplication()).spritesSettings;
+src/daemons/sprites/functions.ts:63:      const settings = (await getApplication()).spritesSettings;
+src/daemons/sprites/functions.ts:85:      const settings = (await getApplication()).spritesSettings;
+src/server/runtime.ts:81:  spritesSettings?: SpritesSettings | null;
+
+$ git grep -n "organization_sprites_configuration" -- src ":!*.test.*" ":!src/db/schema.ts"
+src/db/memory.ts:2117:      throw new Error("organization_sprites_configuration_memory_mb_check");
+src/db/pg.ts:2542:      `select * from organization_sprites_configuration where organization_id = $1`,
+src/db/pg.ts:2555:      `insert into organization_sprites_configuration
+src/db/pg.ts:2561:         env = coalesce($4::jsonb, organization_sprites_configuration.env),
+src/db/pg.ts:2581:      `update organization_sprites_configuration
+src/db/pg.ts:2599:      `update organization_sprites_configuration
+src/db/schema.ts:1324:  "organization_sprites_configuration",
+src/db/schema.ts:1338:    check("organization_sprites_configuration_memory_mb_check", sql`${table.memoryMb} > 0`),
+export function createSpriteActivation(options: SpriteActivationOptions): SpriteActivation {
+  const providerFor = options.provider ?? ((token) => createSpritesClient({ token }));
+  return async ({ trigger, target, userId }) => {
+    const { database, apiKeys } = options;
+    if ((await database.findLiveSpriteMachine(trigger.id)) !== undefined) return undefined;
+    const configuration = await database.getOrganizationSpritesConfiguration(
+      trigger.organizationId,
+    );
+    if (configuration === undefined) throw new Error("Sprites are not configured");
+    const key = await apiKeys.create(trigger.organizationId, userId, `Sprite ${trigger.id}`, [
+      "daemons:enroll",
+    ]);
+    const memoryMb = target.memory ?? configuration.memoryMb;
+    const specs = {
+      bootstrapHash: createHash("sha256").update(target.bootstrap).digest("hex"),
+      memoryMb,
+    };
+    const machine = await database.insertSpriteMachine({
+      orgId: trigger.organizationId,
+      source: {
+        kind: "sprite",
+
+Reading: the only client-facing reader is SpritesSettings.snapshot, which returns Object.keys(env).sort() as envKeys.
+setEnv/removeEnv discard the returned record; the server functions respond {state: "complete"}. activation.ts reads
+the configuration for token and memoryMb only; triggers/store.ts checks presence only. Failures go through
+respondWithFailure with fixed fallback strings or the SpritesEnvInputError message, which never includes the value.

@@ -85,6 +85,8 @@ import type {
   OrganizationEntitlementsRecord,
   OrganizationSpritesConfigurationRecord,
   UpsertOrganizationSpritesConfigurationInput,
+  SetOrganizationSpritesEnvInput,
+  RemoveOrganizationSpritesEnvInput,
   OperatorOrganizationRecord,
   StampOrganizationEntitlementsInput,
   OverrideOrganizationEntitlementsInput,
@@ -2114,7 +2116,29 @@ class MemoryDatabase implements Database {
     if (input.memoryMb < 1) {
       throw new Error("organization_sprites_configuration_memory_mb_check");
     }
-    const record = { ...input, updatedAt: new Date() };
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    const record = { ...input, env: input.env ?? existing?.env ?? {}, updatedAt: new Date() };
+    this.organizationSpritesConfigurations.set(input.organizationId, record);
+    return record;
+  }
+
+  async setOrganizationSpritesEnv(
+    input: SetOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    if (existing === undefined) return undefined;
+    const record = { ...existing, env: { ...existing.env, [input.key]: input.value } };
+    this.organizationSpritesConfigurations.set(input.organizationId, record);
+    return record;
+  }
+
+  async removeOrganizationSpritesEnv(
+    input: RemoveOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    if (existing === undefined || !Object.hasOwn(existing.env, input.key)) return undefined;
+    const { [input.key]: _removed, ...env } = existing.env;
+    const record = { ...existing, env };
     this.organizationSpritesConfigurations.set(input.organizationId, record);
     return record;
   }

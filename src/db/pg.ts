@@ -110,6 +110,8 @@ import type {
   OrganizationEntitlementsRecord,
   OrganizationSpritesConfigurationRecord,
   UpsertOrganizationSpritesConfigurationInput,
+  SetOrganizationSpritesEnvInput,
+  RemoveOrganizationSpritesEnvInput,
   OperatorOrganizationRecord,
   StampOrganizationEntitlementsInput,
   OverrideOrganizationEntitlementsInput,
@@ -2551,17 +2553,56 @@ class PgDatabase implements Database {
     const rows = await query<OrganizationSpritesConfigurationRow>(
       this.pool,
       `insert into organization_sprites_configuration
-         (organization_id, token, memory_mb, updated_by_user_id, updated_at)
-       values ($1, $2, $3, $4, clock_timestamp())
+         (organization_id, token, memory_mb, env, updated_by_user_id, updated_at)
+       values ($1, $2, $3, coalesce($4::jsonb, '{}'::jsonb), $5, clock_timestamp())
        on conflict (organization_id) do update set
          token = excluded.token,
          memory_mb = excluded.memory_mb,
+         env = coalesce($4::jsonb, organization_sprites_configuration.env),
          updated_by_user_id = excluded.updated_by_user_id,
          updated_at = excluded.updated_at
        returning *`,
-      [input.organizationId, input.token, input.memoryMb, input.updatedByUserId],
+      [
+        input.organizationId,
+        input.token,
+        input.memoryMb,
+        input.env === undefined ? null : JSON.stringify(input.env),
+        input.updatedByUserId,
+      ],
     );
     return toOrganizationSpritesConfigurationRecord(rows.rows[0]!);
+  }
+
+  async setOrganizationSpritesEnv(
+    input: SetOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const rows = await query<OrganizationSpritesConfigurationRow>(
+      this.pool,
+      `update organization_sprites_configuration
+         set env = env || jsonb_build_object($2::text, $3::text)
+       where organization_id = $1
+       returning *`,
+      [input.organizationId, input.key, input.value],
+    );
+    return rows.rows[0] === undefined
+      ? undefined
+      : toOrganizationSpritesConfigurationRecord(rows.rows[0]);
+  }
+
+  async removeOrganizationSpritesEnv(
+    input: RemoveOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const rows = await query<OrganizationSpritesConfigurationRow>(
+      this.pool,
+      `update organization_sprites_configuration
+         set env = env - $2::text
+       where organization_id = $1 and env -> $2::text is not null
+       returning *`,
+      [input.organizationId, input.key],
+    );
+    return rows.rows[0] === undefined
+      ? undefined
+      : toOrganizationSpritesConfigurationRecord(rows.rows[0]);
   }
 
   async stampOrganizationEntitlements(
@@ -4921,6 +4962,7 @@ interface OrganizationSpritesConfigurationRow extends QueryRow {
   organization_id: string;
   token: string;
   memory_mb: number;
+  env: Record<string, string>;
   updated_at: Date;
   updated_by_user_id: string | null;
 }
@@ -4932,6 +4974,7 @@ function toOrganizationSpritesConfigurationRecord(
     organizationId: row.organization_id,
     token: row.token,
     memoryMb: row.memory_mb,
+    env: row.env,
     updatedAt: row.updated_at,
     updatedByUserId: row.updated_by_user_id,
   };
