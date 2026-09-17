@@ -1,0 +1,72 @@
+# Scenario 6: gates (merged tree 13a64ea unless noted)
+
+$ npm run format:check  (merged tree 13a64ea)
+Checking formatting...
+
+docs/qa/ac-av6/ui-journey.ts (0ms)
+
+Format issues found in above 1 files. Run without `--check` to fix.
+Finished in 1897ms on 790 files using 15 threads.
+(exit 1)
+
+$ npm run typecheck:node  (merged tree 13a64ea)
+
+> @getpaseo/hub@0.9.0 typecheck:node
+> tsgo --noEmit -p tsconfig.json
+
+(exit 0)
+
+$ npm run typecheck:start  (merged tree 13a64ea)
+
+> @getpaseo/hub@0.9.0 typecheck:start
+> tsgo --noEmit -p tsconfig.start.json
+
+(exit 0)
+
+$ npm run typecheck:e2e  (merged tree 13a64ea)
+
+> @getpaseo/hub@0.9.0 typecheck:e2e
+> tsgo --noEmit -p tsconfig.e2e.json
+
+(exit 0)
+
+$ npm run lint  (merged tree 13a64ea)
+
+> @getpaseo/hub@0.9.0 lint:start
+> oxlint --config oxlint.json --tsconfig tsconfig.start.json --ignore-pattern '**/*.mjs' src vite.config.ts drizzle.config.ts
+
+Found 0 warnings and 0 errors.
+Finished in 2.1s on 591 files with 238 rules using 15 threads.
+(exit 0)
+
+(first run flagged only the verifier's own untracked docs/qa/ac-av6/ui-journey.ts; formatted it with oxfmt and re-ran)
+$ npm run format:check
+
+All matched files use the correct format.
+Finished in 1587ms on 790 files using 15 threads.
+(exit 0)
+
+$ npx vitest run src/daemons/sprites src/db/organization-sprites-configuration.integration.test.ts src/db/migrations.integration.test.ts src/typography-policy.test.ts
+ ✓ src/db/migrations.integration.test.ts (24 tests) 16410ms
+ ✓ src/daemons/sprites/activation.test.ts (8 tests) 10ms
+ ✓ src/daemons/sprites/settings.test.ts (13 tests) 2ms
+ ✓ src/daemons/sprites/client.test.ts (13 tests) 2ms
+ ✓ src/typography-policy.test.ts (5 tests) 65ms
+ ✓ src/daemons/sprites/panel.test.tsx (9 tests) 14ms
+ ✓ src/db/organization-sprites-configuration.integration.test.ts (3 tests) 2687ms
+ ↓ src/daemons/sprites/client.real.test.ts (1 test | 1 skipped)
+ Test Files  7 passed | 1 skipped (8)
+      Tests  75 passed | 1 skipped (76)
+(exit 0)
+
+$ gh pr checks 10 --repo mcrlc/paseo-hub --watch   (CI runs on the PR head e3ef498, not the local merge)
+browser-e2e	pass	16m44s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148926182	
+build	pass	1m1s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148925981	
+docker-smoke	pass	1m19s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148925944	
+format	pass	35s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148925812	
+hub-e2e	pass	6m14s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148925997	
+lint	pass	57s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148926035	
+migrations	pass	33s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148925934	
+test	pass	12m19s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148925939	
+typecheck	pass	58s	https://github.com/mcrlc/paseo-hub/actions/runs/35205133588/job/105148925945	
+(exit 0)

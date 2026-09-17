@@ -3,6 +3,7 @@ import { capabilitiesFor } from "../../auth/organization-policy.js";
 import type { Database } from "../../db/types.js";
 import { resolveRouteTenant } from "../../projects/access.js";
 import { ProjectCommandError } from "../../projects/command-error.js";
+import { spritesEnvKeyError, spritesEnvValueError } from "./env.js";
 
 export class SpritesTokenRejectedError extends Error {
   readonly code = "invalidInput";
@@ -22,6 +23,24 @@ export class SpritesTokenCheckError extends Error {
   }
 }
 
+export class SpritesEnvInputError extends Error {
+  readonly code = "invalidInput";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "SpritesEnvInputError";
+  }
+}
+
+export class SpritesEnvNotFoundError extends Error {
+  readonly code = "notFound";
+
+  constructor() {
+    super("No such variable.");
+    this.name = "SpritesEnvNotFoundError";
+  }
+}
+
 export class SpritesSettings {
   private readonly fetch: typeof fetch;
 
@@ -34,16 +53,12 @@ export class SpritesSettings {
   }
 
   async snapshot(request: Request, organizationSlug: string) {
-    const { tenant } = await resolveRouteTenant(this.auth, this.database, request, {
-      organizationSlug,
-    });
-    if (!capabilitiesFor(tenant.membership.role).manageResources) {
-      throw new ProjectCommandError("forbidden");
-    }
+    const { tenant } = await this.manager(request, organizationSlug);
     const stored = await this.database.getOrganizationSpritesConfiguration(tenant.organization.id);
     return {
       configured: stored !== undefined,
       memoryMb: stored?.memoryMb ?? null,
+      envKeys: Object.keys(stored?.env ?? {}).sort(),
       updatedAt: stored?.updatedAt.toISOString() ?? null,
       updatedByUserId: stored?.updatedByUserId ?? null,
     };
@@ -54,12 +69,7 @@ export class SpritesSettings {
     organizationSlug: string,
     input: { token: string; memoryMb: number },
   ) {
-    const { account, tenant } = await resolveRouteTenant(this.auth, this.database, request, {
-      organizationSlug,
-    });
-    if (!capabilitiesFor(tenant.membership.role).manageResources) {
-      throw new ProjectCommandError("forbidden");
-    }
+    const { account, tenant } = await this.manager(request, organizationSlug);
     const response = await this.fetch("https://api.sprites.dev/v1/sprites", {
       headers: { Authorization: `Bearer ${input.token}` },
     });
@@ -72,6 +82,40 @@ export class SpritesSettings {
       memoryMb: input.memoryMb,
       updatedByUserId: account.account.id,
     });
+  }
+
+  async setEnv(request: Request, organizationSlug: string, input: { key: string; value: string }) {
+    const { tenant } = await this.manager(request, organizationSlug);
+    const value = input.value.trim();
+    const error = spritesEnvKeyError(input.key) ?? spritesEnvValueError(value);
+    if (error !== undefined) throw new SpritesEnvInputError(error);
+    const stored = await this.database.setOrganizationSpritesEnv({
+      organizationId: tenant.organization.id,
+      key: input.key,
+      value,
+    });
+    if (stored === undefined) {
+      throw new SpritesEnvInputError("Connect Sprites with an organization token first.");
+    }
+  }
+
+  async removeEnv(request: Request, organizationSlug: string, input: { key: string }) {
+    const { tenant } = await this.manager(request, organizationSlug);
+    const stored = await this.database.removeOrganizationSpritesEnv({
+      organizationId: tenant.organization.id,
+      key: input.key,
+    });
+    if (stored === undefined) throw new SpritesEnvNotFoundError();
+  }
+
+  private async manager(request: Request, organizationSlug: string) {
+    const resolved = await resolveRouteTenant(this.auth, this.database, request, {
+      organizationSlug,
+    });
+    if (!capabilitiesFor(resolved.tenant.membership.role).manageResources) {
+      throw new ProjectCommandError("forbidden");
+    }
+    return resolved;
   }
 }
 

@@ -1,0 +1,78 @@
+# Scenario 3: round trip and rules on Postgres
+
+## Second organization (inserted directly; Hub has no second-org UI on a bootstrap instance)
+INSERT 0 0
+INSERT 0 0
+org2 row: (org2-acav6,other-org-token,4096,"2026-09-17 09:50:16.177731+00",,"{""OTHER_KEY"": ""other-org-value""}")
+admin setenv against org2's slug (not a member):
+  => status=error message="Hub couldn't save the variable. The stored environment is unchanged."
+
+## Reset acme-56b508fa to 'no token yet': delete its configuration row
+DELETE 1
+## setenv before any token
+HTTP/1.1 200 OK
+  => status=error message="Connect Sprites with an organization token first."
+## rmenv before any token
+  => status=ok
+row for acme-56b508fa: <no row>
+## snapshot before token
+"k":["configured","memoryMb","envKeys","updatedAt","updatedByUserId"],"v":[{"t":2,"s":3},{"t":2,"s":0},{"t":9,"i":3,"a":[],"o":0},{"t":2,"s":0},{"t":2,"s":0}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":4,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+
+## Save token (wire)
+  => status=ok
+env: {}
+
+## Set ROUND_TRIP=first
+  => status=ok
+snapshot envKeys: "t":9,"i":3,"a":[{"t":1,"s":"ROUND_TRIP"}]
+row env: {"ROUND_TRIP": "first"}, updated_at 2026-09-17 09:50:45.343935+00
+## Set ROUND_TRIP='  second  ' (replace, padded)
+  => status=ok
+row env: {"ROUND_TRIP": "second"}, keys: 1, updated_at 2026-09-17 09:50:46.239654+00
+snapshot envKeys: "t":9,"i":3,"a":[{"t":1,"s":"ROUND_TRIP"}]
+
+## Rules (each must be refused; env must not change)
+key=lower:
+  => status=error message="Use capital letters, digits, and underscores, not starting with a digit."
+key=1ABC:
+  => status=error message="Use capital letters, digits, and underscores, not starting with a digit."
+key=A-B:
+  => status=error message="Use capital letters, digits, and underscores, not starting with a digit."
+key=HOME:
+  => status=error message="Hub sets HOME on every sprite; choose another name."
+key=PATH:
+  => status=error message="Hub sets PATH on every sprite; choose another name."
+key=PASEO_HOME:
+  => status=error message="Hub sets PASEO_HOME on every sprite; choose another name."
+key=PASEO_PASSWORD:
+  => status=error message="Hub sets PASEO_PASSWORD on every sprite; choose another name."
+empty value:
+  => status=error message="Enter a value."
+whitespace-only value:
+  => status=error message="Enter a value."
+8193-char value:
+  => status=error message="Keep the value to 8192 characters or fewer."
+8192-char value (boundary, should pass):
+  => status=ok
+MAX_VALUE stored length: 8192
+  => status=ok
+env unchanged by the refused writes: yes ({"ROUND_TRIP": "second"})
+
+## Save a new token (same temporary token re-submitted) keeps the env map
+  => status=ok
+env before re-save: {"KEEP_ME": "kept", "ROUND_TRIP": "second"}
+  => status=ok
+env after re-save: {"KEEP_ME": "kept", "ROUND_TRIP": "second"} (unchanged: yes)
+
+## Remove
+  => status=ok
+  => status=ok
+row env: {}
+snapshot envKeys: "t":9,"i":3,"a":[]
+remove a key that is not there:
+  => status=ok
+
+## org2 untouched
+org2 row now: (org2-acav6,other-org-token,4096,"2026-09-17 09:50:16.177731+00",,"{""OTHER_KEY"": ""other-org-value""}")
+identical to start: yes
