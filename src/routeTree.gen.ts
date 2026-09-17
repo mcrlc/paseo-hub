@@ -53,6 +53,7 @@ import { Route as ShellOOrganizationSlugSettingsIndexRouteImport } from './route
 import { Route as ShellOOrganizationSlugTriggersTriggerIdRouteImport } from './routes/_shell/o/$organizationSlug/triggers/$triggerId'
 import { Route as ShellOOrganizationSlugSettingsUsageRouteImport } from './routes/_shell/o/$organizationSlug/settings/usage'
 import { Route as ShellOOrganizationSlugSettingsTeamRouteImport } from './routes/_shell/o/$organizationSlug/settings/team'
+import { Route as ShellOOrganizationSlugSettingsSpritesRouteImport } from './routes/_shell/o/$organizationSlug/settings/sprites'
 import { Route as ShellOOrganizationSlugSettingsBillingRouteImport } from './routes/_shell/o/$organizationSlug/settings/billing'
 import { Route as ShellOOrganizationSlugSettingsApiKeysRouteImport } from './routes/_shell/o/$organizationSlug/settings/api-keys'
 
@@ -296,6 +297,12 @@ const ShellOOrganizationSlugSettingsTeamRoute =
     path: '/team',
     getParentRoute: () => ShellOOrganizationSlugSettingsRoute,
   } as any)
+const ShellOOrganizationSlugSettingsSpritesRoute =
+  ShellOOrganizationSlugSettingsSpritesRouteImport.update({
+    id: '/sprites',
+    path: '/sprites',
+    getParentRoute: () => ShellOOrganizationSlugSettingsRoute,
+  } as any)
 const ShellOOrganizationSlugSettingsBillingRoute =
   ShellOOrganizationSlugSettingsBillingRouteImport.update({
     id: '/billing',
@@ -350,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/cli-authorizations/poll': typeof ApiV1CliAuthorizationsPollRoute
   '/o/$organizationSlug/settings/api-keys': typeof ShellOOrganizationSlugSettingsApiKeysRoute
   '/o/$organizationSlug/settings/billing': typeof ShellOOrganizationSlugSettingsBillingRoute
+  '/o/$organizationSlug/settings/sprites': typeof ShellOOrganizationSlugSettingsSpritesRoute
   '/o/$organizationSlug/settings/team': typeof ShellOOrganizationSlugSettingsTeamRoute
   '/o/$organizationSlug/settings/usage': typeof ShellOOrganizationSlugSettingsUsageRoute
   '/o/$organizationSlug/triggers/$triggerId': typeof ShellOOrganizationSlugTriggersTriggerIdRoute
@@ -395,6 +403,7 @@ export interface FileRoutesByTo {
   '/api/v1/cli-authorizations/poll': typeof ApiV1CliAuthorizationsPollRoute
   '/o/$organizationSlug/settings/api-keys': typeof ShellOOrganizationSlugSettingsApiKeysRoute
   '/o/$organizationSlug/settings/billing': typeof ShellOOrganizationSlugSettingsBillingRoute
+  '/o/$organizationSlug/settings/sprites': typeof ShellOOrganizationSlugSettingsSpritesRoute
   '/o/$organizationSlug/settings/team': typeof ShellOOrganizationSlugSettingsTeamRoute
   '/o/$organizationSlug/settings/usage': typeof ShellOOrganizationSlugSettingsUsageRoute
   '/o/$organizationSlug/triggers/$triggerId': typeof ShellOOrganizationSlugTriggersTriggerIdRoute
@@ -444,6 +453,7 @@ export interface FileRoutesById {
   '/api/v1/cli-authorizations/poll': typeof ApiV1CliAuthorizationsPollRoute
   '/_shell/o/$organizationSlug/settings/api-keys': typeof ShellOOrganizationSlugSettingsApiKeysRoute
   '/_shell/o/$organizationSlug/settings/billing': typeof ShellOOrganizationSlugSettingsBillingRoute
+  '/_shell/o/$organizationSlug/settings/sprites': typeof ShellOOrganizationSlugSettingsSpritesRoute
   '/_shell/o/$organizationSlug/settings/team': typeof ShellOOrganizationSlugSettingsTeamRoute
   '/_shell/o/$organizationSlug/settings/usage': typeof ShellOOrganizationSlugSettingsUsageRoute
   '/_shell/o/$organizationSlug/triggers/$triggerId': typeof ShellOOrganizationSlugTriggersTriggerIdRoute
@@ -493,6 +503,7 @@ export interface FileRouteTypes {
     | '/api/v1/cli-authorizations/poll'
     | '/o/$organizationSlug/settings/api-keys'
     | '/o/$organizationSlug/settings/billing'
+    | '/o/$organizationSlug/settings/sprites'
     | '/o/$organizationSlug/settings/team'
     | '/o/$organizationSlug/settings/usage'
     | '/o/$organizationSlug/triggers/$triggerId'
@@ -538,6 +549,7 @@ export interface FileRouteTypes {
     | '/api/v1/cli-authorizations/poll'
     | '/o/$organizationSlug/settings/api-keys'
     | '/o/$organizationSlug/settings/billing'
+    | '/o/$organizationSlug/settings/sprites'
     | '/o/$organizationSlug/settings/team'
     | '/o/$organizationSlug/settings/usage'
     | '/o/$organizationSlug/triggers/$triggerId'
@@ -586,6 +598,7 @@ export interface FileRouteTypes {
     | '/api/v1/cli-authorizations/poll'
     | '/_shell/o/$organizationSlug/settings/api-keys'
     | '/_shell/o/$organizationSlug/settings/billing'
+    | '/_shell/o/$organizationSlug/settings/sprites'
     | '/_shell/o/$organizationSlug/settings/team'
     | '/_shell/o/$organizationSlug/settings/usage'
     | '/_shell/o/$organizationSlug/triggers/$triggerId'
@@ -933,6 +946,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellOOrganizationSlugSettingsTeamRouteImport
       parentRoute: typeof ShellOOrganizationSlugSettingsRoute
     }
+    '/_shell/o/$organizationSlug/settings/sprites': {
+      id: '/_shell/o/$organizationSlug/settings/sprites'
+      path: '/sprites'
+      fullPath: '/o/$organizationSlug/settings/sprites'
+      preLoaderRoute: typeof ShellOOrganizationSlugSettingsSpritesRouteImport
+      parentRoute: typeof ShellOOrganizationSlugSettingsRoute
+    }
     '/_shell/o/$organizationSlug/settings/billing': {
       id: '/_shell/o/$organizationSlug/settings/billing'
       path: '/billing'
@@ -953,6 +973,7 @@ declare module '@tanstack/react-router' {
 interface ShellOOrganizationSlugSettingsRouteChildren {
   ShellOOrganizationSlugSettingsApiKeysRoute: typeof ShellOOrganizationSlugSettingsApiKeysRoute
   ShellOOrganizationSlugSettingsBillingRoute: typeof ShellOOrganizationSlugSettingsBillingRoute
+  ShellOOrganizationSlugSettingsSpritesRoute: typeof ShellOOrganizationSlugSettingsSpritesRoute
   ShellOOrganizationSlugSettingsTeamRoute: typeof ShellOOrganizationSlugSettingsTeamRoute
   ShellOOrganizationSlugSettingsUsageRoute: typeof ShellOOrganizationSlugSettingsUsageRoute
   ShellOOrganizationSlugSettingsIndexRoute: typeof ShellOOrganizationSlugSettingsIndexRoute
@@ -964,6 +985,8 @@ const ShellOOrganizationSlugSettingsRouteChildren: ShellOOrganizationSlugSetting
       ShellOOrganizationSlugSettingsApiKeysRoute,
     ShellOOrganizationSlugSettingsBillingRoute:
       ShellOOrganizationSlugSettingsBillingRoute,
+    ShellOOrganizationSlugSettingsSpritesRoute:
+      ShellOOrganizationSlugSettingsSpritesRoute,
     ShellOOrganizationSlugSettingsTeamRoute:
       ShellOOrganizationSlugSettingsTeamRoute,
     ShellOOrganizationSlugSettingsUsageRoute:

@@ -42,7 +42,12 @@ test("groups organization administration under one Settings entry", async ({ hub
     await app.navigation.openOrganizationSection("Settings");
     await expect(page).toHaveURL(/\/o\/[^/]+\/settings\/team$/u);
     // Billing is absent: this instance is not billing-configured.
-    await expect(settingsNav.getByRole("link")).toHaveText(["Team", "API keys", "Usage"]);
+    await expect(settingsNav.getByRole("link")).toHaveText([
+      "Team",
+      "API keys",
+      "Sprites",
+      "Usage",
+    ]);
     await expect(page.getByRole("heading", { name: "Team", exact: true, level: 1 })).toBeVisible();
     await app.navigation.expectBreadcrumb("Acme", "Settings", "Team");
     await page.screenshot({ path: `${SHOTS}/03-settings-team.png`, fullPage: true });
