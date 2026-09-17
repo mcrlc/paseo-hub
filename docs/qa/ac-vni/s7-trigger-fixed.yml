@@ -1,0 +1,17 @@
+name: qa-acvni-fail
+enabled: true
+on:
+  manual.run: {}
+run:
+  target:
+    kind: sprite
+    bootstrap: |
+      mkdir -p /home/sprite/workspace/project && cd /home/sprite/workspace/project && git init -q && git -c user.email=qa@example.com -c user.name=qa commit -q --allow-empty -m init
+    cwd: /home/sprite/workspace/project
+    env:
+      QA_LITERAL: ac-vni-literal
+  agent: { provider: claude, mode: bypassPermissions }
+  prompt: Call the finish_execution MCP tool exactly once. Do not use curl, shell, or direct HTTP.
+  auto_archive: true
+  max_runtime: 1h
+  idle_timeout: 5m

@@ -1,0 +1,277 @@
+=== 1a happy path ===
+trigger fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6
+PASEO_PASSWORD non-empty: true (length 43)
+api key passed to connect starts with paseo_pk_: true
+ordered provider calls:
+[
+  {
+    "call": "destroy",
+    "args": [
+      "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+    ]
+  },
+  {
+    "call": "create",
+    "args": [
+      {
+        "name": "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+        "memoryMb": 16384
+      }
+    ]
+  },
+  {
+    "call": "exec",
+    "args": [
+      "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+      [
+        "sh",
+        "-c",
+        "npm prefix -g"
+      ],
+      null
+    ]
+  },
+  {
+    "call": "exec",
+    "args": [
+      "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+      [
+        "sh",
+        "-c",
+        "npm install -g @getpaseo/cli"
+      ],
+      {
+        "env": {
+          "PATH": "/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        }
+      }
+    ]
+  },
+  {
+    "call": "exec",
+    "args": [
+      "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+      [
+        "sh",
+        "-s"
+      ],
+      {
+        "env": {
+          "PATH": "/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        },
+        "stdin": "echo bootstrapping\nmkdir -p /home/sprite/workspace/project\n"
+      }
+    ]
+  },
+  {
+    "call": "service",
+    "args": [
+      "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+      "paseo",
+      {
+        "cmd": "/.sprite/languages/node/nvm/versions/node/v24.18.0/bin/paseo",
+        "args": [
+          "start",
+          "--foreground",
+          "--listen",
+          "127.0.0.1:6767",
+          "--no-relay",
+          "--no-web-ui"
+        ],
+        "env": {
+          "HOME": "/home/sprite",
+          "PASEO_HOME": "/home/sprite/.paseo",
+          "PATH": "/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "PASEO_PASSWORD": "[redacted]",
+          "LITERAL": "plain",
+          "ANTHROPIC_API_KEY": "resolved:anthropic.api_key"
+        },
+        "dir": "/home/sprite"
+      }
+    ]
+  },
+  {
+    "call": "exec",
+    "args": [
+      "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+      [
+        "sh",
+        "-c",
+        "for i in $(seq 600); do\n  curl -so /dev/null http://127.0.0.1:6767/\n  [ $? -ne 7 ] && exec paseo hub connect \"$1\" --host 127.0.0.1:6767 --api-key \"$2\" --permission hub.execute\n  [ $((i % 30)) -eq 0 ] && echo \"waiting for paseo daemon on 127.0.0.1:6767: ${i}s\"\n  sleep 1\ndone\necho \"paseo daemon is not listening on 127.0.0.1:6767\" >&2\nexit 1",
+        "sh",
+        "https://hub.qa.test",
+        "[redacted]"
+      ],
+      {
+        "env": {
+          "HOME": "/home/sprite",
+          "PASEO_HOME": "/home/sprite/.paseo",
+          "PATH": "/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "PASEO_PASSWORD": "[redacted]"
+        }
+      }
+    ]
+  }
+]
+machines: [
+  {
+    "id": "d4708e15-5b2e-4851-9ede-e3b878e4a0fc",
+    "status": "spawning",
+    "source": {
+      "kind": "sprite",
+      "apiKeyId": "1dc3a183-7db9-47d4-a8bb-f3c91ec25d2b",
+      "triggerId": "fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+      "spriteName": "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+    },
+    "specs": {
+      "memoryMb": 16384,
+      "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0",
+      "bootstrapHash": "f4d69c419dead96c46ff89ecc4ac687b03e54d9f08d9e832f295d979d0705f09"
+    },
+    "shutdown_reason": null,
+    "terminated_at_set": false
+  }
+]
+api keys: [
+  {
+    "id": "1dc3a183-7db9-47d4-a8bb-f3c91ec25d2b",
+    "name": "Sprite fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6",
+    "scopes": [
+      "daemons:enroll"
+    ],
+    "revoked": false
+  }
+]
+
+=== 1d second activation (save unchanged and with a prompt edit) ===
+[2026-09-17 12:19:16.735 +0300] INFO: sprite activation: destroy leftover
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+[2026-09-17 12:19:16.736 +0300] INFO: sprite activation: create
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+[2026-09-17 12:19:16.736 +0300] INFO: sprite activation: npm prefix
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+[2026-09-17 12:19:16.737 +0300] INFO: sprite activation: install paseo
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+[2026-09-17 12:19:16.737 +0300] INFO: sprite activation: bootstrap
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+[2026-09-17 12:19:16.737 +0300] INFO: sprite activation: daemon service
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+[2026-09-17 12:19:16.737 +0300] INFO: sprite activation: hub connect
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+[2026-09-17 12:19:16.737 +0300] INFO: sprite activation: hub connect output
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+    sprite: "trigger-fe73cfad-412f-4fe2-ba2b-4bbc29ae37f6"
+    output: ""
+[2026-09-17 12:19:16.737 +0300] INFO: sprite activation bootstrapped
+    machineId: "d4708e15-5b2e-4851-9ede-e3b878e4a0fc"
+provider calls after two more saves: 0
+machine rows: 1
+api keys: 1
+
+=== 1b bootstrap exit 3 ===
+[2026-09-17 12:19:16.775 +0300] INFO: sprite activation: destroy leftover
+    machineId: "3bfc2039-8eb9-4a28-86cd-59b479a49abe"
+    sprite: "trigger-7c0c09fb-8220-4e9e-9d15-88775e146b8c"
+[2026-09-17 12:19:16.775 +0300] INFO: sprite activation: create
+    machineId: "3bfc2039-8eb9-4a28-86cd-59b479a49abe"
+    sprite: "trigger-7c0c09fb-8220-4e9e-9d15-88775e146b8c"
+[2026-09-17 12:19:16.775 +0300] INFO: sprite activation: npm prefix
+    machineId: "3bfc2039-8eb9-4a28-86cd-59b479a49abe"
+    sprite: "trigger-7c0c09fb-8220-4e9e-9d15-88775e146b8c"
+[2026-09-17 12:19:16.776 +0300] INFO: sprite activation: install paseo
+    machineId: "3bfc2039-8eb9-4a28-86cd-59b479a49abe"
+    sprite: "trigger-7c0c09fb-8220-4e9e-9d15-88775e146b8c"
+[2026-09-17 12:19:16.776 +0300] INFO: sprite activation: bootstrap
+    machineId: "3bfc2039-8eb9-4a28-86cd-59b479a49abe"
+    sprite: "trigger-7c0c09fb-8220-4e9e-9d15-88775e146b8c"
+[2026-09-17 12:19:16.776 +0300] WARN: sprite activation failed
+    machineId: "3bfc2039-8eb9-4a28-86cd-59b479a49abe"
+    reason: "bootstrap exited with 3: partial\nbad"
+call names: ["destroy","create","exec","exec","exec","destroy"]
+last call argv: undefined
+machines: [
+  {
+    "id": "3bfc2039-8eb9-4a28-86cd-59b479a49abe",
+    "status": "terminated",
+    "source": {
+      "kind": "sprite",
+      "apiKeyId": "42d21ce6-535e-4541-93c2-2d2fb6997b78",
+      "triggerId": "7c0c09fb-8220-4e9e-9d15-88775e146b8c",
+      "spriteName": "trigger-7c0c09fb-8220-4e9e-9d15-88775e146b8c"
+    },
+    "specs": {
+      "memoryMb": 16384,
+      "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0",
+      "bootstrapHash": "2f0c1ccb32dec1bc5ccede6a0215a8045dd1a21051bf8f6ad5816b20a8348944"
+    },
+    "shutdown_reason": "bootstrap exited with 3: partial\nbad",
+    "terminated_at_set": true
+  }
+]
+api keys: [
+  {
+    "id": "42d21ce6-535e-4541-93c2-2d2fb6997b78",
+    "name": "Sprite 7c0c09fb-8220-4e9e-9d15-88775e146b8c",
+    "scopes": [
+      "daemons:enroll"
+    ],
+    "revoked": true
+  }
+]
+
+=== 1c env template that needs a lease ===
+call names: ["destroy","create","exec","exec","exec","destroy"]
+machines: [
+  {
+    "id": "82cc0ad7-085e-4009-9ce2-c222e2fec3fb",
+    "status": "terminated",
+    "source": {
+      "kind": "sprite",
+      "apiKeyId": "7b323c58-810f-47fc-8627-b070cada98cd",
+      "triggerId": "1edc3e70-aab0-4fca-b2c2-3f34ffde6c72",
+      "spriteName": "trigger-1edc3e70-aab0-4fca-b2c2-3f34ffde6c72"
+    },
+    "specs": {
+      "memoryMb": 16384,
+      "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0",
+      "bootstrapHash": "f4d69c419dead96c46ff89ecc4ac687b03e54d9f08d9e832f295d979d0705f09"
+    },
+    "shutdown_reason": "env.GITHUB_TOKEN cannot be resolved without an execution lease",
+    "terminated_at_set": true
+  }
+]
+api keys: [
+  {
+    "id": "7b323c58-810f-47fc-8627-b070cada98cd",
+    "name": "Sprite 1edc3e70-aab0-4fca-b2c2-3f34ffde6c72",
+    "scopes": [
+      "daemons:enroll"
+    ],
+    "revoked": true
+  }
+]
+[2026-09-17 12:19:16.800 +0300] INFO: sprite activation: destroy leftover
+    machineId: "82cc0ad7-085e-4009-9ce2-c222e2fec3fb"
+    sprite: "trigger-1edc3e70-aab0-4fca-b2c2-3f34ffde6c72"
+[2026-09-17 12:19:16.800 +0300] INFO: sprite activation: create
+    machineId: "82cc0ad7-085e-4009-9ce2-c222e2fec3fb"
+    sprite: "trigger-1edc3e70-aab0-4fca-b2c2-3f34ffde6c72"
+[2026-09-17 12:19:16.800 +0300] INFO: sprite activation: npm prefix
+    machineId: "82cc0ad7-085e-4009-9ce2-c222e2fec3fb"
+    sprite: "trigger-1edc3e70-aab0-4fca-b2c2-3f34ffde6c72"
+[2026-09-17 12:19:16.801 +0300] INFO: sprite activation: install paseo
+    machineId: "82cc0ad7-085e-4009-9ce2-c222e2fec3fb"
+    sprite: "trigger-1edc3e70-aab0-4fca-b2c2-3f34ffde6c72"
+[2026-09-17 12:19:16.801 +0300] INFO: sprite activation: bootstrap
+    machineId: "82cc0ad7-085e-4009-9ce2-c222e2fec3fb"
+    sprite: "trigger-1edc3e70-aab0-4fca-b2c2-3f34ffde6c72"
+[2026-09-17 12:19:16.801 +0300] WARN: sprite activation failed
+    machineId: "82cc0ad7-085e-4009-9ce2-c222e2fec3fb"
+    reason: "env.GITHUB_TOKEN cannot be resolved without an execution lease"

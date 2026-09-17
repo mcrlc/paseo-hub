@@ -1,0 +1,16 @@
+# Scenario 6: cleanup and secrets (09:21:14Z)
+DELETE /v1/sprites/trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c -> HTTP 204
+GET    /v1/sprites/trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c -> {"error":"sprite not found"}
+DELETE /v1/sprites/trigger-5742bdb0-2840-429c-8420-d6ec874dcb69 -> HTTP 204
+GET    /v1/sprites/trigger-5742bdb0-2840-429c-8420-d6ec874dcb69 -> {"error":"sprite not found"}
+sprite list: []
+DELETE /v1/tokens/<id of description hub-verify-ac-vni> -> HTTP 204
+GET /v1/tokens descriptions after: ["Sprite SDK Token"]
+old token against API after delete: HTTP 401
+Hub pid 88008 SIGTERM, cloudflared pid 76914 SIGTERM, watcher stopped (first Hub pid 77118 did not exit 65 s after SIGTERM and was SIGKILLed at 09:18:47Z)
+grep -rF <sprites token> docs/qa/ac-vni -> 0 files
+grep -rF <tunnel hostname> docs/qa/ac-vni -> 0 files
+grep -rF <PASEO_PASSWORD> docs/qa/ac-vni -> 0 files
+grep -rF <owner password> docs/qa/ac-vni -> 0 files
+grep -rF <changed owner password> docs/qa/ac-vni -> 0 files
+grep -rF <public API key> docs/qa/ac-vni -> 0 files

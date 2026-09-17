@@ -1,0 +1,16 @@
+
+=== no Sprites configuration for the organization ===
+v1 saved disabled: activeRevisionId=64dfa1c0-18d5-4743-b895-dbd6e7f327aa version=1 enabled=false
+enabled save REJECTED TriggerDocumentError: run.target.kind: Sprites are not configured for this organization.
+  path=run.target.kind message=Sprites are not configured for this organization.
+after: activeRevisionId=64dfa1c0-18d5-4743-b895-dbd6e7f327aa version=1 enabled=false unchanged=true
+new enabled trigger REJECTED: run.target.kind: Sprites are not configured for this organization.
+triggers in org: 1; machines for v1: 0; provider calls: 0
+
+=== spriteActivation null (Hub without public base URL / API keys), org configured ===
+v1 saved disabled: activeRevisionId=e453e2a0-07fd-46be-a4e1-82778a12cf08 version=1 enabled=false
+enabled save REJECTED TriggerDocumentError: run.target.kind: Sprite targets are unavailable on this Hub: no public base URL or API keys configured.
+  path=run.target.kind message=Sprite targets are unavailable on this Hub: no public base URL or API keys configured.
+after: activeRevisionId=e453e2a0-07fd-46be-a4e1-82778a12cf08 version=1 enabled=false unchanged=true
+new enabled trigger REJECTED: run.target.kind: Sprite targets are unavailable on this Hub: no public base URL or API keys configured.
+triggers in org: 1; machines for v1: 0; provider calls: 0
