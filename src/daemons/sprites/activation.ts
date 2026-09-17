@@ -21,7 +21,7 @@ echo "paseo daemon is not listening on ${DAEMON_LISTEN}" >&2
 exit 1`;
 
 export type SpriteTarget = Extract<CompiledEnvironment, { kind: "sprite" }>;
-export type SpriteProvider = Pick<SpritesClient, "create" | "exec" | "service">;
+export type SpriteProvider = Pick<SpritesClient, "create" | "exec" | "service" | "destroy">;
 
 export interface SpriteActivationOptions {
   database: Database;
@@ -68,11 +68,12 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
       await apiKeys.revoke(trigger.organizationId, key.summary.id);
       return undefined;
     }
+    const provider = providerFor(configuration.token);
     const provision = async () => {
       try {
         await provisionSprite({
           database,
-          provider: providerFor(configuration.token),
+          provider,
           resolver: options.connectionsForProject(trigger.runtimeProjectId),
           hubOrigin: options.hubOrigin,
           machine,
@@ -89,6 +90,7 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
         logger.warn({ machineId: machine.id, reason }, "sprite activation failed");
         await database.transitionMachine(machine.id, "terminated", { reason });
         await apiKeys.revoke(trigger.organizationId, key.summary.id);
+        await destroyBestEffort(provider, machine);
       }
     };
     const job = provision().catch((error: unknown) => {
@@ -121,6 +123,8 @@ async function provisionSprite(input: {
   const name = machine.source.spriteName;
   const step = (label: string) => logger.info({ machineId: machine.id, sprite: name }, label);
 
+  step("sprite activation: destroy leftover");
+  await destroyBestEffort(provider, machine);
   step("sprite activation: create");
   await provider.create({ name, memoryMb: input.specs.memoryMb });
   step("sprite activation: npm prefix");
@@ -183,6 +187,19 @@ async function provisionSprite(input: {
     "sprite activation: hub connect output",
   );
   expectSuccess("hub connect", connected);
+}
+
+async function destroyBestEffort(provider: SpriteProvider, machine: MachineRecord): Promise<void> {
+  if (machine.source.kind !== "sprite") return;
+  try {
+    await provider.destroy(machine.source.spriteName);
+  } catch (error) {
+    reportFailure(error, {
+      operation: "sprites.destroy",
+      component: "sprites",
+      organizationId: machine.orgId,
+    });
+  }
 }
 
 function expectSuccess(label: string, result: ExecResult): void {

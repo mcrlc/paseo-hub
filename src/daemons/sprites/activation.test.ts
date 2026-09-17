@@ -51,6 +51,7 @@ describe("sprite activation", () => {
     assert.match(password ?? "", /^[\w-]{43}$/u);
     const daemonEnv = { HOME: "/home/sprite", PASEO_HOME: "/home/sprite/.paseo", PATH };
     assert.deepEqual(hub.calls, [
+      { call: "destroy", args: [name] },
       { call: "create", args: [{ name, memoryMb: 16384 }] },
       { call: "exec", args: [name, ["sh", "-c", "npm prefix -g"], undefined] },
       {
@@ -106,7 +107,7 @@ describe("sprite activation", () => {
     assert.deepEqual(hub.revoked, []);
   });
 
-  it("terminates the machine with the bootstrap output and stops when bootstrap exits non-zero", async () => {
+  it("terminates the machine, stops, and destroys the sprite when bootstrap exits non-zero", async () => {
     const hub = await setup({
       exec: (argv) =>
         argv[1] === "-s" ? { stdout: "", stderr: "clone failed", exitCode: 3 } : success,
@@ -119,7 +120,28 @@ describe("sprite activation", () => {
     assert.equal(machine?.shutdownReason, "bootstrap exited with 3: clone failed");
     assert.deepEqual(
       hub.calls.map(({ call }) => call),
-      ["create", "exec", "exec", "exec"],
+      ["destroy", "create", "exec", "exec", "exec", "destroy"],
+    );
+    assert.deepEqual(hub.revoked, ["key-1"]);
+  });
+
+  it("keeps the failure reason when destroying the failed sprite also fails", async () => {
+    const hub = await setup({
+      destroy: () => {
+        throw new SpritesError(500, "destroy unavailable");
+      },
+      exec: (argv) =>
+        argv[1] === "-s" ? { stdout: "", stderr: "clone failed", exitCode: 3 } : success,
+    });
+    await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(machine?.status, "terminated");
+    assert.equal(machine?.shutdownReason, "bootstrap exited with 3: clone failed");
+    assert.deepEqual(
+      hub.calls.map(({ call }) => call),
+      ["destroy", "create", "exec", "exec", "exec", "destroy"],
     );
     assert.deepEqual(hub.revoked, ["key-1"]);
   });
@@ -138,7 +160,7 @@ describe("sprite activation", () => {
     assert.equal(machine?.shutdownReason, "Sprites API 409: sprite already exists");
     assert.deepEqual(
       hub.calls.map(({ call }) => call),
-      ["create"],
+      ["destroy", "create", "destroy"],
     );
   });
 
@@ -160,7 +182,7 @@ describe("sprite activation", () => {
     );
     assert.deepEqual(
       hub.calls.map(({ call }) => call),
-      ["create", "exec", "exec", "exec"],
+      ["destroy", "create", "exec", "exec", "exec", "destroy"],
     );
   });
 
@@ -212,6 +234,7 @@ async function setup(
     configured?: boolean;
     unavailable?: boolean;
     create?: () => void;
+    destroy?: () => void;
     exec?: (argv: string[]) => ExecResult;
     resolver?: ConnectionResolver;
   } = {},
@@ -241,6 +264,10 @@ async function setup(
   const keys: unknown[] = [];
   const revoked: string[] = [];
   const provider: SpriteProvider = {
+    async destroy(name) {
+      calls.push({ call: "destroy", args: [name] });
+      options.destroy?.();
+    },
     async create(input) {
       calls.push({ call: "create", args: [input] });
       options.create?.();
