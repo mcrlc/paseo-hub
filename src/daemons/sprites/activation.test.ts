@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import type { ConnectionResolver } from "../../config/connections.js";
 import { createMemoryDatabase } from "../../db/memory.js";
 import { UNLIMITED_TEMPLATE } from "../../entitlements/catalog.js";
 import { EntitlementsService } from "../../entitlements/service.js";
+import { logger } from "../../logger.js";
 import { OrganizationTriggerStore } from "../../triggers/store.js";
 import {
   createSpriteActivation,
+  createSpriteServiceRewrite,
   type SpriteActivation,
   type SpriteProvider,
 } from "./activation.js";
@@ -17,6 +19,10 @@ const PREFIX = "/opt/node-v99";
 const PATH = `${PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 
 describe("sprite activation", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("creates, bootstraps, and enrolls the sprite in order with the service env resolved", async () => {
     const hub = await setup();
     const trigger = await hub.store.save({ yaml: spriteYaml(), userId: "user" });
@@ -50,6 +56,11 @@ describe("sprite activation", () => {
     const connectScript = hub.execArgvs[3]?.[2];
     assert.match(password ?? "", /^[\w-]{43}$/u);
     const daemonEnv = { HOME: "/home/sprite", PASEO_HOME: "/home/sprite/.paseo", PATH };
+    const mergedEnv = {
+      ORG_ONLY: "org-value",
+      ANTHROPIC_API_KEY: "resolved:anthropic.api_key",
+      LITERAL: "plain",
+    };
     assert.deepEqual(hub.calls, [
       { call: "destroy", args: [name] },
       { call: "create", args: [{ name, memoryMb: 16384 }] },
@@ -63,7 +74,7 @@ describe("sprite activation", () => {
         args: [
           name,
           ["sh", "-s"],
-          { env: { PATH }, stdin: "npm install -g @anthropic-ai/claude-code\n" },
+          { env: { PATH, ...mergedEnv }, stdin: "npm install -g @anthropic-ai/claude-code\n" },
         ],
       },
       {
@@ -81,12 +92,7 @@ describe("sprite activation", () => {
               "--no-relay",
               "--no-web-ui",
             ],
-            env: {
-              ...daemonEnv,
-              PASEO_PASSWORD: password,
-              ANTHROPIC_API_KEY: "resolved:anthropic.api_key",
-              LITERAL: "plain",
-            },
+            env: { ...daemonEnv, PASEO_PASSWORD: password, ...mergedEnv },
             dir: "/home/sprite",
           },
         ],
@@ -108,6 +114,7 @@ describe("sprite activation", () => {
   });
 
   it("terminates the machine, stops, and destroys the sprite when bootstrap exits non-zero", async () => {
+    const info = vi.spyOn(logger, "info");
     const hub = await setup({
       exec: (argv) =>
         argv[1] === "-s" ? { stdout: "", stderr: "clone failed", exitCode: 3 } : success,
@@ -123,9 +130,49 @@ describe("sprite activation", () => {
       ["destroy", "create", "exec", "exec", "exec", "destroy"],
     );
     assert.deepEqual(hub.revoked, ["key-1"]);
+    assert.ok(
+      info.mock.calls.some(
+        ([, message]) => message === "sprite activation: destroyed after failure",
+      ),
+    );
+  });
+
+  it("scrubs long organization values only, from the failure reason and the connect log", async () => {
+    const info = vi.spyOn(logger, "info");
+    const leak = "org-secret-value abc plain resolved:anthropic.api_key secret-1";
+    const orgEnv = { ORG_SECRET: "org-secret-value", TINY: "abc" };
+    const hub = await setup({
+      orgEnv,
+      exec: (argv) =>
+        argv[1] === "-s"
+          ? { stdout: leak, stderr: "", exitCode: 3 }
+          : { stdout: leak, stderr: "", exitCode: 0 },
+    });
+    await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+
+    const [machine] = await hub.spriteMachines();
+    assert.equal(
+      machine?.shutdownReason,
+      "bootstrap exited with 3: [redacted] abc plain resolved:anthropic.api_key [redacted]",
+    );
+
+    const connected = await setup({
+      orgEnv,
+      exec: () => ({ stdout: leak, stderr: "", exitCode: 0 }),
+    });
+    await connected.store.save({ yaml: spriteYaml(), userId: null });
+    await connected.settled();
+    const logged = JSON.stringify(info.mock.calls);
+    assert.match(
+      logged,
+      /"output":"\[redacted\] abc plain resolved:anthropic.api_key \[redacted\]"/u,
+    );
+    assert.doesNotMatch(logged, /org-secret-value/u);
   });
 
   it("keeps the failure reason when destroying the failed sprite also fails", async () => {
+    const info = vi.spyOn(logger, "info");
     const hub = await setup({
       destroy: () => {
         throw new SpritesError(500, "destroy unavailable");
@@ -144,6 +191,11 @@ describe("sprite activation", () => {
       ["destroy", "create", "exec", "exec", "exec", "destroy"],
     );
     assert.deepEqual(hub.revoked, ["key-1"]);
+    assert.ok(
+      !info.mock.calls.some(
+        ([, message]) => message === "sprite activation: destroyed after failure",
+      ),
+    );
   });
 
   it("terminates the machine with the provider message when create fails", async () => {
@@ -182,8 +234,79 @@ describe("sprite activation", () => {
     );
     assert.deepEqual(
       hub.calls.map(({ call }) => call),
-      ["destroy", "create", "exec", "exec", "exec", "destroy"],
+      ["destroy", "create", "exec", "exec", "destroy"],
     );
+  });
+
+  it("rewrites the daemon service of every alive sprite with the merged env", async () => {
+    const info = vi.spyOn(logger, "info");
+    let failing = "";
+    const hub = await setup({
+      service: (name) => {
+        if (name === failing) throw new SpritesError(500, "service unavailable");
+      },
+    });
+    const triggers = [];
+    for (const name of ["alive-a", "alive-b", "spawning", "terminated"]) {
+      triggers.push(
+        await hub.store.save({
+          yaml: spriteYaml().replace("name: manual-task", `name: ${name}`),
+          userId: null,
+        }),
+      );
+    }
+    await hub.settled();
+    const [aliveA, aliveB, spawning, terminated] = await hub.spriteMachines();
+    assert.equal(spawning?.status, "spawning");
+    failing = `trigger-${triggers[0]!.id}`;
+    await hub.database.transitionMachine(aliveA!.id, "alive");
+    await hub.database.transitionMachine(aliveB!.id, "alive");
+    await hub.database.transitionMachine(terminated!.id, "terminated");
+    hub.calls.length = 0;
+    hub.serviceEnvs.length = 0;
+
+    await hub.rewrite("org");
+
+    assert.deepEqual(
+      hub.calls.map(({ call, args }) => [call, args[0], args[1]]),
+      [
+        ["service", failing, "paseo"],
+        ["service", `trigger-${triggers[1]!.id}`, "paseo"],
+      ],
+    );
+    assert.deepEqual(
+      info.mock.calls
+        .filter(([, message]) => message === "sprite service rewritten")
+        .map(([fields]) => fields),
+      [{ triggerId: triggers[1]!.id, sprite: `trigger-${triggers[1]!.id}`, envKeys: 7 }],
+    );
+    for (const env of hub.serviceEnvs) {
+      assert.match(env["PASEO_PASSWORD"] ?? "", /^[\w-]{43}$/u);
+      assert.deepEqual(
+        { ...env, PASEO_PASSWORD: undefined },
+        {
+          HOME: "/home/sprite",
+          PASEO_HOME: "/home/sprite/.paseo",
+          PATH,
+          PASEO_PASSWORD: undefined,
+          ORG_ONLY: "org-value",
+          ANTHROPIC_API_KEY: "resolved:anthropic.api_key",
+          LITERAL: "plain",
+        },
+      );
+    }
+  });
+
+  it("reports and resolves when the rewrite cannot list the organization's triggers", async () => {
+    const hub = await setup();
+    await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    hub.database.listOrganizationTriggers = () => Promise.reject(new Error("database is down"));
+    hub.calls.length = 0;
+
+    await hub.rewrite("org");
+
+    assert.deepEqual(hub.calls, []);
   });
 
   it("does not create a second sprite while the trigger's machine is not terminated", async () => {
@@ -236,6 +359,8 @@ async function setup(
     create?: () => void;
     destroy?: () => void;
     exec?: (argv: string[]) => ExecResult;
+    service?: (name: string) => void;
+    orgEnv?: Record<string, string>;
     resolver?: ConnectionResolver;
   } = {},
 ) {
@@ -248,6 +373,7 @@ async function setup(
       organizationId: "org",
       token: "sprites-token",
       memoryMb: 8192,
+      env: options.orgEnv ?? { ANTHROPIC_API_KEY: "org-anthropic", ORG_ONLY: "org-value" },
       updatedByUserId: null,
     });
   }
@@ -282,7 +408,14 @@ async function setup(
     async service(name, service, definition) {
       calls.push({ call: "service", args: [name, service, definition] });
       serviceEnvs.push(definition.env);
+      options.service?.(name);
     },
+  };
+  const connectionsForProject = () =>
+    options.resolver ?? ((slug: string, value: string) => `resolved:${slug}.${value}`);
+  const providerFor = (token: string) => {
+    assert.equal(token, "sprites-token");
+    return provider;
   };
   const activate = createSpriteActivation({
     database,
@@ -308,12 +441,9 @@ async function setup(
         return true;
       },
     },
-    connectionsForProject: () => options.resolver ?? ((slug, value) => `resolved:${slug}.${value}`),
+    connectionsForProject,
     hubOrigin: "https://hub.test",
-    provider: (token) => {
-      assert.equal(token, "sprites-token");
-      return provider;
-    },
+    provider: providerFor,
   });
   const jobs: Promise<void>[] = [];
   const tracked: SpriteActivation = async (input) => {
@@ -329,6 +459,8 @@ async function setup(
   );
   return {
     store,
+    database,
+    rewrite: createSpriteServiceRewrite({ database, connectionsForProject, provider: providerFor }),
     calls,
     execArgvs,
     serviceEnvs,

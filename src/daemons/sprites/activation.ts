@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { OrganizationApiKeys } from "../../auth/api-keys.js";
-import type { CompiledEnvironment } from "../../config/compiler.js";
+import { parseCompiledHubConfig, type CompiledEnvironment } from "../../config/compiler.js";
 import { resolveConnectionTemplate } from "../../config/connection-template.js";
 import type { ConnectionResolver } from "../../config/connections.js";
 import type { Database, MachineRecord, OrganizationTriggerRecord } from "../../db/types.js";
@@ -69,6 +69,8 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
       return undefined;
     }
     const provider = providerFor(configuration.token);
+    const secrets = [key.secret, ...Object.values(configuration.env)];
+
     const provision = async () => {
       try {
         await provisionSprite({
@@ -80,17 +82,18 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
           target,
           specs,
           apiKey: key.secret,
+          organizationEnv: configuration.env,
+          secrets,
         });
         logger.info({ machineId: machine.id }, "sprite activation bootstrapped");
       } catch (error) {
-        const reason = (error instanceof Error ? error.message : String(error)).replaceAll(
-          key.secret,
-          "[redacted]",
-        );
+        const reason = scrub(error instanceof Error ? error.message : String(error), secrets);
         logger.warn({ machineId: machine.id, reason }, "sprite activation failed");
         await database.transitionMachine(machine.id, "terminated", { reason });
         await apiKeys.revoke(trigger.organizationId, key.summary.id);
-        await destroyBestEffort(provider, machine);
+        if (await destroyBestEffort(provider, machine)) {
+          logger.info({ machineId: machine.id }, "sprite activation: destroyed after failure");
+        }
       }
     };
     const job = provision().catch((error: unknown) => {
@@ -101,7 +104,7 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
           component: "sprites",
           organizationId: trigger.organizationId,
         },
-        { scrubValues: [key.secret] },
+        { scrubValues: secrets },
       );
     });
     return { job };
@@ -117,6 +120,8 @@ async function provisionSprite(input: {
   target: SpriteTarget;
   specs: { bootstrapHash: string; memoryMb: number };
   apiKey: string;
+  organizationEnv: Record<string, string>;
+  secrets: readonly string[];
 }): Promise<void> {
   const { provider, machine, target } = input;
   if (machine.source.kind !== "sprite") throw new Error("machine is not a sprite");
@@ -129,7 +134,7 @@ async function provisionSprite(input: {
   await provider.create({ name, memoryMb: input.specs.memoryMb });
   step("sprite activation: npm prefix");
   const prefixResult = await provider.exec(name, ["sh", "-c", "npm prefix -g"]);
-  expectSuccess("npm prefix -g", prefixResult);
+  expectSuccess("npm prefix -g", prefixResult, input.secrets);
   const npmPrefix = prefixResult.stdout.trim();
   if (npmPrefix === "") throw new Error("npm prefix -g printed nothing");
   await input.database.setMachineSpecs(machine.id, { ...input.specs, npmPrefix });
@@ -140,26 +145,102 @@ async function provisionSprite(input: {
     await provider.exec(name, ["sh", "-c", "npm install -g @getpaseo/cli"], {
       env: { PATH },
     }),
+    input.secrets,
   );
+  const targetEnv = await resolveTargetEnv(target, input.resolver);
+  const bootstrapEnv = { PATH, ...input.organizationEnv, ...targetEnv };
   step("sprite activation: bootstrap");
   expectSuccess(
     "bootstrap",
     await provider.exec(name, ["sh", "-s"], {
-      env: { PATH },
+      env: bootstrapEnv,
       stdin: target.bootstrap,
     }),
+    input.secrets,
   );
-  const daemonEnv = {
-    HOME,
-    PASEO_HOME: `${HOME}/.paseo`,
-    PATH,
-    PASEO_PASSWORD: randomBytes(32).toString("base64url"),
+  const service = daemonService(npmPrefix, { ...input.organizationEnv, ...targetEnv });
+  step("sprite activation: daemon service");
+  await provider.service(name, "paseo", service.definition);
+  // `paseo hub connect` enrolls through the running daemon, so the service must exist first.
+  step("sprite activation: hub connect");
+  const connected = await provider.exec(
+    name,
+    ["sh", "-c", CONNECT_SCRIPT, "sh", input.hubOrigin, input.apiKey],
+    { env: service.daemonEnv },
+  );
+  logger.info(
+    { machineId: machine.id, sprite: name, output: scrub(connected.stdout, input.secrets) },
+    "sprite activation: hub connect output",
+  );
+  expectSuccess("hub connect", connected, input.secrets);
+}
+
+export function createSpriteServiceRewrite(
+  options: Pick<SpriteActivationOptions, "database" | "connectionsForProject" | "provider">,
+): (organizationId: string) => Promise<void> {
+  const providerFor = options.provider ?? ((token) => createSpritesClient({ token }));
+  return async (organizationId) => {
+    const { database } = options;
+    const context = { operation: "sprites.rewrite-service", component: "sprites", organizationId };
+    let secrets: string[] = [];
+    try {
+      const configuration = await database.getOrganizationSpritesConfiguration(organizationId);
+      if (configuration === undefined) return;
+      secrets = Object.values(configuration.env);
+      const provider = providerFor(configuration.token);
+      for (const trigger of await database.listOrganizationTriggers(organizationId)) {
+        const machine = await database.findLiveSpriteMachine(trigger.id);
+        if (machine?.status !== "alive" || machine.source.kind !== "sprite") continue;
+        const sprite = machine.source.spriteName;
+        try {
+          const specs = machine.specs;
+          const npmPrefix =
+            typeof specs === "object" && specs !== null && "npmPrefix" in specs
+              ? specs.npmPrefix
+              : undefined;
+          if (typeof npmPrefix !== "string") continue;
+          const revision = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
+          const target = parseCompiledHubConfig(
+            revision?.normalizedConfiguration,
+          ).environments.find(
+            (environment): environment is SpriteTarget => environment.kind === "sprite",
+          );
+          if (target === undefined) continue;
+          const targetEnv = await resolveTargetEnv(
+            target,
+            options.connectionsForProject(trigger.runtimeProjectId),
+          );
+          const service = daemonService(npmPrefix, { ...configuration.env, ...targetEnv });
+          await provider.service(sprite, "paseo", service.definition);
+          logger.info(
+            { triggerId: trigger.id, sprite, envKeys: Object.keys(service.definition.env).length },
+            "sprite service rewritten",
+          );
+        } catch (error) {
+          reportFailure(
+            error,
+            { ...context, triggerId: trigger.id, sprite },
+            {
+              scrubValues: secrets,
+            },
+          );
+        }
+      }
+    } catch (error) {
+      reportFailure(error, context, { scrubValues: secrets });
+    }
   };
-  const env: Record<string, string> = { ...daemonEnv };
+}
+
+async function resolveTargetEnv(
+  target: SpriteTarget,
+  resolver: ConnectionResolver,
+): Promise<Record<string, string>> {
+  const env: Record<string, string> = {};
   for (const [key, template] of Object.entries(target.env ?? {})) {
     env[key] = await resolveConnectionTemplate(
       template,
-      input.resolver,
+      resolver,
       {
         registerToken: () => {
           throw new Error(`env.${key} cannot be resolved without an execution lease`);
@@ -168,42 +249,58 @@ async function provisionSprite(input: {
       `env.${key}`,
     );
   }
-  step("sprite activation: daemon service");
-  await provider.service(name, "paseo", {
-    cmd: `${npmPrefix}/bin/paseo`,
-    args: ["start", "--foreground", "--listen", DAEMON_LISTEN, "--no-relay", "--no-web-ui"],
-    env,
-    dir: HOME,
-  });
-  // `paseo hub connect` enrolls through the running daemon, so the service must exist first.
-  step("sprite activation: hub connect");
-  const connected = await provider.exec(
-    name,
-    ["sh", "-c", CONNECT_SCRIPT, "sh", input.hubOrigin, input.apiKey],
-    { env: daemonEnv },
-  );
-  logger.info(
-    { machineId: machine.id, sprite: name, output: connected.stdout.replaceAll(input.apiKey, "") },
-    "sprite activation: hub connect output",
-  );
-  expectSuccess("hub connect", connected);
+  return env;
 }
 
-async function destroyBestEffort(provider: SpriteProvider, machine: MachineRecord): Promise<void> {
-  if (machine.source.kind !== "sprite") return;
+function daemonService(npmPrefix: string, env: Record<string, string>) {
+  const daemonEnv = {
+    HOME,
+    PASEO_HOME: `${HOME}/.paseo`,
+    PATH: `${npmPrefix}/bin:${SYSTEM_PATH}`,
+    PASEO_PASSWORD: randomBytes(32).toString("base64url"),
+  };
+  return {
+    daemonEnv,
+    definition: {
+      cmd: `${npmPrefix}/bin/paseo`,
+      args: ["start", "--foreground", "--listen", DAEMON_LISTEN, "--no-relay", "--no-web-ui"],
+      env: { ...daemonEnv, ...env },
+      dir: HOME,
+    },
+  };
+}
+
+async function destroyBestEffort(
+  provider: SpriteProvider,
+  machine: MachineRecord,
+): Promise<boolean> {
+  if (machine.source.kind !== "sprite") return false;
   try {
     await provider.destroy(machine.source.spriteName);
+    return true;
   } catch (error) {
     reportFailure(error, {
       operation: "sprites.destroy",
       component: "sprites",
       organizationId: machine.orgId,
     });
+    return false;
   }
 }
 
-function expectSuccess(label: string, result: ExecResult): void {
+function expectSuccess(label: string, result: ExecResult, secrets: readonly string[]): void {
   if (result.exitCode === 0) return;
-  const output = `${result.stdout}${result.stderr}`.trim().slice(-2000);
+  const output = scrub(`${result.stdout}${result.stderr}`, secrets).trim().slice(-2000);
   throw new Error(`${label} exited with ${String(result.exitCode)}: ${output}`);
+}
+
+/** Short values match too much of a log line to replace, and are not credentials. */
+const SECRET_MIN_LENGTH = 8;
+
+function scrub(text: string, secrets: readonly string[]): string {
+  return secrets.reduce(
+    (scrubbed, secret) =>
+      secret.length < SECRET_MIN_LENGTH ? scrubbed : scrubbed.replaceAll(secret, "[redacted]"),
+    text,
+  );
 }

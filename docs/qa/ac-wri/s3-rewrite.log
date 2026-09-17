@@ -1,0 +1,41 @@
+# Scenario 3: rewrite on org env change (head 024c0a0). Sprite trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d, alive
+# and connected. Service/environ read with sprite-state.sh (PASEO_PASSWORD as length + sha256 prefix, marker as
+# <org-marker>). Daemon rows sampled with watch.sh (name | status | presence | connected_at | disconnected_at), UTC.
+# Latency is measured client-side through the cloudflared tunnel (server function awaits the rewrite).
+
+## A. setSpritesEnv QA_ADDED=1
+before 11:36:49
+  service paseo: status=running pid=725 started_at=2026-09-17T11:34:47.069536409Z
+  service env: HOME PASEO_HOME PASEO_PASSWORD=<43 chars sha256:48cb0f98> PATH QA_CLASH=from-target QA_ORG_MARKER=<org-marker> QA_TARGET_ONLY=t
+sent     11:36:50.583  -> HTTP/2 200 status ok
+returned 11:36:57.200  latency 6.66 s
++4s 11:37:01
+  service paseo: status=running pid=789 started_at=2026-09-17T11:36:52.144788959Z
+  service env: HOME=/home/sprite PASEO_HOME=/home/sprite/.paseo PASEO_PASSWORD=<43 chars sha256:cd9a0be5> PATH=/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin QA_ADDED=1 QA_CLASH=from-target QA_ORG_MARKER=<org-marker> QA_TARGET_ONLY=t
+  /proc/789/environ: PATH=/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive LANG=en_US.UTF-8 BROWSER=/.sprite/bin/sprite-browser HOME=/home/sprite SPRITE_STORAGE_DRIVER=juicefs QA_ORG_MARKER=<org-marker> QA_TARGET_ONLY=t PASEO_HOME=/home/sprite/.paseo PASEO_PASSWORD=<43 chars sha256:cd9a0be5> QA_ADDED=1 QA_CLASH=from-target
+  (+8 s to +24 s: identical, pid 789 stable)
+watch.sh
+  == 11:36:49  alive | connected | 11:34:56.515 | -
+  == 11:36:52  alive | offline   | 11:34:56.515 | 11:36:51.590
+  == 11:36:58  alive | connected | 11:36:56.326 | 11:36:51.590
+Hub log lines written between the save and 11:38:04: 0 (no line for the rewrite, the disconnect, or the reconnect)
+
+## B. removeSpritesEnv QA_ADDED
+sent     11:38:15.641  -> HTTP/2 200 status ok
+returned 11:38:22.655  latency 7.05 s
++3s 11:38:25
+  service paseo: status=running pid=839 started_at=2026-09-17T11:38:17.671729576Z
+  service env: HOME=/home/sprite PASEO_HOME=/home/sprite/.paseo PASEO_PASSWORD=<43 chars sha256:8b1fe122> PATH=/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin QA_CLASH=from-target QA_ORG_MARKER=<org-marker> QA_TARGET_ONLY=t
+  /proc/839/environ: PATH=/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive LANG=en_US.UTF-8 BROWSER=/.sprite/bin/sprite-browser HOME=/home/sprite SPRITE_STORAGE_DRIVER=juicefs PASEO_HOME=/home/sprite/.paseo PASEO_PASSWORD=<43 chars sha256:8b1fe122> QA_CLASH=from-target QA_ORG_MARKER=<org-marker> QA_TARGET_ONLY=t
+stored keys: QA_CLASH,QA_ORG_MARKER
+watch.sh
+  == 11:38:15  alive | connected | 11:36:56.326 | 11:36:51.590
+  == 11:38:17  alive | offline   | 11:36:56.326 | 11:38:17.079
+  == 11:38:22  alive | connected | 11:38:21.727 | 11:38:17.079
+Hub log lines written: 0
+
+## C. saveSpritesSettings with the same token (memoryMb 8192): no rewrite
+before 11:39:01  service paseo: status=running pid=839 started_at=2026-09-17T11:38:17.671729576Z
+sent 11:39:02.238 -> HTTP/2 200 status ok, latency 0.88 s
+after  11:39:22  service paseo: status=running pid=839 started_at=2026-09-17T11:38:17.671729576Z
+watch.sh 11:39:01-11:39:21: one sample only (no change)  alive | connected | 11:38:21.727 | 11:38:17.079

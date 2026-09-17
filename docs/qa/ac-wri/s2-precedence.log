@@ -1,0 +1,48 @@
+# Scenario 2: precedence on a real sprite (head 024c0a0, Hub :3001). Marker value shown as <org-marker>, tunnel as <tunnel>.
+
+## Org env set through setSpritesEnv before any trigger (wire.sh setenv, owner session)
+setSpritesEnv QA_ORG_MARKER=<org-marker> -> HTTP 200 status ok
+setSpritesEnv QA_CLASH=from-org -> HTTP 200 status ok
+stored keys: QA_CLASH,QA_ORG_MARKER
+
+## Install s2-trigger.yml at 11:34:27Z (install.sh)
+{"triggerId":"7c7a81b1-f9cc-4077-8c93-e8d991fd614d","name":"qa-acwri-precedence","revisionId":"f8bb2d30-0fd1-4e41-9753-ef5cd42cd8ed","version":1,"active":true}
+HTTP 201 total 0.394062s
+
+## watch.sh (name | status | specs | shutdown_reason | presence | connected_at | disconnected_at), UTC
+== 11:34:28
+trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d | spawning | {"memoryMb": 8192, "bootstrapHash": "30011aff01399df0e522b600a1574f807be0705763958c55e5b805e1e554f478"} |  | - | - | -
+== 11:34:32
+trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d | spawning | {"memoryMb": 8192, "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0", "bootstrapHash": "30011aff01399df0e522b600a1574f807be0705763958c55e5b805e1e554f478"} |  | - | - | -
+== 11:34:57
+trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d | alive | {"memoryMb": 8192, "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0", "bootstrapHash": "30011aff01399df0e522b600a1574f807be0705763958c55e5b805e1e554f478"} |  | connected | 11:34:56.515 | -
+
+## Hub log, activation (local +0300)
+[2026-09-17 14:34:28.202 +0300] INFO: sprite activation: destroy leftover
+[2026-09-17 14:34:28.689 +0300] INFO: sprite activation: create
+[2026-09-17 14:34:29.847 +0300] INFO: sprite activation: npm prefix
+[2026-09-17 14:34:31.693 +0300] INFO: sprite activation: install paseo
+[2026-09-17 14:34:46.487 +0300] INFO: sprite activation: bootstrap
+[2026-09-17 14:34:46.797 +0300] INFO: sprite activation: daemon service
+[2026-09-17 14:34:52.024 +0300] INFO: sprite activation: hub connect
+[2026-09-17 14:34:56.293 +0300] INFO: sprite activation: hub connect output
+[2026-09-17 14:34:56.293 +0300] INFO: sprite activation bootstrapped
+
+## (a) sprite exec cat /home/sprite/bootstrap-env.txt  (printenv QA_ORG_MARKER QA_CLASH QA_TARGET_ONLY PATH)
+<org-marker>
+from-target
+t
+/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+## (b) GET /v1/sprites/trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d/services and /proc/<pid>/environ (sprite-state.sh; PASEO_PASSWORD as length + sha256 prefix)
+service paseo: status=running pid=725 started_at=2026-09-17T11:34:47.069536409Z
+service env: HOME=/home/sprite PASEO_HOME=/home/sprite/.paseo PASEO_PASSWORD=<43 chars sha256:48cb0f98> PATH=/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin QA_CLASH=from-target QA_ORG_MARKER=<org-marker> QA_TARGET_ONLY=t
+/proc/725/environ: PATH=/.sprite/languages/node/nvm/versions/node/v24.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive LANG=en_US.UTF-8 BROWSER=/.sprite/bin/sprite-browser HOME=/home/sprite SPRITE_STORAGE_DRIVER=juicefs QA_ORG_MARKER=<org-marker> QA_TARGET_ONLY=t PASEO_HOME=/home/sprite/.paseo PASEO_PASSWORD=<43 chars sha256:48cb0f98> QA_CLASH=from-target
+
+## (c) machines.specs keys and a data-only pg_dump grep
+trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d|{"memoryMb": 8192, "npmPrefix": "/.sprite/languages/node/nvm/versions/node/v24.18.0", "bootstrapHash": "30011aff01399df0e522b600a1574f807be0705763958c55e5b805e1e554f478"}
+pg_dump --data-only rows containing <org-marker>: 1 (the organization_sprites_configuration row only: b7c42e33)
+machines rows whose specs or shutdown_reason mention QA_ or the marker: 0
+
+## Side observation: connect output log line with QA_TARGET_ONLY=t in the scrub list (Finding 1). Tunnel host redacted afterwards.
+    output: "STATE       HUB                                                     DAEMON                                PERMISSIONS  CONNECTED  ERROR  WARNING\nconnec[redacted]ing  h[redacted][redacted]ps://<rest elided: tunnel host fragments between [redacted] marks>

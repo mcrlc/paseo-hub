@@ -1,0 +1,36 @@
+# Scenario 1: harness regression at 024c0a0 (2026-09-17)
+$ npx vitest run src/daemons/sprites src/triggers
+ ✓ src/daemons/sprites/activation.test.ts (10 tests) 12ms
+ ✓ src/daemons/sprites/settings.test.ts (16 tests) 1ms
+ ↓ src/daemons/sprites/client.real.test.ts (1 test | 1 skipped)
+ Test Files  47 passed | 2 skipped (49)
+      Tests  413 passed | 2 skipped (415)
+   Duration  34.57s (transform 1.23s, setup 0ms, collect 3.76s, tests 30.41s, environment 0ms, prepare 27ms)
+
+(The PR body's 48 files / 416 tests also include src/db/organization-sprites-configuration.integration.test.ts,
+which this scenario does not run.) No flaky run.
+
+## Are the PR body's five items asserted? (activation.test.ts, settings.test.ts at 024c0a0)
+
+1. Service env { HOME, PASEO_HOME, PATH, PASEO_PASSWORD, ...org, ...target }: ASSERTED.
+   "creates, bootstraps, and enrolls…" deepEquals the service definition env against
+   { ...daemonEnv, PASEO_PASSWORD, ORG_ONLY: org-value, ANTHROPIC_API_KEY: resolved:anthropic.api_key, LITERAL: plain }
+   with org env { ANTHROPIC_API_KEY: org-anthropic, ORG_ONLY: org-value } in the stub DB, so the clash resolves to the target.
+   Gap: nothing asserts that the daemon vars beat a target env key named HOME/PATH/PASEO_HOME/PASEO_PASSWORD
+   (the org map refuses those names; trigger YAML `env` does not, and daemonService spreads env after the daemon vars).
+2. Bootstrap exec env { PATH, ...org, ...target }, target resolved before bootstrap: ASSERTED
+   (same test, exec `sh -s` env = { PATH, ...mergedEnv }; the lease test now expects destroy, create, exec, exec, destroy).
+3. Scrub of org and resolved target values: ASSERTED for shutdown_reason ("bootstrap exited with 3: [redacted] [redacted]
+   [redacted]", covering an org value, a resolved target value, and the api key) and for the connect output log line.
+   Gap: the reportFailure scrubValues path (sprites.activate and sprites.rewrite-service) is not asserted, and no test
+   uses a short value, which is where the real run found substring over-scrubbing (Finding 1).
+4. Destroy log after failure: ASSERTED present (bootstrap exit 3) and absent (destroy throws).
+5. Rewrite of alive sprites on setEnv/removeEnv: ASSERTED in two halves.
+   activation.test.ts: four triggers (alive-a with a failing provider, alive-b, spawning, terminated) -> exactly two
+   service calls in order, each with the merged env and a 43-char password; the failure on alive-a does not stop alive-b.
+   settings.test.ts: rewrite called once per successful setEnv/removeEnv (["org-1","org-1"]); not on a refused set
+   (no token), not on a refused remove (missing key), not on the token save.
+   Gaps: no test for an alive row without specs.npmPrefix (the skip branch), none for a trigger whose active config has
+   no sprite environment, none that reportFailure is called with operation sprites.rewrite-service, and none for a
+   rewrite that throws before its per-trigger try (getOrganizationSpritesConfiguration / listOrganizationTriggers), which
+   would make setEnv reject after the env write committed (Finding 6).

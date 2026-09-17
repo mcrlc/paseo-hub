@@ -3,6 +3,7 @@ import { describe, it } from "vitest";
 import type { AuthServer } from "../../auth/server.js";
 import type { OrganizationRole } from "../../auth/organization-policy.js";
 import { createMemoryDatabase } from "../../db/memory.js";
+import { createSpriteServiceRewrite } from "./activation.js";
 import { SpritesSettings } from "./settings.js";
 
 const request = new Request("https://hub.test/o/acme/settings/sprites");
@@ -125,6 +126,35 @@ describe("Sprites organization settings", () => {
     assert.equal(after.updatedByUserId, null);
   });
 
+  it("rewrites live sprite services after each successful variable write", async () => {
+    const { settings, rewrites } = setup("owner");
+    await assert.rejects(settings.setEnv(request, "acme", { key: "TOKEN", value: "v" }));
+    await settings.save(request, "acme", { token: "t", memoryMb: 8192 });
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: "v" });
+    await assert.rejects(settings.removeEnv(request, "acme", { key: "OTHER" }));
+    await settings.removeEnv(request, "acme", { key: "TOKEN" });
+    assert.deepEqual(rewrites, ["org-1", "org-1"]);
+  });
+
+  it("stores the variable even when the rewrite cannot read the database", async () => {
+    const { settings, database } = setup("owner", 200, (db) => {
+      db.listOrganizationTriggers = () => Promise.reject(new Error("database is down"));
+      return createSpriteServiceRewrite({
+        database: db,
+        connectionsForProject: () => () => "",
+        provider: () => {
+          throw new Error("unused");
+        },
+      });
+    });
+    await settings.save(request, "acme", { token: "t", memoryMb: 8192 });
+
+    await settings.setEnv(request, "acme", { key: "TOKEN", value: "v" });
+    assert.deepEqual((await database.getOrganizationSpritesConfiguration("org-1"))?.env, {
+      TOKEN: "v",
+    });
+  });
+
   it("refuses to remove a variable that does not exist", async () => {
     const { settings } = setup("owner");
     const notFound = {
@@ -198,9 +228,14 @@ describe("Sprites organization settings", () => {
   });
 });
 
-function setup(role: OrganizationRole, status = 200) {
+function setup(
+  role: OrganizationRole,
+  status = 200,
+  rewriteFor?: (database: ReturnType<typeof createMemoryDatabase>) => (id: string) => Promise<void>,
+) {
   let answer = status;
   const requests: { url: string; authorization: string | null }[] = [];
+  const rewrites: string[] = [];
   const fetchStub: typeof fetch = (input, init) => {
     requests.push({
       url: input instanceof Request ? input.url : input.toString(),
@@ -223,10 +258,18 @@ function setup(role: OrganizationRole, status = 200) {
   return {
     database,
     requests,
+    rewrites,
     respondWith: (next: number) => {
       answer = next;
     },
-    settings: new SpritesSettings(database, accountAuth(), { fetch: fetchStub }),
+    settings: new SpritesSettings(database, accountAuth(), {
+      fetch: fetchStub,
+      rewriteServices:
+        rewriteFor?.(database) ??
+        (async (organizationId) => {
+          rewrites.push(organizationId);
+        }),
+    }),
   };
 }
 

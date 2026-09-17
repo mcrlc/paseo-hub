@@ -1,0 +1,19 @@
+name: qa-acwri-precedence
+enabled: true
+on:
+  manual.run: {}
+run:
+  target:
+    kind: sprite
+    bootstrap: |
+      printenv QA_ORG_MARKER QA_CLASH QA_TARGET_ONLY PATH > /home/sprite/bootstrap-env.txt
+      exit 0
+    cwd: /home/sprite
+    env:
+      QA_CLASH: from-target
+      QA_TARGET_ONLY: t
+  agent: { provider: claude, mode: bypassPermissions }
+  prompt: Call the finish_execution MCP tool exactly once.
+  auto_archive: true
+  max_runtime: 1h
+  idle_timeout: 5m
