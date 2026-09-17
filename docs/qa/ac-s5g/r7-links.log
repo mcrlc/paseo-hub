@@ -1,4 +1,4 @@
-# Round 7: links and anchors at 365dbc3 (working tree) on 2026-09-17T17:20:54Z
+# Round 7 (post-merge): links and anchors at 26ff62a on 2026-09-17T17:42:49Z
 ok   SECURITY.md: (docs/sprite-targets-guide.md) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/sprite-targets-guide.md
 ok   docs/sprite-targets-guide.md: (entitlements.md) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/entitlements.md
 ok   docs/sprite-targets-guide.md: (../SECURITY.md#sprite-targets) -> /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/SECURITY.md #sprite-targets found
