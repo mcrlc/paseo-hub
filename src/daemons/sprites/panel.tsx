@@ -13,7 +13,11 @@ import { SummaryPanel } from "../../components/app/summary-panel.js";
 import { Button } from "../../components/ui/button.js";
 import type { Result } from "../../contract/respond.js";
 import { useRouteTenant } from "../../projects/context.js";
-import { saveSpritesSettings, spritesSettingsSnapshot } from "./functions.js";
+import {
+  saveSpritesSettings,
+  spritesSettingsSnapshot,
+  type SpritesSaveOutcome,
+} from "./functions.js";
 import type { SpritesSettingsSnapshot } from "./settings.js";
 
 const DEFAULT_MEMORY_MB = 8192;
@@ -44,9 +48,10 @@ export function SpritesSettingsPanel() {
   const save = useMutation({
     mutationFn: useServerFn(saveSpritesSettings) as (
       input: Parameters<typeof saveSpritesSettings>[0],
-    ) => Promise<Result<{ state: "complete" }>>,
+    ) => Promise<Result<SpritesSaveOutcome>>,
     onSuccess: async (result) => {
-      if (result.status === "ok") await queryClient.invalidateQueries({ queryKey });
+      if (result.status === "ok" && result.data.state === "complete")
+        await queryClient.invalidateQueries({ queryKey });
     },
   });
   const onSave = useCallback(
@@ -54,6 +59,7 @@ export function SpritesSettingsPanel() {
       save.mutate({ data: { organizationSlug, ...values } }),
     [organizationSlug, save],
   );
+  const reset = useCallback(() => save.reset(), [save]);
   const reload = useCallback(() => void snapshot.refetch(), [snapshot]);
   const description = `The Fly Sprites organization token Hub uses to create sprites for ${tenant.organization.name}.`;
 
@@ -101,8 +107,12 @@ export function SpritesSettingsPanel() {
       <SpritesSettingsContent
         snapshot={snapshot.data.data}
         busy={save.isPending}
-        saved={save.data?.status === "ok"}
+        saved={save.data?.status === "ok" && save.data.data.state === "complete"}
         error={saveError}
+        {...(save.data?.status === "ok" && save.data.data.state === "invalid"
+          ? { serverErrors: save.data.data.errors }
+          : {})}
+        onReset={reset}
         onSave={onSave}
       />
     </>
@@ -114,23 +124,26 @@ export function SpritesSettingsContent({
   busy,
   saved,
   error,
+  serverErrors,
+  onReset,
   onSave,
 }: {
   snapshot: SpritesSettingsSnapshot;
   busy: boolean;
   saved: boolean;
   error: Failure;
+  serverErrors?: FieldErrors;
+  onReset: () => void;
   onSave: (values: { token: string; memoryMb: number }) => void;
 }) {
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const [localErrors, setErrors] = useState<FieldErrors>({});
+  const errors = { ...serverErrors, ...localErrors };
   const submit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const values = spritesFormValues(new FormData(event.currentTarget));
-      setErrors(values.errors);
-      if (values.values !== undefined) onSave(values.values);
+      setErrors(submitSpritesForm(new FormData(event.currentTarget), onReset, onSave));
     },
-    [onSave],
+    [onReset, onSave],
   );
   const summary = useMemo(
     () =>
@@ -196,6 +209,17 @@ export function SpritesSettingsContent({
       </Card>
     </>
   );
+}
+
+export function submitSpritesForm(
+  form: FormData,
+  reset: () => void,
+  save: (values: { token: string; memoryMb: number }) => void,
+): FieldErrors {
+  reset();
+  const { values, errors } = spritesFormValues(form);
+  if (values !== undefined) save(values);
+  return errors;
 }
 
 export function spritesFormValues(form: FormData): {

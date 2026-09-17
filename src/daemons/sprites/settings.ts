@@ -4,16 +4,42 @@ import type { Database } from "../../db/types.js";
 import { resolveRouteTenant } from "../../projects/access.js";
 import { ProjectCommandError } from "../../projects/command-error.js";
 
+export class SpritesTokenRejectedError extends Error {
+  readonly code = "invalidInput";
+
+  constructor() {
+    super("Sprites rejected this token.");
+    this.name = "SpritesTokenRejectedError";
+  }
+}
+
+export class SpritesTokenCheckError extends Error {
+  constructor(httpStatus: number) {
+    super(
+      `Sprites answered HTTP ${httpStatus} when Hub checked the token. The stored token is unchanged.`,
+    );
+    this.name = "SpritesTokenCheckError";
+  }
+}
+
 export class SpritesSettings {
+  private readonly fetch: typeof fetch;
+
   constructor(
     private readonly database: Database,
     private readonly auth: AuthServer,
-  ) {}
+    options: { fetch?: typeof fetch } = {},
+  ) {
+    this.fetch = options.fetch ?? fetch;
+  }
 
   async snapshot(request: Request, organizationSlug: string) {
     const { tenant } = await resolveRouteTenant(this.auth, this.database, request, {
       organizationSlug,
     });
+    if (!capabilitiesFor(tenant.membership.role).manageResources) {
+      throw new ProjectCommandError("forbidden");
+    }
     const stored = await this.database.getOrganizationSpritesConfiguration(tenant.organization.id);
     return {
       configured: stored !== undefined,
@@ -34,6 +60,12 @@ export class SpritesSettings {
     if (!capabilitiesFor(tenant.membership.role).manageResources) {
       throw new ProjectCommandError("forbidden");
     }
+    const response = await this.fetch("https://api.sprites.dev/v1/sprites", {
+      headers: { Authorization: `Bearer ${input.token}` },
+    });
+    await response.body?.cancel();
+    if (response.status === 401 || response.status === 403) throw new SpritesTokenRejectedError();
+    if (!response.ok) throw new SpritesTokenCheckError(response.status);
     await this.database.upsertOrganizationSpritesConfiguration({
       organizationId: tenant.organization.id,
       token: input.token,

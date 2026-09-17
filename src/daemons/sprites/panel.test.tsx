@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it } from "vitest";
-import { SpritesSettingsContent, spritesFormValues } from "./panel.js";
+import { SpritesSettingsContent, spritesFormValues, submitSpritesForm } from "./panel.js";
 
 const CONFIGURED = {
   configured: true,
@@ -12,13 +12,17 @@ const CONFIGURED = {
 const UNCONFIGURED = { configured: false, memoryMb: null, updatedAt: null, updatedByUserId: null };
 const ignore = () => undefined;
 
-function markup(configured: boolean): string {
+const REJECTED = { token: "Sprites rejected this token." };
+
+function markup(configured: boolean, rejected = false): string {
   return renderToStaticMarkup(
     <SpritesSettingsContent
       snapshot={configured ? CONFIGURED : UNCONFIGURED}
       busy={false}
       saved={false}
       error={undefined}
+      {...(rejected ? { serverErrors: REJECTED } : {})}
+      onReset={ignore}
       onSave={ignore}
     />,
   );
@@ -54,5 +58,23 @@ describe("Sprites settings form", () => {
       token: "t",
       memoryMb: 8192,
     });
+  });
+
+  it("clears the previous save result on a submit that fails validation", () => {
+    const calls: string[] = [];
+    const errors = submitSpritesForm(
+      form({ token: "", memoryMb: "8192" }),
+      () => calls.push("reset"),
+      () => calls.push("save"),
+    );
+    assert.deepEqual(calls, ["reset"]);
+    assert.deepEqual(errors, { token: "Enter the Sprites organization token." });
+  });
+
+  it("shows a token Sprites rejected as an error on the token field", () => {
+    assert.match(
+      markup(false, true),
+      /id="sprites-token-error"[^>]*>Sprites rejected this token\./u,
+    );
   });
 });

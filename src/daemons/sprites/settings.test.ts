@@ -35,6 +35,43 @@ describe("Sprites organization settings", () => {
     );
   });
 
+  it("forbids a member without manage-resources from reading", async () => {
+    const { settings } = setup("member");
+    await assert.rejects(settings.snapshot(request, "acme"), {
+      name: "ProjectCommandError",
+      code: "forbidden",
+    });
+  });
+
+  it("checks the token against Sprites before storing it", async () => {
+    const { settings, requests } = setup("owner", 200);
+    await settings.save(request, "acme", { token: "sprites-secret", memoryMb: 8192 });
+    assert.deepEqual(requests, [
+      { url: "https://api.sprites.dev/v1/sprites", authorization: "Bearer sprites-secret" },
+    ]);
+    assert.equal((await settings.snapshot(request, "acme")).configured, true);
+  });
+
+  it("refuses a token Sprites rejects and keeps the stored one", async () => {
+    const { settings, database, respondWith } = setup("owner");
+    await settings.save(request, "acme", { token: "good", memoryMb: 8192 });
+    respondWith(401);
+    await assert.rejects(settings.save(request, "acme", { token: "typo", memoryMb: 8192 }), {
+      name: "SpritesTokenRejectedError",
+      message: "Sprites rejected this token.",
+    });
+    assert.equal((await database.getOrganizationSpritesConfiguration("org-1"))?.token, "good");
+  });
+
+  it("fails the save with the status when Sprites cannot check the token", async () => {
+    const { settings, database } = setup("owner", 500);
+    await assert.rejects(settings.save(request, "acme", { token: "t", memoryMb: 8192 }), {
+      name: "SpritesTokenCheckError",
+      message: /HTTP 500/u,
+    });
+    assert.equal(await database.getOrganizationSpritesConfiguration("org-1"), undefined);
+  });
+
   it("forbids a member without manage-resources from saving", async () => {
     const { settings, database } = setup("member");
     await assert.rejects(
@@ -45,7 +82,16 @@ describe("Sprites organization settings", () => {
   });
 });
 
-function setup(role: OrganizationRole) {
+function setup(role: OrganizationRole, status = 200) {
+  let answer = status;
+  const requests: { url: string; authorization: string | null }[] = [];
+  const fetchStub: typeof fetch = (input, init) => {
+    requests.push({
+      url: input instanceof Request ? input.url : input.toString(),
+      authorization: new Headers(init?.headers).get("authorization"),
+    });
+    return Promise.resolve(new Response("{}", { status: answer }));
+  };
   const database = createMemoryDatabase({
     memberships: [
       {
@@ -58,7 +104,14 @@ function setup(role: OrganizationRole) {
       },
     ],
   });
-  return { database, settings: new SpritesSettings(database, accountAuth()) };
+  return {
+    database,
+    requests,
+    respondWith: (next: number) => {
+      answer = next;
+    },
+    settings: new SpritesSettings(database, accountAuth(), { fetch: fetchStub }),
+  };
 }
 
 function accountAuth(): AuthServer {
