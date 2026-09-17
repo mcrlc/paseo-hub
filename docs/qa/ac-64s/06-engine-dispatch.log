@@ -1,0 +1,93 @@
+POST /api/v1/triggers/install -> HTTP 201 {"triggerId":"6d6ddfd2-21c1-44be-abc1-c1085464355f","name":"sprite-review","revisionId":"02645fab-5bcb-4d10-ade2-0c3f7b7f0a55","version":1,"active":true}
+POST /api/v1/manual-runs -> HTTP 200 {"deliveryKey":"qa-1789625749945","providerEventReceiptId":"24c67a92-e9b1-4719-99c6-00f36bb48f2e","triggerRunId":"8196999e-b4e0-4476-af4f-b8ecf916ec12","configuredTriggerName":"sprite-review","workflowStatus":"running"}
+t=0s {"status":"running","wakeups":"1","executions":"0","daemonLaunches":0,"daemonPrompts":0}
+[2026-09-17 09:15:49.952 +0300] INFO: manual event intake completed
+    source: "manual.run"
+    deliveryId: "public-manual-O0zwuDkl57DTadm7cMB8GZHvBE7KKWsn41PGOatQJe0"
+    receiptId: "24c67a92-e9b1-4719-99c6-00f36bb48f2e"
+    outcome: "accepted"
+[2026-09-17 09:15:49.958 +0300] INFO: provider event routing completed
+    source: "manual.run"
+    deliveryId: "public-manual-O0zwuDkl57DTadm7cMB8GZHvBE7KKWsn41PGOatQJe0"
+    receiptId: "24c67a92-e9b1-4719-99c6-00f36bb48f2e"
+    projectId: "66ffeb41-9fcc-4e51-99b1-663fa96a5e9e"
+    outcome: "matched"
+    triggerNames: [
+      "sprite-review"
+    ]
+    acceptedCount: 1
+    rejectedCount: 0
+[2026-09-17 09:15:50.175 +0300] ERROR: workflow.launch-expression.evaluate failed
+    failureKind: "internal"
+    requestId: "90e3aa86-1a1d-4bc7-99e6-1ced96a3228d"
+    operation: "workflow.launch-expression.evaluate"
+    component: "workflows"
+    diagnostic: {
+      "triggerRunId": "8196999e-b4e0-4476-af4f-b8ecf916ec12",
+      "stepId": "run"
+    }
+    err: {
+      "type": "SpriteDispatchUnsupportedError",
+      "stack":
+    }
+t=1s {"status":"failed","wakeups":"0","executions":"0","daemonLaunches":0,"daemonPrompts":0}
+t=30s {"status":"failed","wakeups":"0","executions":"0","daemonLaunches":0,"daemonPrompts":0} (unchanged samples collapsed)
+
+trigger run record = {
+  "conversation": null,
+  "id": "8196999e-b4e0-4476-af4f-b8ecf916ec12",
+  "organizationId": "org-da5852bf-1eb7-489b-9d4b-5624177088fa",
+  "projectId": "66ffeb41-9fcc-4e51-99b1-663fa96a5e9e",
+  "configurationRevisionId": "87ac7347-765f-4582-b433-e7774eca6e77",
+  "providerEventReceiptId": "24c67a92-e9b1-4719-99c6-00f36bb48f2e",
+  "configuredTriggerName": "sprite-review",
+  "prompt": "",
+  "inputs": {},
+  "values": {},
+  "triggerContext": {
+    "event": {
+      "manual": {
+        "actor": "qa",
+        "input": {},
+        "trigger": "sprite-review",
+        "delivery_id": "qa-1789625749945"
+      }
+    },
+    "provider": "manual",
+    "deliveryId": "qa-1789625749945"
+  },
+  "outputContext": {
+    "actor": "qa",
+    "provider": "manual"
+  },
+  "createdAt": "2026-09-17T06:15:49.954Z",
+  "outcome": "accepted",
+  "status": "failed",
+  "deadlineAt": "2026-09-17T06:45:49.954Z",
+  "deadlineKind": null,
+  "failureReason": "workflow environment target is a sprite target, which cannot be dispatched yet",
+  "reactionState": null,
+  "terminalNotificationPendingAt": "2026-09-17T06:15:50.185Z",
+  "terminalNotificationDeliveredAt": "2026-09-17T06:15:50.195Z",
+  "terminalNotificationLeaseExpiresAt": null,
+  "completedAt": "2026-09-17T06:15:50.185Z"
+}
+step runs = [
+  {
+    "id": "201d8edc-0893-4c0a-9c85-651cd742e6d6",
+    "triggerRunId": "8196999e-b4e0-4476-af4f-b8ecf916ec12",
+    "stepId": "run",
+    "ordinal": 0,
+    "status": "failed",
+    "agentExecutionId": null,
+    "output": null,
+    "failureReason": "workflow environment target is a sprite target, which cannot be dispatched yet",
+    "deadlineKind": null,
+    "deadlineAt": null,
+    "idleDeadlineAt": null,
+    "startedAt": null,
+    "completedAt": "2026-09-17T06:15:50.185Z",
+    "dispatchIntent": null
+  }
+]
+organization_usage rows = []

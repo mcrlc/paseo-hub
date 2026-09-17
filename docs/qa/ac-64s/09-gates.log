@@ -1,0 +1,70 @@
+# Verified at head 46c34d4. Full vitest output trimmed to the tail; the complete run listed 81 files.
+$ npm run format:check
+> @getpaseo/hub@0.9.0 format:check
+> oxfmt --check .
+Checking formatting...
+All matched files use the correct format.
+Finished in 1880ms on 734 files using 15 threads.
+exit=0
+$ npm run typecheck
+> @getpaseo/hub@0.9.0 typecheck
+> npm run typecheck:node && npm run typecheck:start && npm run typecheck:e2e
+> @getpaseo/hub@0.9.0 typecheck:node
+> tsgo --noEmit -p tsconfig.json
+> @getpaseo/hub@0.9.0 typecheck:start
+> tsgo --noEmit -p tsconfig.start.json
+> @getpaseo/hub@0.9.0 typecheck:e2e
+> tsgo --noEmit -p tsconfig.e2e.json
+exit=0
+$ npm run lint
+> @getpaseo/hub@0.9.0 lint
+> npm run lint:node && npm run lint:start
+> @getpaseo/hub@0.9.0 lint:node
+> oxlint --config oxlint.json --tsconfig tsconfig.json --ignore-pattern '**/*.tsx' --ignore-pattern '**/*.mjs' src
+Found 0 warnings and 0 errors.
+Finished in 2.2s on 453 files with 238 rules using 15 threads.
+> @getpaseo/hub@0.9.0 lint:start
+> oxlint --config oxlint.json --tsconfig tsconfig.start.json --ignore-pattern '**/*.mjs' src vite.config.ts drizzle.config.ts
+Found 0 warnings and 0 errors.
+Finished in 2.2s on 578 files with 238 rules using 15 threads.
+exit=0
+$ npx vitest run src/config src/triggers src/configuration src/workflows src/daemons src/entitlements src/billing src/test-utils
+ ✓ src/triggers/schedule/recurrence.test.ts (11 tests) 13ms
+ ✓ src/triggers/linear/events.test.ts (6 tests) 1ms
+ ✓ src/configuration/compiler-activation.test.ts (1 test) 2ms
+ ↓ src/triggers/discord/e2e.real.test.ts (1 test | 1 skipped)
+ ✓ src/triggers/dashboard.test.ts (1 test) 4ms
+ ✓ src/triggers/schedule/rrule.test.ts (15 tests) 47ms
+ ✓ src/triggers/migration.embedded.integration.test.ts (1 test) 1065ms
+   ✓ embedded startup trigger migration > persists the migration marker and self-contained revisions across reopen  1065ms
+ ✓ src/billing/plan-template.test.ts (9 tests) 1ms
+ ✓ src/triggers/slack/reply.test.ts (3 tests) 0ms
+ ✓ src/workflows/phase-three.test.ts (2 tests) 8ms
+ ✓ src/triggers/lifecycle.test.ts (2 tests) 0ms
+ ✓ src/daemons/provider-catalog.test.ts (1 test) 0ms
+ ✓ src/triggers/configuration/legacy-migration.test.ts (2 tests) 2ms
+ ✓ src/triggers/audit.test.ts (2 tests) 1ms
+ ✓ src/billing/plan-prices.test.ts (6 tests) 0ms
+ ✓ src/billing/trial-policy.test.ts (6 tests) 0ms
+ ✓ src/entitlements/denial.test.ts (4 tests) 1ms
+ ✓ src/triggers/linear/reply.test.ts (2 tests) 0ms
+ ✓ src/config/current-project-fixture.test.ts (1 test) 9ms
+ ✓ src/config/public-examples.test.ts (1 test) 12ms
+ ✓ src/billing/config.test.ts (6 tests) 0ms
+ ✓ src/billing/ui/functions.test.ts (2 tests) 0ms
+ ✓ src/configuration/validation-errors.test.ts (2 tests) 0ms
+ ✓ src/triggers/github/reply.test.ts (2 tests) 1ms
+ ✓ src/triggers/provider-catalog.test.ts (2 tests) 0ms
+ ✓ src/workflows/expression.test.ts (2 tests) 0ms
+ ✓ src/triggers/schedule/clock.test.ts (1 test) 0ms
+ ✓ src/triggers/index.test.ts (2 tests) 0ms
+ ✓ src/triggers/continuation.test.ts (2 tests) 0ms
+ ✓ src/daemons/durable-execution.test.ts (1 test) 0ms
+ ✓ src/daemons/status.test.ts (2 tests) 1ms
+ ✓ src/config/runtime-source.test.ts (1 test) 0ms
+ ✓ src/triggers/drop-reason.test.ts (1 test) 0ms
+ Test Files  80 passed | 1 skipped (81)
+      Tests  791 passed | 1 skipped (792)
+   Start at  09:12:58
+   Duration  479.07s (transform 1.63s, setup 0ms, collect 4.94s, tests 473.66s, environment 0ms, prepare 25ms)
+exit=0

@@ -1,0 +1,48 @@
+
+== Scenario 2a: trigger-document rejections ==
+[auto_archive: false] TriggerDocumentError
+    path=run.auto_archive  message=Sprite targets always archive; auto_archive must be true.
+[missing bootstrap] TriggerDocumentError
+    path=run.target.bootstrap  message=Invalid input: expected string, received undefined
+[empty bootstrap] TriggerDocumentError
+    path=run.target.bootstrap  message=Too small: expected string to have >=1 characters
+[relative cwd] TriggerDocumentError
+    path=run.target.cwd  message=must be an absolute path
+[memory: 0] TriggerDocumentError
+    path=run.target.memory  message=Too small: expected number to be >0
+[memory: 1.5] TriggerDocumentError
+    path=run.target.memory  message=Invalid input: expected int, received number
+[unknown extra field] TriggerDocumentError
+    path=run.target  message=Unrecognized key: "region"
+[env non-string value] TriggerDocumentError
+    path=run.target.env.ANTHROPIC_API_KEY  message=Invalid input: expected string, received number
+
+== Scenario 2b: kind: sprite in a legacy .paseo/hub.yml bundle ==
+compileHubBundle: HubBundleError: .paseo/hub.yml.environments.runner.kind: Invalid discriminator value. Expected 'daemon'
+  issues=[{"path":[".paseo/hub.yml","environments","runner","kind"],"message":"Invalid discriminator value. Expected 'daemon'"}]
+POST /api/v1/configurations/install -> HTTP 422
+{
+  "type": "https://paseo.sh/problems/invalid-configuration-bundle",
+  "title": "Invalid configuration bundle",
+  "status": 422,
+  "detail": "Correct the canonical Hub bundle files and submit them again.",
+  "code": "invalid_configuration_bundle",
+  "requestId": "f86f2e80-e490-4a76-9178-bed0c98afdf9",
+  "issues": [
+    {
+      "path": [
+        ".paseo/hub.yml",
+        "environments",
+        "runner",
+        "kind"
+      ],
+      "message": "Invalid discriminator value. Expected 'daemon'"
+    }
+  ]
+}
+RESULT pass (4xx)
+
+== Probe: env template values are not validated at authoring time ==
+env GITHUB_TOKEN=${{ paseo.bogus.path }}: ACCEPTED
+env GITHUB_TOKEN=${{ unterminated: ACCEPTED
+worktree.newBranch=${{ paseo.bogus.path }}: REJECTED : invalid workflow expression: unsupported path paseo.bogus.path

@@ -1,0 +1,32 @@
+== projectTriggerForm(sprite yaml) ==
+{
+  "status": "yaml_only",
+  "reason": "Sprite targets can only be edited in YAML."
+}
+
+== patchTriggerYaml(sprite yaml, a daemon form value with an edited prompt) ==
+threw Error: Sprite targets can only be edited in YAML.
+
+== mergeTriggerForm(sprite yaml, form value) ==
+{
+  "status": "ok",
+  "yaml": "name: daemon-review\nenabled: true\non:\n  manual.run: {}\nrun:\n  target:\n    daemon: devbox\n    cwd: /workspace\n  agent:\n    provider: claude\n    mode: bypassPermissions\n  continuation:\n    mode: conversation\n  max_runtime: 30m\n  idle_timeout: 5m\n  prompt: Review it.\n"
+}
+
+== YAML save with a prompt edit through OrganizationTriggerStore ==
+revision versions: 1 -> 2
+target block before === authored SPRITE_TARGET: true
+target block byte-identical after prompt edit: true
+projection after save: {"status":"yaml_only","reason":"Sprite targets can only be edited in YAML."}
+
+$ diff -u before.yml after.yml
+--- /tmp/ac64s-before.yml	2026-09-17 09:13:54
++++ /tmp/ac64s-after.yml	2026-09-17 09:13:54
+@@ -17,6 +17,6 @@
+       newBranch: hub-work
+       base: origin/main
+   agent: { provider: claude, mode: bypassPermissions }
+-  prompt: Review it.
++  prompt: Review it carefully and summarize.
+   max_runtime: 30m
+   idle_timeout: 5m
