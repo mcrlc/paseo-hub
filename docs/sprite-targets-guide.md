@@ -131,7 +131,8 @@ a new agent. This is Hub's rule for every target.
 Provider credentials for sprites go in **Settings → Sprites → daemon environment**, for example
 `CLAUDE_CODE_OAUTH_TOKEN` with the Claude subscription token from `claude setup-token`. Values there are
 write-only. Hub writes this environment into the daemon service of every sprite in the organization,
-beneath the target's `env`; on a clash the target's value wins. Saving the settings rewrites the service on
+beneath the target's `env`; on a clash the target's value wins. `bootstrap` runs with the same variables,
+in the same order. Saving the settings rewrites the service on
 every live sprite, which restarts its daemon. Nothing secret enters trigger YAML.
 
 The target's `env` holds only per-trigger, non-secret values. A `${{ paseo.connections.<slug>.<value> }}`
@@ -158,8 +159,11 @@ token in the daemon environment instead.
   global bin directory on `PATH`, so `npm`, `paseo`, and `~` work inside it. When you try commands yourself
   with `sprite exec`, the shell is non-login and its `PATH` lacks the npm global bin directory, so use
   absolute paths there.
-- **Clone in `bootstrap`.** Hub does not clone. `bootstrap` clones, and the credential it uses must not be
-  written into the trigger YAML.
+- **Clone in `bootstrap`.** Hub does not clone. For a private repository, put the clone credential in
+  Settings → Sprites → daemon environment, for example a fine-grained GitHub token in `GITHUB_TOKEN`, and
+  read it in `bootstrap` as an ordinary variable:
+  `git clone https://x-access-token:$GITHUB_TOKEN@github.com/acme/project.git /home/sprite/workspace/project`.
+  Never write the credential into the trigger YAML.
 
 ## Limits
 
