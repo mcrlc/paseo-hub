@@ -84,7 +84,7 @@ run:
     cwd: /home/sprite/workspace/project
     memory: 16384
     env:
-      ANTHROPIC_API_KEY: ${{ paseo.connections.anthropic.api_key }}
+      ANTHROPIC_API_KEY: sk-ant-...
     worktree:
       mode: branch-off
       newBranch: trigger-${{ paseo.execution.id }}
@@ -93,14 +93,14 @@ run:
   prompt: ...
 ```
 
-| Field       | Required | Notes                                                                                                                                                                                                                                                                    |
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `kind`      | yes      | `sprite`. Omitted or `daemon` keeps the current `{ daemon, cwd, worktree }` object.                                                                                                                                                                                      |
-| `bootstrap` | yes      | Shell run once by exec after create, as the `sprite` user, with the npm global bin dir on `PATH`. It must install the agent CLIs and populate `cwd`. Hub installs the Paseo CLI before it runs and enrolls the daemon after it succeeds. Exit non-zero fails the sprite. |
-| `cwd`       | yes      | Absolute directory on the sprite. `bootstrap` is responsible for it existing and being a git checkout.                                                                                                                                                                   |
-| `memory`    | no       | Memory limit in MB, applied through the resources policy after create. Default 8192, the provider default. The only shape knob Sprites exposes.                                                                                                                          |
-| `env`       | no       | Daemon service environment. Connection templates are resolved once when the service is written and stored on the sprite, so they are not per-execution leases and do not make sessions credentialed (5.7, 5.9).                                                          |
-| `worktree`  | no       | Same schema and semantics as a daemon target.                                                                                                                                                                                                                            |
+| Field       | Required | Notes                                                                                                                                                                                                                                                                                                              |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `kind`      | yes      | `sprite`. Omitted or `daemon` keeps the current `{ daemon, cwd, worktree }` object.                                                                                                                                                                                                                                |
+| `bootstrap` | yes      | Shell run once by exec after create, as the `sprite` user, with the npm global bin dir on `PATH`. It must install the agent CLIs and populate `cwd`. Hub installs the Paseo CLI before it runs and enrolls the daemon after it succeeds. Exit non-zero fails the sprite.                                           |
+| `cwd`       | yes      | Absolute directory on the sprite. `bootstrap` is responsible for it existing and being a git checkout.                                                                                                                                                                                                             |
+| `memory`    | no       | Memory limit in MB, applied through the resources policy after create. Default 8192, the provider default. The only shape knob Sprites exposes.                                                                                                                                                                    |
+| `env`       | no       | Daemon service environment. Connection templates are resolved once when the service is written and stored on the sprite, so they are not per-execution leases and do not make sessions credentialed (5.7, 5.9). Templates resolve only for connection kinds Hub has; other provider keys are literal values (5.9). |
+| `worktree`  | no       | Same schema and semantics as a daemon target.                                                                                                                                                                                                                                                                      |
 
 There is no `idle` field. The provider pauses about 30 s after Hub releases the last hold, and there is nothing cheaper than that to ask for.
 
@@ -215,7 +215,7 @@ Because a hold is bound to an execution row, an agent mid-turn is by constructio
 
 ### 5.9 Credentials
 
-Provider API keys for a sprite go in the target's `env` with `${{ paseo.connections.<slug>.<value> }}`. Hub resolves them once when it writes the daemon service, the provider keeps them in the service definition for the sprite's life, and the daemon and the agents it spawns inherit them. Measured with a Claude Code OAuth token, which also works here because the agent is Claude Code and reads `CLAUDE_CODE_OAUTH_TOKEN`. Rotation is rewriting the service, which restarts the daemon in seconds and needs no recreation. `run.env` connection templates still work on a sprite target, but they are per-execution leases: they make the session credentialed and end continuation at terminal (5.7). Follow-ups reuse the existing agent's environment. Sprites hold no interactive provider logins; a bootstrap that needs one is a misconfiguration and the docs say so.
+Provider API keys for a sprite go in the target's `env`. A `${{ paseo.connections.<slug>.<value> }}` template resolves only for a connection kind Hub has (github, slack, discord, linear), so in practice it carries a GitHub token; there is no API-key connection kind, and adding one is out of scope. Any other key, such as an Anthropic API key, is a literal value in the trigger YAML, which every saved revision of the trigger retains; rotation is a new revision and the revision history must be treated as holding the key. Hub resolves templates once when it writes the daemon service, the provider keeps them in the service definition for the sprite's life, and the daemon and the agents it spawns inherit them. Measured with a Claude Code OAuth token, which also works here because the agent is Claude Code and reads `CLAUDE_CODE_OAUTH_TOKEN`. Rotation is rewriting the service, which restarts the daemon in seconds and needs no recreation. `run.env` connection templates still work on a sprite target, but they are per-execution leases: they make the session credentialed and end continuation at terminal (5.7). Follow-ups reuse the existing agent's environment. Sprites hold no interactive provider logins; a bootstrap that needs one is a misconfiguration and the docs say so.
 
 GitHub authority for the agent uses the existing `run.github` grant with per-execution leased installation tokens when the author accepts that continuation ends at terminal. A trigger that needs memory across idle days omits `run.github` and relies on a credential on the sprite (5.7).
 
