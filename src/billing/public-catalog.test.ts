@@ -47,6 +47,7 @@ const internalFreePlan: SyncBillingPlanInput = {
   template: {
     seats: { max: 1 },
     canInviteMembers: false,
+    canUseSpriteTargets: false,
     meters: { "executions.monthly": { limit: 0 } },
   },
   templateHash: "hash-free",
@@ -74,6 +75,7 @@ const hostedPlan: SyncBillingPlanInput = {
   template: {
     seats: { max: null },
     canInviteMembers: true,
+    canUseSpriteTargets: false,
     meters: { "executions.monthly": { limit: null } },
   },
   templateHash: "hash-hosted",

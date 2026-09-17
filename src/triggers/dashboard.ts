@@ -6,11 +6,13 @@ import { ProjectCommandError } from "../projects/command-error.js";
 import { parseCompiledHubConfig } from "../config/compiler.js";
 import { projectTriggerForm } from "./configuration/editor.js";
 import { OrganizationTriggerStore } from "./store.js";
+import type { EntitlementsService } from "../entitlements/service.js";
 
 export class TriggerDashboard {
   constructor(
     private readonly database: Database,
     private readonly auth: AuthServer,
+    private readonly entitlements: EntitlementsService | null,
   ) {}
 
   async snapshot(request: Request, organizationSlug: string) {
@@ -119,7 +121,11 @@ export class TriggerDashboard {
     if (!capabilitiesFor(tenant.membership.role).manageResources) {
       throw new ProjectCommandError("forbidden");
     }
-    return new OrganizationTriggerStore(this.database, tenant.organization.id).save({
+    return new OrganizationTriggerStore(
+      this.database,
+      tenant.organization.id,
+      this.entitlements,
+    ).save({
       ...(input.triggerId === undefined ? {} : { triggerId: input.triggerId }),
       yaml: input.yaml,
       userId: account.account.id,

@@ -15,7 +15,7 @@ import type { AgentExecutionStatus } from "../db/schema.js";
 import { parseCompiledHubConfig, type JsonPrimitive, type JsonValue } from "../config/compiler.js";
 import type { CompiledProjectConfiguration } from "../configuration/store.js";
 import { logger as defaultLogger } from "../logger.js";
-import { reportFailure } from "../failures/index.js";
+import { reportFailure, type FailureKind } from "../failures/index.js";
 import { durableExecutionId } from "../daemons/lifecycle.js";
 import { EntitlementDenied } from "../entitlements/catalog.js";
 import { encodeEntitlementDenialFailureReason } from "../entitlements/denial.js";
@@ -536,11 +536,17 @@ export class DurableWorkflowEngine {
         executionId,
       );
     } catch (error) {
-      if (!(error instanceof ExpressionEvaluationError)) throw error;
-      this.report(error, "workflow.launch-expression.evaluate", {
-        triggerRunId: run.id,
-        stepId: step.id,
-      });
+      if (
+        !(error instanceof ExpressionEvaluationError) &&
+        !(error instanceof SpriteDispatchUnsupportedError)
+      )
+        throw error;
+      this.report(
+        error,
+        "workflow.launch-expression.evaluate",
+        { triggerRunId: run.id, stepId: step.id },
+        error instanceof SpriteDispatchUnsupportedError ? "validation" : undefined,
+      );
       const failed = await database.failWorkflowRun(run.id, "failed", error.message, step.id);
       if (failed?.transitioned === true) await this.notifyWorkflowRunTerminal(failed.run);
       return undefined;
@@ -784,11 +790,20 @@ export class DurableWorkflowEngine {
     );
   }
 
-  private report(error: unknown, operation: string, diagnostic?: Record<string, unknown>): void {
+  private report(
+    error: unknown,
+    operation: string,
+    diagnostic?: Record<string, unknown>,
+    kind?: FailureKind,
+  ): void {
     reportFailure(
       error,
       { operation, component: "workflows" },
-      { logger: this.logger, ...(diagnostic === undefined ? {} : { diagnostic }) },
+      {
+        logger: this.logger,
+        ...(diagnostic === undefined ? {} : { diagnostic }),
+        ...(kind === undefined ? {} : { kind }),
+      },
     );
   }
 
@@ -905,6 +920,15 @@ export class DurableWorkflowEngine {
   }
 }
 
+class SpriteDispatchUnsupportedError extends Error {
+  constructor(environmentName: string) {
+    super(
+      `workflow environment ${environmentName} is a sprite target, which cannot be dispatched yet`,
+    );
+    this.name = "SpriteDispatchUnsupportedError";
+  }
+}
+
 function buildStepIntent(
   configuration: CompiledProjectConfiguration,
   trigger: CompiledProjectConfiguration["triggers"][number],
@@ -922,6 +946,7 @@ function buildStepIntent(
   const environment = configuration.environments.find(
     (candidate) => candidate.name === environmentName,
   );
+  if (environment?.kind === "sprite") throw new SpriteDispatchUnsupportedError(environmentName);
   if (
     environment === undefined ||
     environment.kind !== "daemon" ||
@@ -1104,6 +1129,7 @@ function asProjectConfiguration(
 ): CompiledProjectConfiguration {
   const environments: CompiledProjectConfiguration["environments"] = configuration.environments.map(
     (environment) => {
+      if (environment.kind !== "daemon") return environment;
       if (environment.daemonId === undefined)
         throw new Error(`daemon environment ${environment.name} is not activated`);
       return {

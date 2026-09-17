@@ -136,6 +136,29 @@ describe("trigger form YAML bridge", () => {
     expect(value.run.outputs).toBeDefined();
   });
 
+  test("keeps a sprite target in YAML-only mode without rewriting it", () => {
+    const sprite = ADVANCED.replace(
+      "    daemon: office\n",
+      "    kind: sprite\n    bootstrap: install\n    memory: 16384\n    env:\n      TOKEN: secret\n",
+    ).replace("auto_archive: false", "auto_archive: true");
+    const editable = projectTriggerForm(ADVANCED);
+    if (editable.status !== "editable") throw new Error(editable.reason);
+
+    expect(projectTriggerForm(sprite)).toEqual({
+      status: "yaml_only",
+      reason: "Sprite targets can only be edited in YAML.",
+    });
+    expect(() => patchTriggerYaml(sprite, editable.value)).toThrow("Sprite targets");
+    expect(TriggerDocumentSchema.parse(parseDocument(sprite).toJS()).run.target).toEqual({
+      kind: "sprite",
+      bootstrap: "install",
+      memory: 16384,
+      env: { TOKEN: "secret" },
+      cwd: "/workspace",
+      worktree: { mode: "branch-off", newBranch: "hub-work" },
+    });
+  });
+
   test("keeps unsupported shapes in YAML-only mode", () => {
     expect(projectTriggerForm(ADVANCED.replace("slack.mention:", "custom.event:"))).toEqual({
       status: "yaml_only",

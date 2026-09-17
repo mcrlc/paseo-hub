@@ -132,16 +132,33 @@ export const WorktreeTargetSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("checkout-pr"), prNumber: z.number().int().positive() }),
 ]);
 
-const EnvironmentSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      name: z.string().min(1),
-      kind: z.literal("daemon"),
-      daemon: z.string().min(1),
-      cwd: z.string().min(1),
-      worktree: WorktreeTargetSchema.optional(),
-    })
-    .strict(),
+const DaemonEnvironmentSchema = z
+  .object({
+    name: z.string().min(1),
+    kind: z.literal("daemon"),
+    daemon: z.string().min(1),
+    cwd: z.string().min(1),
+    worktree: WorktreeTargetSchema.optional(),
+  })
+  .strict();
+
+const SpriteEnvironmentSchema = z
+  .object({
+    name: z.string().min(1),
+    kind: z.literal("sprite"),
+    bootstrap: z.string().min(1),
+    cwd: z.string().min(1),
+    memory: z.number().int().positive().optional(),
+    env: z.record(z.string().min(1), z.string()).optional(),
+    worktree: WorktreeTargetSchema.optional(),
+  })
+  .strict();
+
+const EnvironmentSchema = z.discriminatedUnion("kind", [DaemonEnvironmentSchema]);
+
+const TriggerEnvironmentSchema = z.discriminatedUnion("kind", [
+  DaemonEnvironmentSchema,
+  SpriteEnvironmentSchema,
 ]);
 
 const AuthoredAgentSelectionSchema = z.union([AgentSchema, z.string().min(1)]);
@@ -185,10 +202,14 @@ const AuthoredSchema = z
 
 export const HubConfigSchema = AuthoredSchema;
 
+const TriggerAuthoredSchema = AuthoredSchema.extend({
+  environments: z.array(TriggerEnvironmentSchema).min(1),
+});
+
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
 
-export type AuthoredEnvironment = z.infer<typeof EnvironmentSchema>;
+export type AuthoredEnvironment = z.infer<typeof TriggerEnvironmentSchema>;
 export type AuthoredStep = z.infer<typeof StepSchema>;
 export type AuthoredTrigger = z.infer<typeof AuthoredTriggerSchema>;
 export type AuthoredTriggerFilter = z.infer<typeof AuthoredTriggerFilterSchema>;
@@ -258,7 +279,9 @@ export type CompiledTriggerFilter = Readonly<
   }
 >;
 
-export type CompiledEnvironment = AuthoredEnvironment & { daemonId?: string | undefined };
+export type CompiledEnvironment =
+  | (Extract<AuthoredEnvironment, { kind: "daemon" }> & { daemonId?: string | undefined })
+  | Exclude<AuthoredEnvironment, { kind: "daemon" }>;
 
 export interface CompiledTrigger {
   name: string;
@@ -277,6 +300,8 @@ export interface CompiledHubConfig {
 }
 
 export interface CompileHubConfigOptions {
+  /** Only self-contained trigger documents may target sprites; legacy bundles may not. */
+  spriteTargets?: boolean;
   resolvedPromptPartials?: ResolvedPromptPartials;
   namedAgents?: Readonly<Record<string, CompiledAgent>>;
   sourceFiles?: Readonly<Record<string, string>>;
@@ -346,6 +371,17 @@ const CompiledEnvironmentSchema = z.discriminatedUnion("kind", [
       worktree: WorktreeTargetSchema.optional(),
     })
     .strict(),
+  z
+    .object({
+      name: z.string().regex(IDENTIFIER),
+      kind: z.literal("sprite"),
+      bootstrap: z.string().min(1),
+      cwd: z.string().min(1),
+      memory: z.number().int().positive().optional(),
+      env: z.record(z.string().min(1), z.string()).optional(),
+      worktree: WorktreeTargetSchema.optional(),
+    })
+    .strict(),
 ]);
 
 const CompiledJsonSchemaSchema = z.custom<JsonValue>(
@@ -404,7 +440,9 @@ export function compileHubConfig(
   options: CompileHubConfigOptions = {},
 ): CompiledHubConfig {
   rejectRemovedFields(raw);
-  const authored = AuthoredSchema.parse(raw);
+  const authored = (options.spriteTargets === true ? TriggerAuthoredSchema : AuthoredSchema).parse(
+    raw,
+  );
   validateAuthoredIds(authored);
   const environmentNames = new Set(authored.environments.map((environment) => environment.name));
   const environments = new Map(
@@ -1150,7 +1188,14 @@ function validateEnvironmentTemplates(
   environments: readonly (AuthoredEnvironment | CompiledEnvironment)[],
 ): void {
   for (const environment of environments) {
-    if (environment.kind !== "daemon" || environment.worktree?.mode !== "branch-off") continue;
+    if (environment.kind === "sprite") {
+      for (const [key, value] of Object.entries(environment.env ?? {})) {
+        compileAt(["environments", environment.name, "env", key], () => {
+          validateConnectionTemplate(value, `environment ${environment.name} env.${key}`);
+        });
+      }
+    }
+    if (environment.worktree?.mode !== "branch-off") continue;
     const newBranch = environment.worktree.newBranch;
     compileAt(["environments", environment.name, "worktree", "newBranch"], () => {
       validateExecutionTemplate(newBranch);
@@ -1252,7 +1297,7 @@ function isExpressionPath(value: unknown): boolean {
   );
 }
 
-function validateAuthoredIds(config: AuthoredHubConfig): void {
+function validateAuthoredIds(config: z.infer<typeof TriggerAuthoredSchema>): void {
   const environments = new Set<string>();
   for (const environment of config.environments) {
     assertIdentifier(environment.name, "environment name");

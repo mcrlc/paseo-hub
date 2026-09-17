@@ -38,6 +38,12 @@ function configuration(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function spriteConfiguration(env: Record<string, string>) {
+  return configuration({
+    environments: [{ name: "runner", kind: "sprite", bootstrap: "install", cwd: "/repo", env }],
+  });
+}
+
 function legacyAllowOutputs(allowOutputs: CompiledStep["allowOutputs"]) {
   return allowOutputs.map(({ type, max }) => ({ type, max }));
 }
@@ -56,6 +62,18 @@ function legacyCompiledConfiguration(compiled: CompiledHubConfig): unknown {
 }
 
 describe("workflow compiler", () => {
+  it("rejects a legacy bundle environment that targets a sprite", () => {
+    assert.throws(
+      () =>
+        compileHubConfig(
+          configuration({
+            environments: [{ name: "runner", kind: "sprite", bootstrap: "install", cwd: "/repo" }],
+          }),
+        ),
+      /Expected 'daemon'"/u,
+    );
+  });
+
   it("preserves an authored startup timeout in stored compiled configurations", () => {
     const authored = configuration();
     Reflect.set(authored.triggers[0]!.steps[0]!, "startup_timeout", "3m");
@@ -101,6 +119,35 @@ describe("workflow compiler", () => {
         return true;
       },
     );
+  });
+
+  it.each(["${{ paseo.bogus.path }}", "key-${{ paseo.connections.anthropic.api_key"])(
+    "rejects sprite env template %s at its field",
+    (value) => {
+      assert.throws(
+        () => compileHubConfig(spriteConfiguration({ TOKEN: value }), { spriteTargets: true }),
+        (error) => {
+          assert.ok(error instanceof Error);
+          assert.deepEqual(Reflect.get(error, "path"), ["environments", "runner", "env", "TOKEN"]);
+          assert.match(error.message, /env\.TOKEN contains .*expected paseo\.connections/u);
+          return true;
+        },
+      );
+    },
+  );
+
+  it("accepts a connection template in sprite env", () => {
+    const value = "${{ paseo.connections.anthropic.api_key }}";
+    const compiled = compileHubConfig(spriteConfiguration({ TOKEN: value }), {
+      spriteTargets: true,
+    });
+    assert.deepEqual(compiled.environments[0], {
+      name: "runner",
+      kind: "sprite",
+      bootstrap: "install",
+      cwd: "/repo",
+      env: { TOKEN: value },
+    });
   });
 
   it("accepts only the execution-scoped worktree merge value", () => {

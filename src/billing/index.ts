@@ -114,6 +114,7 @@ const FREE_PLAN_SLUG = "free";
 const FREE_TIER_FALLBACK: EntitlementTemplate = {
   seats: { max: 1 },
   canInviteMembers: false,
+  canUseSpriteTargets: false,
   meters: { "executions.monthly": { limit: 0 } },
 };
 

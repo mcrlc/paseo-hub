@@ -360,7 +360,7 @@ async function createOwnedApplicationRuntime(
 function triggerDashboardFor(options: ApplicationCompositionOptions): TriggerDashboard | null {
   return options.database === null || options.auth === null
     ? null
-    : new TriggerDashboard(options.database, options.auth);
+    : new TriggerDashboard(options.database, options.auth, options.entitlements);
 }
 
 function daemonProviderCatalogFor(

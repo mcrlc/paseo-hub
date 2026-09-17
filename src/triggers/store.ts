@@ -4,6 +4,8 @@ import type {
   OrganizationTriggerRevisionRecord,
 } from "../db/types.js";
 import { resolveTriggerConfigurationForOrganization } from "../configuration/store.js";
+import { EntitlementDenied } from "../entitlements/catalog.js";
+import type { EntitlementsService } from "../entitlements/service.js";
 import { compileTriggerDocument, TriggerDocumentError } from "./configuration/index.js";
 
 export interface SaveTriggerInput {
@@ -18,6 +20,7 @@ export class OrganizationTriggerStore {
   constructor(
     private readonly database: Database,
     private readonly organizationId: string,
+    private readonly entitlements: Pick<EntitlementsService, "requireFlag"> | null = null,
   ) {}
 
   list(): Promise<OrganizationTriggerRecord[]> {
@@ -65,6 +68,18 @@ export class OrganizationTriggerStore {
   async validate(yaml: string, enforceAuthoringContract = true) {
     const compiled = compileTriggerDocument(yaml);
     if (enforceAuthoringContract) validateAuthoringContract(compiled.authored);
+    if (
+      compiled.environment.kind === "sprite" &&
+      compiled.authored.enabled &&
+      !(await this.canUseSpriteTargets())
+    ) {
+      throw new TriggerDocumentError([
+        {
+          path: ["run", "target", "kind"],
+          message: "Sprite targets are not enabled for this organization.",
+        },
+      ]);
+    }
     const resolved = await resolveTriggerConfigurationForOrganization(
       this.database,
       this.organizationId,
@@ -77,6 +92,17 @@ export class OrganizationTriggerStore {
       throw new TriggerDocumentError(resolved.issues);
     }
     return { compiled, resolved };
+  }
+
+  private async canUseSpriteTargets(): Promise<boolean> {
+    if (this.entitlements === null) return false;
+    try {
+      await this.entitlements.requireFlag(this.organizationId, "canUseSpriteTargets");
+      return true;
+    } catch (error) {
+      if (error instanceof EntitlementDenied) return false;
+      throw error;
+    }
   }
 
   private async isUnchangedExistingYaml(input: SaveTriggerInput): Promise<boolean> {

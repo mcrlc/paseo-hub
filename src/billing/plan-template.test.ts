@@ -20,6 +20,7 @@ describe("parsePlanMetadata", () => {
       template: {
         seats: { max: 5 },
         canInviteMembers: true,
+        canUseSpriteTargets: false,
         meters: { "executions.monthly": { limit: 2000 } },
       },
     });

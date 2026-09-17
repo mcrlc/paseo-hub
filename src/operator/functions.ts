@@ -22,7 +22,7 @@ const overrideInputSchema = z
 const clearOverrideInputSchema = z
   .object({
     organizationSlug: z.string().trim().min(1).max(100),
-    key: z.enum(["seats", "canInviteMembers", "executions.monthly"]),
+    key: z.enum(["seats", "canInviteMembers", "canUseSpriteTargets", "executions.monthly"]),
     reason: z.string().trim().min(1).max(500),
   })
   .strict();

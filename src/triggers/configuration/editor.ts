@@ -64,15 +64,19 @@ export function projectTriggerForm(yaml: string): TriggerFormProjection {
   if ("choices" in trigger.run.agent) {
     return { status: "yaml_only", reason: "Agent choices can only be edited in YAML." };
   }
+  if (trigger.run.target.kind === "sprite") {
+    return { status: "yaml_only", reason: "Sprite targets can only be edited in YAML." };
+  }
   const agent = trigger.run.agent;
   return {
     status: "editable",
-    value: toFormValue(trigger, event, definition, agent),
+    value: toFormValue(trigger, trigger.run.target, event, definition, agent),
   };
 }
 
 function toFormValue(
   trigger: TriggerDocument,
+  target: Extract<TriggerDocument["run"]["target"], { kind: "daemon" }>,
   event: EditorEvent,
   definition: TriggerDocument["on"][string],
   agent: Extract<TriggerDocument["run"]["agent"], { provider: string }>,
@@ -85,8 +89,8 @@ function toFormValue(
     allowedUsers: definition.filters?.from_users?.join(", ") ?? "*",
     qualifiers: readQualifiers(event, definition.filters),
     recurrence: definition.recurrence ?? DEFAULT_RECURRENCE,
-    daemon: trigger.run.target.daemon,
-    cwd: trigger.run.target.cwd,
+    daemon: target.daemon,
+    cwd: target.cwd,
     agent: joinAgentId(agent.provider, agent.model),
     mode: agent.mode ?? "",
     thinkingOptionId: agent.thinkingOptionId ?? "",

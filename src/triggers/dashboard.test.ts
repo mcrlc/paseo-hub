@@ -25,7 +25,7 @@ describe("trigger dashboard read model", () => {
       yaml: triggerYaml,
       userId: "user-1",
     });
-    const dashboard = new TriggerDashboard(database, accountAuth());
+    const dashboard = new TriggerDashboard(database, accountAuth(), null);
     const request = new Request("https://hub.test/o/acme/triggers");
 
     const before = await dashboard.snapshot(request, "acme");
