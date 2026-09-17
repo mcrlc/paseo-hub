@@ -105,7 +105,11 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     ) {
       return;
     }
-    throw new SpritesError(result.exitCode ?? 0, `${result.stdout}${result.stderr}`);
+    const httpStatus = /returned error: (\d{3})/u.exec(result.stderr)?.[1];
+    throw new SpritesError(
+      httpStatus === undefined ? (result.exitCode ?? 0) : Number(httpStatus),
+      `${result.stdout}${result.stderr}`,
+    );
   }
 
   return {
@@ -123,7 +127,9 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     async service(name: string, service: string, definition: ServiceDefinition): Promise<void> {
       const path = `${spritePath(name)}/services/${encodeURIComponent(service)}`;
       await request("DELETE", path, { allowNotFound: true });
-      await (await request("PUT", path, { json: definition })).text();
+      const response = await request("PUT", path, { json: definition });
+      const events = await response.text();
+      if (!/"type":\s*"complete"/u.test(events)) throw new SpritesError(response.status, events);
     },
 
     async hold(name: string, task: string, expire: string): Promise<void> {

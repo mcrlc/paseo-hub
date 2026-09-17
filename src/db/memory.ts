@@ -2079,6 +2079,9 @@ class MemoryDatabase implements Database {
   async upsertOrganizationSpritesConfiguration(
     input: UpsertOrganizationSpritesConfigurationInput,
   ): Promise<OrganizationSpritesConfigurationRecord> {
+    if (input.memoryMb < 1) {
+      throw new Error("organization_sprites_configuration_memory_mb_check");
+    }
     const record = { ...input, updatedAt: new Date() };
     this.organizationSpritesConfigurations.set(input.organizationId, record);
     return record;

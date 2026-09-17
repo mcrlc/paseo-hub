@@ -124,6 +124,20 @@ describe("Sprites client", () => {
     assert.deepEqual(JSON.parse(stub.requests[1]!.body!), definition);
   });
 
+  it("rejects a service write whose stream never completes", async () => {
+    const stub = stubFetch((request) =>
+      request.method === "DELETE"
+        ? new Response(null, { status: 204 })
+        : new Response('{"type":"started"}\n'),
+    );
+    const client = createSpritesClient({ token: "token", fetch: stub.fetch });
+
+    await assert.rejects(
+      client.service("sprite-a", "paseo", { cmd: "/bin/sh", args: [], env: {}, dir: "/" }),
+      (error: unknown) => error instanceof SpritesError && error.body === '{"type":"started"}\n',
+    );
+  });
+
   it("holds by upserting the task with PUT through sprite-env curl", async () => {
     const stub = stubFetch(() => execResponse(0, '{"expires_at":"later"}'));
     const client = createSpritesClient({ token: "token", fetch: stub.fetch });
@@ -186,8 +200,17 @@ describe("Sprites client", () => {
       inSprite.release("sprite-a", "hub-hold"),
       (error: unknown) =>
         error instanceof SpritesError &&
-        error.status === 22 &&
+        error.status === 500 &&
         error.body === "curl: (22) The requested URL returned error: 500",
+    );
+
+    const unreachable = createSpritesClient({
+      token: "token",
+      fetch: stubFetch(() => execResponse(7, "", "curl: (7) Failed to connect")).fetch,
+    });
+    await assert.rejects(
+      unreachable.hold("sprite-a", "hub-hold", "60m"),
+      (error: unknown) => error instanceof SpritesError && error.status === 7,
     );
   });
 });

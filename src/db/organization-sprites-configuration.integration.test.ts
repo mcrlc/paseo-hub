@@ -64,6 +64,16 @@ describe("organization Sprites configuration", () => {
       assert.deepEqual(read, updated);
       assert.equal(read?.token, "second");
       assert.equal(read?.memoryMb, 16384);
+
+      await assert.rejects(
+        store.upsertOrganizationSpritesConfiguration({
+          organizationId,
+          token: "zero",
+          memoryMb: 0,
+          updatedByUserId: null,
+        }),
+        /organization_sprites_configuration_memory_mb_check/u,
+      );
     }
   });
 });
