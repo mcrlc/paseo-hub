@@ -1,0 +1,45 @@
+# origin/main vs HEAD dd22822, full CompiledTriggerDocument (authored + environment + events + authoredHash)
+# (cd <tree> && npx tsx docs/qa/ac-fc6/compile-triggers.ts)
+--- origin/main
++++ HEAD
+@@ -37,6 +37,7 @@
+     },
+     "run": {
+       "target": {
++        "kind": "daemon",
+         "daemon": "devbox",
+         "cwd": "/workspace/company"
+       },
+@@ -269,6 +270,7 @@
+     "max_runtime": "4h",
+     "run": {
+       "target": {
++        "kind": "daemon",
+         "daemon": "office",
+         "cwd": "/workspace",
+         "worktree": {
+@@ -429,6 +431,7 @@
+     },
+     "run": {
+       "target": {
++        "kind": "daemon",
+         "daemon": "reviewer",
+         "cwd": "/srv/hub",
+         "worktree": {
+@@ -530,6 +533,7 @@
+     "max_runtime": "2h",
+     "run": {
+       "target": {
++        "kind": "daemon",
+         "daemon": "phase-five-daemon",
+         "cwd": "/tmp/hub-e2e-workspace"
+       },
+@@ -614,6 +618,7 @@
+     },
+     "run": {
+       "target": {
++        "kind": "daemon",
+         "daemon": "devbox",
+         "cwd": "/workspace/company",
+         "worktree": {
+# exit=1

@@ -1,0 +1,41 @@
+$ npx tsx docs/qa/ac-fc6/legacy-migration.ts
+--- migrated trigger YAML ---
+name: slack-help
+enabled: true
+'on':
+  slack.mention:
+    connection: acme-slack
+    filters:
+      from_users:
+        - U123
+max_runtime: 2h
+run:
+  continuation:
+    mode: new
+  target:
+    kind: daemon
+    daemon: devbox
+    cwd: /workspace/company
+    worktree:
+      mode: branch-off
+      newBranch: hub-work
+  agent:
+    provider: codex
+    model: gpt-5.6-sol
+  prompt: |-
+    Never disclose secrets.
+    Request: ${{ paseo.prompt }}
+  max_runtime: 90m
+  idle_timeout: 10m
+  outputs:
+    slack.reply:
+      max: 5
+  auto_archive: false
+
+contains 'kind: daemon' line: true
+kind line removed: true
+parseTriggerDocument(with kind) accepted: true
+parsed.run.target (with kind)    = {"kind":"daemon","daemon":"devbox","cwd":"/workspace/company","worktree":{"mode":"branch-off","newBranch":"hub-work"}}
+parsed.run.target (without kind) = {"kind":"daemon","daemon":"devbox","cwd":"/workspace/company","worktree":{"mode":"branch-off","newBranch":"hub-work"}}
+isDeepStrictEqual(parsed with kind, parsed without kind): true
+RESULT: pass

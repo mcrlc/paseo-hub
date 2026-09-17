@@ -1,0 +1,6 @@
+# HEAD: omitted kind vs explicit 'kind: daemon'
+# npx tsx docs/qa/ac-fc6/compile-triggers.ts  vs  npx tsx docs/qa/ac-fc6/compile-triggers.ts --explicit-kind
+## full CompiledTriggerDocument minus authoredHash (sha256 of the input YAML, differs by construction since the YAML has one more line)
+# exit=0 (0 = identical)
+## environment + events
+# exit=0 (0 = identical)

@@ -1,0 +1,679 @@
+### engineering-requests (index.test.ts)
+{
+  "authored": {
+    "name": "engineering-requests",
+    "enabled": true,
+    "on": {
+      "slack.mention": {
+        "connection": "acme-slack",
+        "filters": {
+          "channels": [
+            "engineering"
+          ],
+          "from_users": [
+            "U0BNGPZEXT2"
+          ]
+        }
+      },
+      "github.issue_comment": {
+        "connection": "getpaseo-github",
+        "filters": {
+          "contains": "@paseo-bot",
+          "from_users": [
+            "boudra"
+          ]
+        }
+      }
+    },
+    "inputs": {
+      "model": {
+        "type": "string",
+        "default": "codex",
+        "choices": [
+          "codex",
+          "claude"
+        ]
+      }
+    },
+    "run": {
+      "target": {
+        "daemon": "devbox",
+        "cwd": "/workspace/company"
+      },
+      "agent": {
+        "select": "${{ paseo.inputs.model }}",
+        "choices": {
+          "codex": {
+            "provider": "codex",
+            "model": "gpt-5.6-sol"
+          },
+          "claude": {
+            "provider": "claude",
+            "model": "claude-opus-5"
+          }
+        }
+      },
+      "continuation": {
+        "mode": "conversation"
+      },
+      "prompt": "Use Paseo when delegation is useful.\n${{ paseo.prompt }}\n",
+      "max_runtime": "90m",
+      "idle_timeout": "10m",
+      "github": {
+        "connection": "getpaseo-github",
+        "repositories": [
+          "getpaseo/paseo",
+          "getpaseo/hub"
+        ],
+        "permissions": {
+          "contents": "write",
+          "pull_requests": "write"
+        }
+      },
+      "outputs": {
+        "slack.reply": {
+          "max": 5
+        }
+      },
+      "auto_archive": true
+    }
+  },
+  "environment": {
+    "name": "target",
+    "kind": "daemon",
+    "daemon": "devbox",
+    "cwd": "/workspace/company"
+  },
+  "events": [
+    {
+      "name": "engineering-requests",
+      "on": "slack.mention",
+      "maxRuntimeMs": 5400000,
+      "steps": [
+        {
+          "id": "run",
+          "environment": "target",
+          "maxRuntimeMs": 5400000,
+          "idleTimeoutMs": 600000,
+          "agent": {
+            "selector": "${{ paseo.inputs.model }}",
+            "choices": {
+              "claude": {
+                "provider": "claude",
+                "model": "claude-opus-5"
+              },
+              "codex": {
+                "provider": "codex",
+                "model": "gpt-5.6-sol"
+              }
+            }
+          },
+          "prompt": [
+            {
+              "kind": "text",
+              "value": "Use Paseo when delegation is useful.\n${{ paseo.prompt }}\n"
+            }
+          ],
+          "github": {
+            "connection": "getpaseo-github",
+            "repositories": [
+              "getpaseo/paseo",
+              "getpaseo/hub"
+            ],
+            "permissions": {
+              "contents": "write",
+              "pull_requests": "write"
+            },
+            "durationMs": 3600000
+          },
+          "allowOutputs": [
+            {
+              "type": "slack.reply",
+              "max": 5,
+              "required": false
+            }
+          ],
+          "autoArchive": true,
+          "continuation": {
+            "mode": "conversation"
+          }
+        }
+      ],
+      "inputs": {
+        "model": {
+          "type": "string",
+          "required": false,
+          "default": "codex",
+          "choices": [
+            "codex",
+            "claude"
+          ]
+        }
+      },
+      "values": {},
+      "filters": {
+        "channels": [
+          "engineering"
+        ],
+        "from_users": [
+          "U0BNGPZEXT2"
+        ],
+        "connection": "acme-slack"
+      }
+    },
+    {
+      "name": "engineering-requests-event-2",
+      "on": "github.issue_comment",
+      "maxRuntimeMs": 5400000,
+      "steps": [
+        {
+          "id": "run",
+          "environment": "target",
+          "maxRuntimeMs": 5400000,
+          "idleTimeoutMs": 600000,
+          "agent": {
+            "selector": "${{ paseo.inputs.model }}",
+            "choices": {
+              "claude": {
+                "provider": "claude",
+                "model": "claude-opus-5"
+              },
+              "codex": {
+                "provider": "codex",
+                "model": "gpt-5.6-sol"
+              }
+            }
+          },
+          "prompt": [
+            {
+              "kind": "text",
+              "value": "Use Paseo when delegation is useful.\n${{ paseo.prompt }}\n"
+            }
+          ],
+          "github": {
+            "connection": "getpaseo-github",
+            "repositories": [
+              "getpaseo/paseo",
+              "getpaseo/hub"
+            ],
+            "permissions": {
+              "contents": "write",
+              "pull_requests": "write"
+            },
+            "durationMs": 3600000
+          },
+          "allowOutputs": [
+            {
+              "type": "slack.reply",
+              "max": 5,
+              "required": false
+            },
+            {
+              "type": "github.reply",
+              "required": false
+            }
+          ],
+          "autoArchive": true,
+          "continuation": {
+            "mode": "conversation"
+          }
+        }
+      ],
+      "inputs": {
+        "model": {
+          "type": "string",
+          "required": false,
+          "default": "codex",
+          "choices": [
+            "codex",
+            "claude"
+          ]
+        }
+      },
+      "values": {},
+      "filters": {
+        "contains": "@paseo-bot",
+        "from_users": [
+          "boudra"
+        ],
+        "connection": "getpaseo-github"
+      }
+    }
+  ],
+  "authoredHash": "0ee1c877791d95668c32d7215436fe25da2a91047fce572b8fa87416571e2838"
+}
+### advanced with worktree (editor.test.ts)
+{
+  "authored": {
+    "name": "answer",
+    "enabled": true,
+    "on": {
+      "slack.mention": {
+        "connection": "company",
+        "filters": {
+          "channels": [
+            "engineering"
+          ],
+          "from_users": [
+            "*"
+          ]
+        }
+      }
+    },
+    "inputs": {
+      "urgency": {
+        "type": "string",
+        "default": "normal"
+      }
+    },
+    "max_runtime": "4h",
+    "run": {
+      "target": {
+        "daemon": "office",
+        "cwd": "/workspace",
+        "worktree": {
+          "mode": "branch-off",
+          "newBranch": "hub-work"
+        }
+      },
+      "agent": {
+        "provider": "codex",
+        "model": "gpt-5.4",
+        "mode": "full-access",
+        "thinkingOptionId": "xhigh",
+        "options": {
+          "sandbox_mode": "workspace-write",
+          "approval_policy": "never"
+        }
+      },
+      "continuation": {
+        "mode": "conversation"
+      },
+      "prompt": "Handle it.",
+      "max_runtime": "3h",
+      "idle_timeout": "15m",
+      "startup_timeout": "3m",
+      "env": {
+        "TEAM": "core"
+      },
+      "github": {
+        "connection": "company-github",
+        "repositories": [
+          "paseo/hub"
+        ]
+      },
+      "output": {
+        "schema": {
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "slack.reply": {
+          "max": 3
+        }
+      },
+      "auto_archive": false
+    }
+  },
+  "environment": {
+    "name": "target",
+    "kind": "daemon",
+    "daemon": "office",
+    "cwd": "/workspace",
+    "worktree": {
+      "mode": "branch-off",
+      "newBranch": "hub-work"
+    }
+  },
+  "events": [
+    {
+      "name": "answer",
+      "on": "slack.mention",
+      "maxRuntimeMs": 14400000,
+      "steps": [
+        {
+          "id": "run",
+          "environment": "target",
+          "maxRuntimeMs": 10800000,
+          "idleTimeoutMs": 900000,
+          "startupTimeoutMs": 180000,
+          "agent": {
+            "provider": "codex",
+            "model": "gpt-5.4",
+            "mode": "full-access",
+            "thinkingOptionId": "xhigh",
+            "options": {
+              "sandbox_mode": "workspace-write",
+              "approval_policy": "never"
+            }
+          },
+          "prompt": [
+            {
+              "kind": "text",
+              "value": "Handle it."
+            }
+          ],
+          "env": {
+            "TEAM": "core"
+          },
+          "github": {
+            "connection": "company-github",
+            "repositories": [
+              "paseo/hub"
+            ],
+            "permissions": {
+              "contents": "read"
+            },
+            "durationMs": 3600000
+          },
+          "output": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "allowOutputs": [
+            {
+              "type": "slack.reply",
+              "max": 3,
+              "required": false
+            }
+          ],
+          "autoArchive": false,
+          "continuation": {
+            "mode": "conversation"
+          }
+        }
+      ],
+      "inputs": {
+        "urgency": {
+          "type": "string",
+          "required": false,
+          "default": "normal"
+        }
+      },
+      "values": {},
+      "filters": {
+        "channels": [
+          "engineering"
+        ],
+        "from_users": [
+          "*"
+        ],
+        "connection": "company"
+      }
+    }
+  ],
+  "authoredHash": "768f0d7004004977003bddbbae2932e122e419261a2c5de3f5f716c80dbbfe12"
+}
+### continuation key + checkout-pr worktree
+{
+  "authored": {
+    "name": "pr-review",
+    "enabled": true,
+    "on": {
+      "github.pull_request_opened": {
+        "connection": "getpaseo-github",
+        "filters": {
+          "repo": "getpaseo/hub",
+          "from_users": [
+            "boudra"
+          ]
+        }
+      }
+    },
+    "inputs": {
+      "ticket": {
+        "type": "string",
+        "default": "none"
+      }
+    },
+    "run": {
+      "target": {
+        "daemon": "reviewer",
+        "cwd": "/srv/hub",
+        "worktree": {
+          "mode": "checkout-pr",
+          "prNumber": 42
+        }
+      },
+      "agent": {
+        "provider": "claude",
+        "model": "claude-opus-5"
+      },
+      "continuation": {
+        "mode": "key",
+        "key": "ticket-${{ paseo.inputs.ticket }}"
+      },
+      "prompt": "Review the pull request.",
+      "max_runtime": "2h",
+      "idle_timeout": "10m",
+      "auto_archive": true
+    }
+  },
+  "environment": {
+    "name": "target",
+    "kind": "daemon",
+    "daemon": "reviewer",
+    "cwd": "/srv/hub",
+    "worktree": {
+      "mode": "checkout-pr",
+      "prNumber": 42
+    }
+  },
+  "events": [
+    {
+      "name": "pr-review",
+      "on": "github.pull_request_opened",
+      "maxRuntimeMs": 7200000,
+      "steps": [
+        {
+          "id": "run",
+          "environment": "target",
+          "maxRuntimeMs": 7200000,
+          "idleTimeoutMs": 600000,
+          "agent": {
+            "provider": "claude",
+            "model": "claude-opus-5"
+          },
+          "prompt": [
+            {
+              "kind": "text",
+              "value": "Review the pull request."
+            }
+          ],
+          "allowOutputs": [
+            {
+              "type": "github.reply",
+              "required": false
+            }
+          ],
+          "autoArchive": true,
+          "continuation": {
+            "mode": "key",
+            "key": "ticket-${{ paseo.inputs.ticket }}"
+          }
+        }
+      ],
+      "inputs": {
+        "ticket": {
+          "type": "string",
+          "required": false,
+          "default": "none"
+        }
+      },
+      "values": {},
+      "filters": {
+        "repo": "getpaseo/hub",
+        "from_users": [
+          "boudra"
+        ],
+        "connection": "getpaseo-github"
+      }
+    }
+  ],
+  "authoredHash": "01369ba58004f67e9989a2da01ad0d21292e6e0f25289c5c358c3b23a588a546"
+}
+### manual.run deploy (e2e harness)
+{
+  "authored": {
+    "name": "deploy",
+    "enabled": true,
+    "on": {
+      "manual.run": {
+        "filters": {
+          "from_users": [
+            "phase-five-operator"
+          ]
+        }
+      }
+    },
+    "max_runtime": "2h",
+    "run": {
+      "target": {
+        "daemon": "phase-five-daemon",
+        "cwd": "/tmp/hub-e2e-workspace"
+      },
+      "agent": {
+        "provider": "hub-e2e"
+      },
+      "continuation": {
+        "mode": "conversation"
+      },
+      "prompt": "Deploy requested for phase-five-operator",
+      "max_runtime": "1h",
+      "idle_timeout": "5m",
+      "outputs": {
+        "hub.e2e": {}
+      },
+      "auto_archive": true
+    }
+  },
+  "environment": {
+    "name": "target",
+    "kind": "daemon",
+    "daemon": "phase-five-daemon",
+    "cwd": "/tmp/hub-e2e-workspace"
+  },
+  "events": [
+    {
+      "name": "deploy",
+      "on": "manual.run",
+      "maxRuntimeMs": 7200000,
+      "steps": [
+        {
+          "id": "run",
+          "environment": "target",
+          "maxRuntimeMs": 3600000,
+          "idleTimeoutMs": 300000,
+          "agent": {
+            "provider": "hub-e2e"
+          },
+          "prompt": [
+            {
+              "kind": "text",
+              "value": "Deploy requested for phase-five-operator"
+            }
+          ],
+          "allowOutputs": [
+            {
+              "type": "hub.e2e",
+              "max": 1,
+              "required": false
+            }
+          ],
+          "autoArchive": true,
+          "continuation": {
+            "mode": "conversation"
+          }
+        }
+      ],
+      "inputs": {},
+      "values": {},
+      "filters": {
+        "from_users": [
+          "phase-five-operator"
+        ]
+      }
+    }
+  ],
+  "authoredHash": "c58c3264ac606d6c847fc01424a8eaec01f10d6610e80d4f8fdec9959556931e"
+}
+### schedule.tick with continuation new
+{
+  "authored": {
+    "name": "nightly",
+    "enabled": true,
+    "on": {
+      "schedule.tick": {
+        "recurrence": {
+          "timezone": "Europe/Berlin",
+          "start": "2026-01-01T02:00:00",
+          "rule": "FREQ=DAILY"
+        }
+      }
+    },
+    "run": {
+      "target": {
+        "daemon": "devbox",
+        "cwd": "/workspace/company",
+        "worktree": {
+          "mode": "checkout-branch",
+          "branch": "main"
+        }
+      },
+      "agent": {
+        "provider": "codex"
+      },
+      "continuation": {
+        "mode": "new"
+      },
+      "prompt": "Run the nightly sweep.",
+      "max_runtime": "2h",
+      "idle_timeout": "10m",
+      "auto_archive": true
+    }
+  },
+  "environment": {
+    "name": "target",
+    "kind": "daemon",
+    "daemon": "devbox",
+    "cwd": "/workspace/company",
+    "worktree": {
+      "mode": "checkout-branch",
+      "branch": "main"
+    }
+  },
+  "events": [
+    {
+      "name": "nightly",
+      "on": "schedule.tick",
+      "maxRuntimeMs": 7200000,
+      "steps": [
+        {
+          "id": "run",
+          "environment": "target",
+          "maxRuntimeMs": 7200000,
+          "idleTimeoutMs": 600000,
+          "agent": {
+            "provider": "codex"
+          },
+          "prompt": [
+            {
+              "kind": "text",
+              "value": "Run the nightly sweep."
+            }
+          ],
+          "allowOutputs": [],
+          "autoArchive": true,
+          "continuation": {
+            "mode": "new"
+          }
+        }
+      ],
+      "inputs": {},
+      "values": {},
+      "filters": {}
+    }
+  ],
+  "authoredHash": "7e53ee220d59b2b52d8d8778677f1a93b44e119ad1cd8e5955eb6eb6013062f7"
+}
