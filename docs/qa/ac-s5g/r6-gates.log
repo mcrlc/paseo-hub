@@ -1,0 +1,16 @@
+# Round 6: gates at 517c2ec (working tree) on 2026-09-17T16:17:20Z
+
+$ npm run format:check
+
+All matched files use the correct format.
+Finished in 2004ms on 822 files using 15 threads.
+
+$ npm run typecheck
+> @getpaseo/hub@0.9.0 typecheck:e2e
+> tsgo --noEmit -p tsconfig.e2e.json
+
+
+$ npm run lint
+
+Found 0 warnings and 0 errors.
+Finished in 3.2s on 592 files with 238 rules using 15 threads.

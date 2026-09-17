@@ -1,17 +1,19 @@
 # Sprite targets
 
 A sprite target runs a trigger's agent on a Fly Sprite that Hub creates, bootstraps, and enrolls as a
-daemon. The sprite pauses on its own when nothing runs on it and keeps its filesystem, so an idle
-target costs storage only. One trigger owns one sprite; two triggers on the same repository get two
-sprites and two checkouts. The sprite's daemon appears on the Daemons page under the trigger's name,
-suffixed if that name is taken.
+daemon. The sprite pauses on its own when nothing runs on it and keeps its filesystem; Fly bills a
+paused sprite for its storage. One trigger owns one sprite; two triggers on the same repository get two
+sprites and two checkouts. The first daemon of a trigger appears on the Daemons page under the trigger's
+name. A recreated sprite enrols as `<trigger-name>-<first 8 characters of the daemon id>`, because the
+revoked daemon keeps the plain name.
 
 Sprite targets need a Sprites org token in the organization's Sprites configuration and the
 sprite-targets entitlement. A self-hosted instance running without billing has the entitlement through
 the unlimited template; otherwise an operator grants it with an entitlement override (see
-[Entitlements](entitlements.md)). Without it, saving the trigger fails with "Sprite targets are not
-enabled for this organization."; without a token it fails with "Sprites are not configured for this
-organization." Read [`SECURITY.md`](../SECURITY.md#sprite-targets) before adding one.
+[Entitlements](entitlements.md)). Without it, saving the trigger with `enabled: true` fails with "Sprite
+targets are not enabled for this organization."; without a token it fails with "Sprites are not configured
+for this organization." A disabled trigger saves without either, which is how one is authored before the
+token exists. Read [`SECURITY.md`](../SECURITY.md#sprite-targets) before adding one.
 
 ## Reference
 
@@ -66,8 +68,9 @@ any target.
 
 - **Activation.** Saving the trigger creates the sprite, installs the Paseo CLI, runs `bootstrap`, writes
   the daemon service, and enrolls the daemon, so a bad `bootstrap` fails at activation rather than on the
-  first event. The sprite then pauses. The first boot takes about a minute; the daemon's first start
-  downloads about 1 GB of speech models.
+  first event. The sprite then pauses. Activation takes about half a minute from the save to a usable
+  daemon; the daemon's first start also downloads about 1 GB of speech models, which the sprite does not
+  wait for.
 - **Event while the sprite is paused.** Hub holds the sprite, which wakes it, and defers the run until the
   daemon's socket is live. From a warm pause the daemon reconnects in about a second. A cold sprite, about
   ten minutes after the pause, takes about a minute. The wait is bounded by `max_runtime`.
@@ -82,6 +85,13 @@ any target.
 - **`env` changed.** Hub rewrites the daemon service, which restarts the daemon. The sprite, its filesystem,
   and its daemon identity are kept.
 - **`memory` changed.** Hub updates the resources policy in place.
+
+Neither an `env` nor a `memory` edit recreates the sprite, but both change the compiled target, which is
+part of the continuation compatibility. The next event on a conversation that already has an agent
+therefore fails with "Continuation settings differ from the existing agent; use a different key or choose
+a new agent"; change the continuation key or wait for the conversation to end. This is Hub's general
+continuation rule and is not specific to sprites.
+
 - **Trigger disabled, or switched to a daemon target.** Hub destroys the sprite. Re-enabling the trigger
   activates a new one immediately, without waiting for an event.
 - **Daemon revoked.** Hub destroys the sprite and terminates the row; the next event creates a new one.
@@ -155,13 +165,15 @@ from Hub's logs and failure reasons. `HOME`, `PATH`, `PASEO_HOME`, and `PASEO_PA
 too. Nothing secret enters trigger YAML.
 
 Saving the daemon environment rewrites the service of every alive sprite in the organization, one at a
-time and about seven seconds each, waking a paused sprite to do it, and the save waits for all of them.
+time and about six seconds each, waking a paused sprite to do it, and the save waits for all of them.
 Each rewrite restarts that sprite's daemon, which reconnects on its own. Rotating a credential is
 therefore a settings save, not a recreation.
 
 The target's `env` holds only per-trigger, non-secret values. A `${{ paseo.connections.<slug>.<value> }}`
-template there fails activation with a message naming the key, because every connection kind Hub has needs
-an execution lease.
+template there cannot be used today: activation fails either way. A GitHub connection fails with
+"env.<KEY> cannot be resolved without an execution lease", because its token is a per-execution lease;
+every other connection kind fails earlier, with "connection capability is unavailable: <slug>", because it
+has no resolver outside an execution.
 
 Credentials in the daemon environment are not leases. They live in the daemon service for the life of the
 sprite and every agent on it inherits them, so an agent keeps its memory across idle days. A reviewer that
@@ -198,5 +210,5 @@ token in the daemon environment instead.
 - Legacy multi-step bundles cannot target sprites.
 - A hold lasts one hour and the tick refreshes it every five minutes. If Hub is down longer than a hold's
   remaining time, the sprite can pause mid-turn; the turn resumes on the next hold.
-- A daemon environment save is serial across the organization's sprites, about seven seconds per alive
+- A daemon environment save is serial across the organization's sprites, about six seconds per alive
   sprite.

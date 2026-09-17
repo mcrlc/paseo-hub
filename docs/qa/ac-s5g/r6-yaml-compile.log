@@ -1,0 +1,43 @@
+# Round 6: YAML examples at 517c2ec (working tree) on 2026-09-17T16:17:15Z
+guide: /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/sprite-targets-guide.md
+code:  /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security
+yaml blocks found: 2
+
+== block 1 (guide line 32) ==
+parseTriggerDocument: ok; run.auto_archive = true ; continuation = {"mode":"conversation"}
+compileTriggerDocument: ok
+compiled.environment = {
+  "name": "target",
+  "kind": "sprite",
+  "bootstrap": "npm install -g @anthropic-ai/claude-code\nnode \"$(npm prefix -g)/lib/node_modules/@anthropic-ai/claude-code/install.cjs\"\ngit clone https://github.com/acme/project.git /home/sprite/workspace/project\n",
+  "cwd": "/home/sprite/workspace/project",
+  "memory": 16384,
+  "worktree": {
+    "mode": "branch-off",
+    "newBranch": "trigger-${{ paseo.execution.id }}",
+    "base": "origin/main"
+  }
+}
+events = [{"on":"github.pull_request_comment_created","filters":{"from_users":["alice"],"connection":"acme-github"}}]
+steps[0].prompt = [{"kind":"text","value":"Review the pull request."}]
+
+== block 2 (guide line 118) ==
+parseTriggerDocument: ok; run.auto_archive = true ; continuation = {"mode":"conversation"}
+compileTriggerDocument: ok
+compiled.environment = {
+  "name": "target",
+  "kind": "sprite",
+  "bootstrap": "npm install -g @anthropic-ai/claude-code\nnode \"$(npm prefix -g)/lib/node_modules/@anthropic-ai/claude-code/install.cjs\"\ngit clone https://github.com/acme/project.git /home/sprite/workspace/project\n",
+  "cwd": "/home/sprite/workspace/project"
+}
+events = [{"on":"github.pull_request_label_added","filters":{"label":"review","from_users":["alice","bob"],"connection":"acme-github"}},{"on":"github.pull_request_comment_created","filters":{"from_users":["alice","bob"],"connection":"acme-github"}}]
+steps[0].prompt = [{"kind":"text","value":"Review this pull request, or answer the comment on it.\n${{ paseo.context }}\n"}]
+
+== control: block 1 with run.auto_archive: false ==
+rejected as expected:
+TriggerDocumentError: run.auto_archive: Sprite targets always archive; auto_archive must be true.
+    at parseTriggerDocument (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/src/triggers/configuration/index.ts:158:11)
+    at run (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/qa/ac-s5g/compile-guide-yaml.ts:27:20)
+    at <anonymous> (/Users/mic/.paseo/worktrees/01slizkc/sprite-targets-docs-security/docs/qa/ac-s5g/compile-guide-yaml.ts:55:1)
+
+result: PASS
