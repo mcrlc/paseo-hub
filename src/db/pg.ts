@@ -283,6 +283,18 @@ class PgDatabase implements Database {
     }
   }
 
+  async findSpawningSpriteMachines(): Promise<MachineRecord[]> {
+    try {
+      const rows = await query<MachineRow>(
+        this.pool,
+        "select * from machines where status = 'spawning' and source->>'kind' = 'sprite'",
+      );
+      return rows.rows.map(toMachineRecord);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
   async insertSpriteMachine(input: {
     orgId: string;
     source: SpriteMachineSource;

@@ -54,6 +54,7 @@ import type { JsonValue } from "../config/compiler.js";
 import { compileJsonSchema, formatJsonSchemaErrors } from "../workflows/json-schema.js";
 import type { Logger } from "pino";
 import { isHubFinishExecutionToolName } from "../hub/protocol.js";
+import type { OrganizationApiKeys } from "../auth/api-keys.js";
 
 export interface DaemonDispatchResult {
   execution: AgentExecutionRecord;
@@ -78,6 +79,7 @@ interface HubExecutionEnv {
 const DEFAULT_DISPATCH_TIMEOUT_MS = 30_000;
 const DEFAULT_AGENT_EXECUTION_TIMEOUT_MS = 60 * 60_000;
 const DEFAULT_AGENT_IDLE_TIMEOUT_MS = 5 * 60_000;
+const SPRITE_HOLD_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 type AgentStatus = Extract<DaemonEvent, { type: "agent_update" }>["agent"]["status"];
 interface ExecutionDeadline {
@@ -110,11 +112,13 @@ export interface DaemonDispatchLifecycleOptions {
   publicBaseUrl?: string;
   completionTokenSecret?: string;
   spriteActivation?: SpriteActivation | null;
-  spriteProvider?: (token: string) => Pick<SpritesClient, "hold" | "release">;
+  spriteProvider?: (token: string) => Pick<SpritesClient, "hold" | "release" | "destroy">;
+  spriteApiKeys?: Pick<OrganizationApiKeys, "revoke">;
   test?: {
     logger?: Logger;
     dispatchTimeoutMs?: number;
     deadlineClock?: ExecutionDeadlineClock;
+    spriteHoldRefreshIntervalMs?: number;
   };
 }
 
@@ -165,6 +169,7 @@ export class DaemonDispatchLifecycle {
   private readonly executionSubscriptions = new Map<string, () => void>();
   private readonly heldSpriteExecutions = new Set<string>();
   private readonly recreatedSpriteExecutions = new Set<string>();
+  private clearSpriteHoldRefresh: (() => void) | undefined;
   private stopping = false;
 
   constructor(private readonly options: DaemonDispatchLifecycleOptions) {
@@ -180,6 +185,8 @@ export class DaemonDispatchLifecycle {
 
   async stop(): Promise<void> {
     this.stopping = true;
+    this.clearSpriteHoldRefresh?.();
+    this.clearSpriteHoldRefresh = undefined;
     for (const unsubscribe of this.executionSubscriptions.values()) unsubscribe();
     this.executionSubscriptions.clear();
     for (const clear of this.deadlineTimersByExecution.values()) clear();
@@ -989,6 +996,58 @@ export class DaemonDispatchLifecycle {
     await Promise.all(executions.map((execution) => this.reconcileHubActionSafely(execution)));
   }
 
+  /** The held-execution set does not survive a restart, so holds are re-derived from rows. */
+  async recoverSprites(): Promise<void> {
+    await this.reconcileSpawningSprites();
+    await this.refreshSpriteHolds();
+    this.scheduleSpriteHoldRefresh();
+  }
+
+  private async reconcileSpawningSprites(): Promise<void> {
+    for (const machine of await this.options.database.findSpawningSpriteMachines()) {
+      if (machine.source.kind !== "sprite") continue;
+      try {
+        if ((await this.options.database.findDaemonByMachineId(machine.id)) !== undefined) {
+          await this.options.database.transitionMachine(machine.id, "alive");
+          continue;
+        }
+        await this.options.database.transitionMachine(machine.id, "terminated", {
+          reason: "hub restarted during activation",
+        });
+        await this.options.spriteApiKeys?.revoke(machine.orgId, machine.source.apiKeyId);
+        await (await this.spriteProviderFor(machine.orgId)).destroy(machine.source.spriteName);
+      } catch (error) {
+        this.report(error, "sprites.recover", { machineId: machine.id });
+      }
+    }
+  }
+
+  private async refreshSpriteHolds(): Promise<void> {
+    for (const execution of await this.options.database.findPendingAgentExecutions()) {
+      const machineId = execution.launchIntent?.environment.machineId;
+      if (machineId === undefined || machineId === null) continue;
+      try {
+        const machine = await this.options.database.findMachineById(machineId);
+        if (machine?.status !== "alive" || machine.source.kind !== "sprite") continue;
+        const provider = await this.spriteProviderFor(machine.orgId);
+        await provider.hold(machine.source.spriteName, execution.id, "60m");
+        this.heldSpriteExecutions.add(execution.id);
+      } catch (error) {
+        this.report(error, "sprites.hold-refresh", { executionId: execution.id });
+      }
+    }
+  }
+
+  private scheduleSpriteHoldRefresh(): void {
+    this.clearSpriteHoldRefresh = this.scheduleDeadline(async () => {
+      try {
+        if (!this.stopping) await this.refreshSpriteHolds();
+      } finally {
+        if (!this.stopping) this.scheduleSpriteHoldRefresh();
+      }
+    }, this.options.test?.spriteHoldRefreshIntervalMs ?? SPRITE_HOLD_REFRESH_INTERVAL_MS);
+  }
+
   async recoverWorkflowDeadlineExecutions(executionIds: readonly string[]): Promise<void> {
     for (const executionId of executionIds) {
       this.clearExecutionDeadline(executionId);
@@ -1471,7 +1530,7 @@ export class DaemonDispatchLifecycle {
 
   private async spriteProviderFor(
     organizationId: string,
-  ): Promise<Pick<SpritesClient, "hold" | "release">> {
+  ): Promise<Pick<SpritesClient, "hold" | "release" | "destroy">> {
     const configuration =
       await this.options.database.getOrganizationSpritesConfiguration(organizationId);
     if (configuration === undefined) throw new Error("Sprites are not configured");

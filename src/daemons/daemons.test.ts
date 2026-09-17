@@ -129,6 +129,16 @@ describe("daemon enrollment and execution", () => {
     assert.equal(await hub.harnessApiKeyRevoked(), true);
   });
 
+  it("terminates a sprite machine still spawning when the hub restarts", async () => {
+    const machineId = await hub.spawningSpriteMachine();
+
+    await hub.restartApp();
+
+    const machine = await hub.machine(machineId);
+    assert.equal(machine.status, "terminated");
+    assert.equal(machine.shutdownReason, "hub restarted during activation");
+  });
+
   it("gives a daemon enrolled with an unrelated key a fresh machine", async () => {
     const machineId = await hub.spawningSpriteMachine("00000000-0000-4000-8000-0000000000bb");
     const enrollment = await hub.enrollDaemon("devbox");

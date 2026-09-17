@@ -1331,6 +1331,12 @@ class MemoryDatabase implements Database {
     );
   }
 
+  async findSpawningSpriteMachines(): Promise<MachineRecord[]> {
+    return Array.from(this.machines.values()).filter(
+      (machine) => machine.status === "spawning" && machine.source.kind === "sprite",
+    );
+  }
+
   async insertSpriteMachine(input: {
     orgId: string;
     source: SpriteMachineSource;

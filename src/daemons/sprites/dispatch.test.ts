@@ -17,7 +17,7 @@ import { OrganizationTriggerStore } from "../../triggers/store.js";
 import { parseInvocation } from "../../triggers/invocation.js";
 import type { AcceptedTriggerProviderMatch, TriggerProvider } from "../../triggers/index.js";
 import { createDurableWorkflowHandler } from "../../workflows/engine.js";
-import { createDaemonDispatchLifecycle } from "../lifecycle.js";
+import { createDaemonDispatchLifecycle, type DaemonDispatchLifecycle } from "../lifecycle.js";
 import type { DaemonConnection } from "../protocol.js";
 import type { SpriteActivation } from "./activation.js";
 import { SpritesError } from "./client.js";
@@ -260,9 +260,109 @@ describe("sprite dispatch", () => {
     assert.equal(failures.length, 1);
     assert.equal(failures[0]!["level"], 50);
   });
+
+  it("refreshes a running execution's hold on every tick and stops once it is terminal", async () => {
+    const hub = await setup({ spriteHoldRefreshIntervalMs: 5 });
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+
+    await hub.lifecycle.recoverSprites();
+    await waitFor(() => hub.holds(executionId) >= 3);
+
+    await hub.agentFinished(executionId);
+    await hub.complete(executionId);
+    const held = hub.holds(executionId);
+    await delay(30);
+
+    assert.equal(hub.holds(executionId), held);
+    await hub.lifecycle.stop();
+  });
+
+  it("reports a failed refresh and refreshes again on the next tick", async () => {
+    const hub = await setup({ spriteHoldRefreshIntervalMs: 5 });
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+
+    hub.holdFails = true;
+    await hub.lifecycle.recoverSprites();
+    await waitFor(() => hub.failures("sprites.hold-refresh").length >= 1);
+    hub.holdFails = false;
+    const attempted = hub.holds(executionId);
+    await waitFor(() => hub.heldTimes(executionId) >= 2);
+
+    assert.ok(hub.holds(executionId) > attempted);
+    assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "alive");
+    await hub.lifecycle.stop();
+  });
+
+  it("re-holds an active execution on restart and leaves the next dispatch alone", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+    assert.equal(hub.holds(executionId), 1);
+
+    await hub.restart();
+    await hub.lifecycle.recoverSprites();
+    assert.equal(hub.holds(executionId), 2);
+
+    const readiness = await hub.prepareSpriteDispatch(executionId);
+
+    assert.equal(readiness.status, "ready");
+    assert.equal(hub.holds(executionId), 2);
+    await hub.lifecycle.stop();
+  });
+
+  it("marks a spawning sprite alive on restart when its daemon enrolled", async () => {
+    const hub = await setup();
+    await hub.enrollSprite();
+    await hub.database.transitionMachine(hub.machineId, "spawning");
+
+    await hub.restart();
+    await hub.lifecycle.recoverSprites();
+
+    assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "alive");
+    assert.deepEqual(hub.revokedApiKeys, []);
+    assert.deepEqual(hub.destroyed, []);
+    await hub.lifecycle.stop();
+  });
+
+  it("terminates a spawning sprite on restart when no daemon enrolled", async () => {
+    const hub = await setup();
+
+    await hub.restart();
+    await hub.lifecycle.recoverSprites();
+
+    const machine = await hub.database.findMachineById(hub.machineId);
+    assert.equal(machine?.status, "terminated");
+    assert.equal(machine?.shutdownReason, "hub restarted during activation");
+    assert.deepEqual(hub.revokedApiKeys, [hub.apiKeyId]);
+    assert.deepEqual(hub.destroyed, [hub.spriteName]);
+    await hub.lifecycle.stop();
+  });
 });
 
-async function setup() {
+async function waitFor(observation: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!observation()) {
+    if (Date.now() > deadline) throw new Error("observation did not happen in time");
+    await delay(2);
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
   const database = createMemoryDatabase({ organizationIds: ["org"] });
   const entitlements = new EntitlementsService(database, { seats: async () => 0 });
   await entitlements.stamp("org", UNLIMITED_TEMPLATE, { source: "provisioning", planId: null });
@@ -276,17 +376,6 @@ async function setup() {
   const providerCalls: Array<{ call: string; sprite: string; task: string; expire?: string }> = [];
   const dispatches: Array<{ executionId: string; intent: LaunchMachineIntent }> = [];
   const sequence: string[] = [];
-  const state = {
-    socketOpen: false,
-    activationFails: false,
-    holdFails: false,
-    releaseFails: false,
-    activations: 0,
-    machineId: "",
-    apiKeyId: "",
-    daemonId: "",
-    connection: undefined as DaemonConnection | undefined,
-  };
   const activation: SpriteActivation = async ({ trigger }) => {
     state.activations += 1;
     if (state.activationFails) throw new Error("Sprites are not configured");
@@ -304,29 +393,54 @@ async function setup() {
     if (machine !== undefined) state.machineId = machine.id;
     return { job: Promise.resolve() };
   };
-  const lifecycle = createDaemonDispatchLifecycle({
-    database,
-    connectionForDaemon: () => state.connection,
-    publicBaseUrl: "https://hub.test",
-    completionTokenSecret: SECRET,
-    spriteActivation: activation,
-    spriteProvider: (token) => {
-      assert.equal(token, "sprites-token");
-      return {
-        async hold(sprite, task, expire) {
-          providerCalls.push({ call: "hold", sprite, task, expire });
-          if (state.holdFails) throw new SpritesError(503, "unavailable");
-          sequence.push(`hold:${task}`);
+  function createLifecycle(): DaemonDispatchLifecycle {
+    return createDaemonDispatchLifecycle({
+      database,
+      connectionForDaemon: () => state.connection,
+      publicBaseUrl: "https://hub.test",
+      completionTokenSecret: SECRET,
+      spriteActivation: activation,
+      spriteApiKeys: {
+        async revoke(_organizationId, id) {
+          state.revokedApiKeys.push(id);
+          return true;
         },
-        async release(sprite, task) {
-          providerCalls.push({ call: "release", sprite, task });
-          if (state.releaseFails) throw new SpritesError(500, "release failed");
-          sequence.push(`release:${task}`);
-        },
-      };
-    },
-    test: { logger: createLogger(logs) },
-  });
+      },
+      spriteProvider: (token) => {
+        assert.equal(token, "sprites-token");
+        return {
+          async hold(sprite, task, expire) {
+            providerCalls.push({ call: "hold", sprite, task, expire });
+            if (state.holdFails) throw new SpritesError(503, "unavailable");
+            sequence.push(`hold:${task}`);
+          },
+          async release(sprite, task) {
+            providerCalls.push({ call: "release", sprite, task });
+            if (state.releaseFails) throw new SpritesError(500, "release failed");
+            sequence.push(`release:${task}`);
+          },
+          async destroy(sprite) {
+            state.destroyed.push(sprite);
+          },
+        };
+      },
+      test: { logger: createLogger(logs), ...test },
+    });
+  }
+  const state = {
+    socketOpen: false,
+    activationFails: false,
+    holdFails: false,
+    releaseFails: false,
+    activations: 0,
+    machineId: "",
+    apiKeyId: "",
+    daemonId: "",
+    connection: undefined as DaemonConnection | undefined,
+    lifecycle: createLifecycle(),
+    revokedApiKeys: [] as string[],
+    destroyed: [] as string[],
+  };
   const trigger = await new OrganizationTriggerStore(
     database,
     "org",
@@ -362,7 +476,7 @@ async function setup() {
     entitlements,
     providers: [provider],
     canDispatchToDaemon: () => state.socketOpen,
-    prepareSpriteDispatch: (input) => lifecycle.prepareSpriteDispatch(input),
+    prepareSpriteDispatch: (input) => state.lifecycle.prepareSpriteDispatch(input),
     dispatchLaunchMachineIntent: async (intent) => {
       const execution = await database.findAgentExecutionByWorkflowStepRunId(
         intent.workflowStepRunId!,
@@ -383,7 +497,6 @@ async function setup() {
   });
   return Object.assign(state, {
     database,
-    lifecycle,
     logs,
     providerCalls,
     dispatches,
@@ -480,8 +593,34 @@ async function setup() {
         observedAt,
       });
     },
+    heldTimes(executionId: string) {
+      return sequence.filter((entry) => entry === `hold:${executionId}`).length;
+    },
+    holds(executionId: string) {
+      return providerCalls.filter((call) => call.call === "hold" && call.task === executionId)
+        .length;
+    },
+    failures(operation: string) {
+      return logs.records().filter((record) => record["operation"] === operation);
+    },
+    prepareSpriteDispatch(executionId: string) {
+      const target = configuration.environments.find(
+        (environment) => environment.kind === "sprite",
+      );
+      assert.ok(target?.kind === "sprite");
+      return state.lifecycle.prepareSpriteDispatch({
+        organizationId: "org",
+        projectId: trigger.runtimeProjectId,
+        executionId,
+        target,
+      });
+    },
+    async restart() {
+      await state.lifecycle.stop();
+      state.lifecycle = createLifecycle();
+    },
     complete(executionId: string) {
-      return lifecycle.completeAgentExecutionFromCallback(
+      return state.lifecycle.completeAgentExecutionFromCallback(
         { executionId, token: deriveAgentExecutionCompletionToken(SECRET, executionId) },
         { deferHubAction: true },
       );

@@ -72,6 +72,7 @@ export interface HubRuntimeOptions {
   browserOrganizationAccess?: BrowserOrganizationAccess;
   daemonConnectionForId?: DaemonDispatchLifecycleOptions["connectionForDaemon"];
   spriteActivation?: SpriteActivation | null;
+  spriteApiKeys?: DaemonDispatchLifecycleOptions["spriteApiKeys"];
 }
 
 export interface HubRuntime {
@@ -248,6 +249,7 @@ export function createHubApplication(options: HubRuntimeOptions): HubApplication
       await Promise.all([
         daemonModule?.lifecycle.recoverAgentExecutionDeadlines(),
         daemonModule?.lifecycle.recoverPendingHubActions(),
+        daemonModule?.lifecycle.recoverSprites(),
       ]);
       workflowEngine.start();
       activeSources = [
@@ -473,6 +475,7 @@ function createAppDaemonModule(
       : { executionAuthority: options.executionAuthority }),
     ...(options.publicBaseUrl === undefined ? {} : { publicBaseUrl: options.publicBaseUrl }),
     ...(options.spriteActivation == null ? {} : { spriteActivation: options.spriteActivation }),
+    ...(options.spriteApiKeys === undefined ? {} : { spriteApiKeys: options.spriteApiKeys }),
     ...(usesTestTiming
       ? {
           test: {
