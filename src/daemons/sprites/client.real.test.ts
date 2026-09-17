@@ -26,12 +26,10 @@ describe.skipIf(TOKEN === undefined)("Sprites client against a real sprite", () 
         { stdout: "bar /tmp\n", stderr: "line2\n", exitCode: 7 },
       );
 
-      assert.equal(await client.hold(name, "hub-it", "5m"), true);
-      assert.equal(await client.hold(name, "hub-it", "5m"), true);
-      assert.equal(await client.hold(name, "hub-it", "5m", { refresh: true }), true);
+      await client.hold(name, "hub-it", "5m");
+      await client.hold(name, "hub-it", "5m");
       await client.release(name, "hub-it");
       await client.release(name, "hub-it");
-      assert.equal(await client.hold(name, "hub-it", "5m", { refresh: true }), false);
 
       const probe = (value: string) => ({
         cmd: "/bin/sh",

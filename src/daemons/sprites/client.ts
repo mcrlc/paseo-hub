@@ -95,12 +95,17 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     return decodeExec(new Uint8Array(await response.arrayBuffer()));
   }
 
-  async function taskRequest(name: string, curlArgs: string[], tolerated: RegExp) {
-    const result = await exec(name, ["sprite-env", "curl", "-sf", ...curlArgs]);
-    if (result.exitCode === 0) return true;
-    const text = `${result.stdout}${result.stderr}`;
-    if (result.exitCode === CURL_HTTP_ERROR_EXIT_CODE && tolerated.test(text)) return false;
-    throw new SpritesError(result.exitCode ?? 0, text);
+  async function taskRequest(name: string, curlArgs: string[], allowNotFound = false) {
+    const result = await exec(name, ["sprite-env", "curl", "-s", ...curlArgs]);
+    if (result.exitCode === 0) return;
+    if (
+      allowNotFound &&
+      result.exitCode === CURL_HTTP_ERROR_EXIT_CODE &&
+      result.stderr.includes("returned error: 404")
+    ) {
+      return;
+    }
+    throw new SpritesError(result.exitCode ?? 0, `${result.stdout}${result.stderr}`);
   }
 
   return {
@@ -121,22 +126,13 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
       await (await request("PUT", path, { json: definition })).text();
     },
 
-    async hold(
-      name: string,
-      task: string,
-      expire: string,
-      holdOptions: { refresh?: boolean } = {},
-    ): Promise<boolean> {
+    async hold(name: string, task: string, expire: string): Promise<void> {
       const body = JSON.stringify({ name: task, expire });
-      if (holdOptions.refresh === true) {
-        return taskRequest(name, ["-X", "PUT", taskPath(task), "-d", body], /not found/u);
-      }
-      await taskRequest(name, ["-X", "POST", "/v1/tasks", "-d", body], /already exists/u);
-      return true;
+      await taskRequest(name, ["-X", "PUT", taskPath(task), "-d", body]);
     },
 
     async release(name: string, task: string): Promise<void> {
-      await taskRequest(name, ["-X", "DELETE", taskPath(task)], /not found/u);
+      await taskRequest(name, ["-X", "DELETE", taskPath(task)], true);
     },
 
     async destroy(name: string): Promise<void> {

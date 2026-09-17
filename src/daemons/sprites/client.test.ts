@@ -124,44 +124,27 @@ describe("Sprites client", () => {
     assert.deepEqual(JSON.parse(stub.requests[1]!.body!), definition);
   });
 
-  it("holds through sprite-env curl and treats an existing task as held", async () => {
-    const stub = stubFetch(() => execResponse(22, 'task "hub-hold" already exists'));
+  it("holds by upserting the task with PUT through sprite-env curl", async () => {
+    const stub = stubFetch(() => execResponse(0, '{"expires_at":"later"}'));
     const client = createSpritesClient({ token: "token", fetch: stub.fetch });
 
-    assert.equal(await client.hold("sprite-a", "hub-hold", "60m"), true);
+    await client.hold("sprite-a", "hub-hold", "60m");
     assert.deepEqual(new URL(stub.requests[0]!.url).searchParams.getAll("cmd"), [
       "sprite-env",
       "curl",
-      "-sf",
-      "-X",
-      "POST",
-      "/v1/tasks",
-      "-d",
-      '{"name":"hub-hold","expire":"60m"}',
-    ]);
-  });
-
-  it("refreshes with PUT and reports a vanished task", async () => {
-    const responses = [
-      execResponse(0, '{"expires_at":"later"}'),
-      execResponse(22, "task not found"),
-    ];
-    const stub = stubFetch(() => responses.shift()!);
-    const client = createSpritesClient({ token: "token", fetch: stub.fetch });
-
-    assert.equal(await client.hold("sprite-a", "hub-hold", "60m", { refresh: true }), true);
-    assert.equal(await client.hold("sprite-a", "hub-hold", "60m", { refresh: true }), false);
-    assert.deepEqual(new URL(stub.requests[0]!.url).searchParams.getAll("cmd").slice(3, 6), [
+      "-s",
       "-X",
       "PUT",
       "/v1/tasks/hub-hold",
+      "-d",
+      '{"name":"hub-hold","expire":"60m"}',
     ]);
   });
 
   it("treats a missing task or sprite as released or destroyed", async () => {
     const stub = stubFetch((request) =>
       request.url.includes("/exec")
-        ? execResponse(22, "task not found")
+        ? execResponse(22, "", "curl: (22) The requested URL returned error: 404")
         : new Response("sprite not found", { status: 404 }),
     );
     const client = createSpritesClient({ token: "token", fetch: stub.fetch });
@@ -169,7 +152,8 @@ describe("Sprites client", () => {
     await client.release("sprite-a", "hub-hold");
     await client.destroy("sprite-a");
 
-    assert.deepEqual(new URL(stub.requests[0]!.url).searchParams.getAll("cmd").slice(3), [
+    assert.deepEqual(new URL(stub.requests[0]!.url).searchParams.getAll("cmd").slice(2), [
+      "-s",
       "-X",
       "DELETE",
       "/v1/tasks/hub-hold",
@@ -194,11 +178,16 @@ describe("Sprites client", () => {
 
     const inSprite = createSpritesClient({
       token: "token",
-      fetch: stubFetch(() => execResponse(22, "permission denied")).fetch,
+      fetch: stubFetch(() =>
+        execResponse(22, "", "curl: (22) The requested URL returned error: 500"),
+      ).fetch,
     });
     await assert.rejects(
       inSprite.release("sprite-a", "hub-hold"),
-      (error: unknown) => error instanceof SpritesError && error.body === "permission denied",
+      (error: unknown) =>
+        error instanceof SpritesError &&
+        error.status === 22 &&
+        error.body === "curl: (22) The requested URL returned error: 500",
     );
   });
 });
@@ -225,9 +214,10 @@ function stubFetch(respond: (request: RecordedRequest) => Response) {
   return { requests, fetch: fetchStub };
 }
 
-function execResponse(exitCode: number, stdout = ""): Response {
-  const payload = new TextEncoder().encode(stdout);
-  return new Response(new Uint8Array([1, ...payload, 3, exitCode]), {
+function execResponse(exitCode: number, stdout = "", stderr = ""): Response {
+  const encoder = new TextEncoder();
+  const frames = [1, ...encoder.encode(stdout), 2, ...encoder.encode(stderr), 3, exitCode];
+  return new Response(new Uint8Array(frames), {
     headers: { "Content-Type": "application/octet-stream" },
   });
 }
