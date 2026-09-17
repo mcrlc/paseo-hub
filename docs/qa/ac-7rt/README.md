@@ -47,34 +47,34 @@ tick lands inside the execution and the measurement is unambiguous.
 
 ## Results
 
-| #   | Scenario                               | Command                                                                                                              | Result                        | Evidence                          |
-| --- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------- |
-| 1   | Harness regression                     | `npx vitest run src/daemons src/workflows`, twice, plus `src/daemons/registry.test.ts` alone                          | pass 282/282; gaps in finding 1 | `s1-harness.log`                  |
-| 2   | Tick refresh on a real sprite          | `run.sh qa-ac7rt-sprite qa-7rt-s2-run1` with `task-poll.sh … 30`, `db-poll.sh`, `sprite-poll.sh`                      | pass, refresh at +292 s       | `s2-tick-refresh.log`             |
-| 3   | Restart mid-execution                  | `kill -9` the Hub pid mid-run, wait 10 s, `hub-start.sh`; same three pollers at 5 s                                   | pass, re-hold 1.4 s after start | `s3-restart-mid-execution.log`    |
-| 3b  | Missing hold task recreated (404 AC)   | `del-task.sh <sprite> <execution>` mid-run, then wait out one tick                                                    | pass, recreated on the tick   | `s3b-missing-task.log`            |
+| #   | Scenario                               | Command                                                                                                                | Result                                | Evidence                       |
+| --- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------ |
+| 1   | Harness regression                     | `npx vitest run src/daemons src/workflows`, twice, plus `src/daemons/registry.test.ts` alone                           | pass 282/282; gaps in finding 1       | `s1-harness.log`               |
+| 2   | Tick refresh on a real sprite          | `run.sh qa-ac7rt-sprite qa-7rt-s2-run1` with `task-poll.sh … 30`, `db-poll.sh`, `sprite-poll.sh`                       | pass, refresh at +292 s               | `s2-tick-refresh.log`          |
+| 3   | Restart mid-execution                  | `kill -9` the Hub pid mid-run, wait 10 s, `hub-start.sh`; same three pollers at 5 s                                    | pass, re-hold 1.4 s after start       | `s3-restart-mid-execution.log` |
+| 3b  | Missing hold task recreated (404 AC)   | `del-task.sh <sprite> <execution>` mid-run, then wait out one tick                                                     | pass, recreated on the tick           | `s3b-missing-task.log`         |
 | 4   | Restart mid-bootstrap, then recreation | `install.sh trigger-b.yml`, `kill -9` while `spawning`, `hub-start.sh`, then `run.sh qa-ac7rt-sprite-b qa-7rt-s4-run1` | pass, row + key + sprite all resolved | `s4-restart-mid-bootstrap.log` |
-| 5   | Reconcile a spawning row to alive      | `race-alive.sh 1`, `2`, `3`                                                                                          | not reachable; see finding 3  | `s5-reconcile-alive.log`          |
-| 6   | Cleanup and secret grep                | `DELETE /v1/sprites/<n>` x2, `DELETE /v1/tokens/<id>`, kill by pid, `docker rm -f`, `grep -rF`                        | pass, 0 secret matches        | `s6-cleanup.log`                  |
+| 5   | Reconcile a spawning row to alive      | `race-alive.sh 1`, `2`, `3`                                                                                            | not reachable; see finding 3          | `s5-reconcile-alive.log`       |
+| 6   | Cleanup and secret grep                | `DELETE /v1/sprites/<n>` x2, `DELETE /v1/tokens/<id>`, kill by pid, `docker rm -f`, `grep -rF`                         | pass, 0 secret matches                | `s6-cleanup.log`               |
 
 ### Measured timings
 
-| What                                            | Measured                                                   |
-| ----------------------------------------------- | ---------------------------------------------------------- |
-| Tick period (three independent observations)    | exactly 300 s: 13:35:32, 13:40:32, 13:45:32                |
-| Hold → first refresh (scenario 2)               | **292 s** (hold 13:23:50Z, refresh 13:28:42Z), exactly one |
-| Sprite state for the whole 7 m execution        | `running` 13:23:51 → 13:30:55, never paused mid-turn       |
-| Restart mid-execution: kill → Hub answering     | 13.4 s (kill 13:35:19.4, 200 at 13:35:32.9)                |
-| Restart mid-execution: **process start → re-hold** | **about 1.4 s** (start 13:35:30.6, hold stamp 13:35:32Z) |
-| Stale-hold exposure across that restart         | 13 s, against a 3600 s expiry                              |
-| Re-hold vs daemon reconnect                     | re-hold 13:35:32, daemon reconnect 13:35:36.2 — hold first |
-| Idle deadline after restart                     | recovered, not restarted: terminal at started_at + 4 m 02 s |
-| Restart mid-bootstrap: **process start → row resolved** | **1.32 s** (start 13:48:46.14, terminated_at 13:48:47.458) |
-| …key revoked / sprite 404                       | 13:48:47.461 (+3 ms) / confirmed by 13:48:58.0             |
-| Recreation on the next run                      | 29.1 s `spawning` → `alive` (13:49:12.5 → 13:49:41.5)      |
-| Missing task absent before the tick recreated it | 4 m 40 s, 28 consecutive empty samples                     |
-| `operation: "sprites.hold-refresh"` failures    | **0** across the whole run                                 |
-| `sprites.recover` / `sprites.hold` failures     | 0 / 0                                                      |
+| What                                                    | Measured                                                    |
+| ------------------------------------------------------- | ----------------------------------------------------------- |
+| Tick period (three independent observations)            | exactly 300 s: 13:35:32, 13:40:32, 13:45:32                 |
+| Hold → first refresh (scenario 2)                       | **292 s** (hold 13:23:50Z, refresh 13:28:42Z), exactly one  |
+| Sprite state for the whole 7 m execution                | `running` 13:23:51 → 13:30:55, never paused mid-turn        |
+| Restart mid-execution: kill → Hub answering             | 13.4 s (kill 13:35:19.4, 200 at 13:35:32.9)                 |
+| Restart mid-execution: **process start → re-hold**      | **about 1.4 s** (start 13:35:30.6, hold stamp 13:35:32Z)    |
+| Stale-hold exposure across that restart                 | 13 s, against a 3600 s expiry                               |
+| Re-hold vs daemon reconnect                             | re-hold 13:35:32, daemon reconnect 13:35:36.2 — hold first  |
+| Idle deadline after restart                             | recovered, not restarted: terminal at started_at + 4 m 02 s |
+| Restart mid-bootstrap: **process start → row resolved** | **1.32 s** (start 13:48:46.14, terminated_at 13:48:47.458)  |
+| …key revoked / sprite 404                               | 13:48:47.461 (+3 ms) / confirmed by 13:48:58.0              |
+| Recreation on the next run                              | 29.1 s `spawning` → `alive` (13:49:12.5 → 13:49:41.5)       |
+| Missing task absent before the tick recreated it        | 4 m 40 s, 28 consecutive empty samples                      |
+| `operation: "sprites.hold-refresh"` failures            | **0** across the whole run                                  |
+| `sprites.recover` / `sprites.hold` failures             | 0 / 0                                                       |
 
 ### What scenario 1 showed
 
@@ -86,24 +86,24 @@ passes 16/16. So the flake did not reproduce and no new bead was filed. This mat
 
 The five new `dispatch.test.ts` cases and the one Postgres case, and what each actually asserts:
 
-1. *refreshes a running execution's hold on every tick and stops once it is terminal* — with a 5 ms
+1. _refreshes a running execution's hold on every tick and stops once it is terminal_ — with a 5 ms
    tick, after `recoverSprites()` the hold count for the execution climbs past 3; after the agent
    finishes and the completion callback lands, the count stops moving. Asserts that the tick refreshes
    repeatedly and that a terminal execution stops being refreshed. It never asserts the `"60m"` expiry
    argument, although the stub records it.
-2. *reports a failed refresh and refreshes again on the next tick* — with `holdFails`, a
+2. _reports a failed refresh and refreshes again on the next tick_ — with `holdFails`, a
    `sprites.hold-refresh` record appears; clearing the flag, the hold count climbs again and the
    machine row is still `alive`. This is the test that pins the PR's deliberate asymmetry: a refresh
    failure is reported and does not terminate the machine, unlike the dispatch path.
-3. *re-holds an active execution on restart and leaves the next dispatch alone* — one hold from the
+3. _re-holds an active execution on restart and leaves the next dispatch alone_ — one hold from the
    claim, then `restart()` (stop plus a fresh lifecycle over the same memory database) and
    `recoverSprites()` gives exactly two, and a following `prepareSpriteDispatch` answers `ready`
    without a third. This is the bead comment's requirement that recovery re-derive holds from
    execution rows and rebuild `heldSpriteExecutions` rather than depend on the in-memory set.
-4. *marks a spawning sprite alive on restart when its daemon enrolled* — enrolls, then explicitly puts
+4. _marks a spawning sprite alive on restart when its daemon enrolled_ — enrolls, then explicitly puts
    the row back to `spawning`, restarts, and expects `alive` with nothing revoked or destroyed. See
    finding 3: the state is constructed by hand because production cannot produce it.
-5. *terminates a spawning sprite on restart when no daemon enrolled* — row `terminated` with
+5. _terminates a spawning sprite on restart when no daemon enrolled_ — row `terminated` with
    `hub restarted during activation`, the enrollment key in `revokedApiKeys`, the sprite in
    `destroyed`. Scenario 4 reproduces all three on a real sprite.
 6. `daemons.test.ts > terminates a sprite machine still spawning when the hub restarts` — the only
@@ -140,7 +140,7 @@ The five new `dispatch.test.ts` cases and the one Postgres case, and what each a
 3. **The reconcile-to-`alive` branch is not reachable through the real enrollment path.**
    `src/db/pg.ts:1599 enrollDaemon` runs its whole body inside one `this.pool.transaction`, and within
    that transaction it sets `update machines set status = 'alive'` (line 1635) and then
-   `insert into daemons` (line 1660). A row that is `spawning` *and* has a daemon bound is therefore
+   `insert into daemons` (line 1660). A row that is `spawning` _and_ has a daemon bound is therefore
    never visible to another connection. Three attempts to race it (`race-alive.sh`, poll interval
    measured at 34.4 ms) all found the row already `alive` with its daemon. The branch at
    `lifecycle.ts:1010-1012` is a cheap and correct guard, and reconciling to `alive` is the right

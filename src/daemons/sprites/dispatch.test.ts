@@ -312,6 +312,12 @@ describe("sprite dispatch", () => {
 
     await hub.restart();
     await hub.lifecycle.recoverSprites();
+    assert.deepEqual(hub.providerCalls.at(-1), {
+      call: "hold",
+      sprite: hub.spriteName,
+      task: executionId,
+      expire: "60m",
+    });
     assert.equal(hub.holds(executionId), 2);
 
     const readiness = await hub.prepareSpriteDispatch(executionId);
@@ -319,6 +325,49 @@ describe("sprite dispatch", () => {
     assert.equal(readiness.status, "ready");
     assert.equal(hub.holds(executionId), 2);
     await hub.lifecycle.stop();
+  });
+
+  it("skips an execution with no machine and one whose sprite is not alive", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const { environment, ...intent } = hub.dispatches[0]!.intent;
+    const { machineId: _machineId, ...unmachined } = environment;
+    await hub.database.insertAgentExecution({
+      organizationId: "org",
+      projectId: intent.projectId,
+      machineId: null,
+      triggerContext: intent.triggerContext,
+      outputContext: intent.outputContext,
+      configurationRevisionId: intent.configurationRevisionId,
+      launchIntent: { ...intent, environment: unmachined },
+    });
+    await hub.database.transitionMachine(hub.machineId, "terminated", { reason: "gone" });
+    const calls = hub.providerCalls.length;
+
+    await hub.lifecycle.recoverSprites();
+
+    assert.equal(hub.providerCalls.length, calls);
+    await hub.lifecycle.stop();
+  });
+
+  it("stops refreshing once the lifecycle stops", async () => {
+    const hub = await setup({ spriteHoldRefreshIntervalMs: 5 });
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(1);
+    const executionId = hub.dispatches[0]!.executionId;
+    await hub.lifecycle.recoverSprites();
+    await waitFor(() => hub.holds(executionId) >= 3);
+
+    await hub.lifecycle.stop();
+    const held = hub.holds(executionId);
+    await delay(30);
+
+    assert.equal(hub.holds(executionId), held);
   });
 
   it("marks a spawning sprite alive on restart when its daemon enrolled", async () => {
