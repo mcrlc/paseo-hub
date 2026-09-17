@@ -1,0 +1,35 @@
+# Scenario 4: memory default
+## a) UI save with the memory field left at its default (ui-first.log: 'memory field value before first save: 8192')
+Row immediately after that save (captured before the scenario 2 probes):
+## Row before the member's attempt
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+memory_mb          | 8192
+updated_by_user_id | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni
+updated_at         | 2026-09-17 08:37:25.412653+00
+
+## b) Wire save with memoryMb omitted from the payload entirely (server zod default), owner session: see 2-capability-on-the-wire.txt 'Owner saves directly' -> row memory_mb 8192, snapshot memoryMb {t:0,s:8192}
+
+## c) UI save of 16384 (ui-journey.ts replace step) -> row
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-B-8046761983535a0a400c52d4
+memory_mb          | 16384
+updated_by_user_id | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni
+updated_at         | 2026-09-17 08:39:14.664254+00
+
+## Snapshot now (admin session)
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["configured","memoryMb","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":16384},{"t":1,"s":"2026-09-17T08:39:50.205Z"},{"t":1,"s":"AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+
+## Summary panel
+07-saved-notice.png and 08-configured-summary-replace-form.png show 'Default memory 8192 MB'; 09-replaced-16384.png shows '16384 MB'.
+docs/qa/ac-0yj/ui-replace.log:Default memory\n16384 MB
+docs/qa/ac-0yj/ui-first.log:Default memory\n8192 MB
+docs/qa/ac-0yj/ui-first.log:Default memory\n8192 MB

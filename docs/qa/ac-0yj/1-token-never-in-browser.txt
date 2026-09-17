@@ -1,0 +1,101 @@
+# Scenario 1: the token never reaches the browser
+Production build (node dist/index.js, PID 96802) on http://127.0.0.1:4107, DATABASE_URL -> postgres:17-alpine container ac0yj-pg.
+Token A was saved through the UI by the admin (ui-first.log). Token value: ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+
+## Stored row (proves the value is in the database, so a leak would be greppable)
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+memory_mb          | 8192
+updated_by_user_id | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni
+updated_at         | 2026-09-17 08:37:25.412653+00
+
+## Raw snapshot server-function response, admin session
+$ docs/qa/ac-0yj/wire.sh snapshot http://127.0.0.1:4107 acme-704c1be6 /tmp/ac0yj-state/admin.json
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["configured","memoryMb","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":8192},{"t":1,"s":"2026-09-17T08:37:25.412Z"},{"t":1,"s":"AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+grep -c token value: 0
+
+## SSR HTML of /o/acme-704c1be6/settings/sprites, admin session
+$ docs/qa/ac-0yj/wire.sh page http://127.0.0.1:4107 acme-704c1be6 /tmp/ac0yj-state/admin.json
+Binary file (standard input) matches
+... (      37 bytes total)
+grep -c token value: 0
+grep -c 'ac0yj-sprites-token': 0
+
+## Raw snapshot server-function response, owner session
+$ docs/qa/ac-0yj/wire.sh snapshot http://127.0.0.1:4107 acme-704c1be6 /tmp/ac0yj-state/owner.json
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["configured","memoryMb","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":8192},{"t":1,"s":"2026-09-17T08:37:25.412Z"},{"t":1,"s":"AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+grep -c token value: 0
+
+## SSR HTML of /o/acme-704c1be6/settings/sprites, owner session
+$ docs/qa/ac-0yj/wire.sh page http://127.0.0.1:4107 acme-704c1be6 /tmp/ac0yj-state/owner.json
+Binary file (standard input) matches
+... (      37 bytes total)
+grep -c token value: 0
+grep -c 'ac0yj-sprites-token': 0
+
+## Every response body the admin's browser received during the first-save journey (load, validation, save, refetch, reload)
+file: browser-bodies-first.txt, 145 responses (JS/CSS/font asset bodies trimmed from the committed copy after counting)
+grep -c token value in responses: 0   (LC_ALL=C grep -a -c -F <token> over the untrimmed capture)
+(the only place the value travels is the browser's own POST request body to the save function; see serverfn request captured in the README)
+
+## Source readers of the table / accessor on this branch
+$ git grep -n "organization_sprites_configuration\|getOrganizationSpritesConfiguration\|OrganizationSpritesConfiguration" -- src ":!*.test.ts"
+src/daemons/sprites/settings.ts:17:    const stored = await this.database.getOrganizationSpritesConfiguration(tenant.organization.id);
+src/daemons/sprites/settings.ts:37:    await this.database.upsertOrganizationSpritesConfiguration({
+src/db/memory.ts:86:  OrganizationSpritesConfigurationRecord,
+src/db/memory.ts:87:  UpsertOrganizationSpritesConfigurationInput,
+src/db/memory.ts:189:    OrganizationSpritesConfigurationRecord
+src/db/memory.ts:2073:  async getOrganizationSpritesConfiguration(
+src/db/memory.ts:2075:  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+src/db/memory.ts:2079:  async upsertOrganizationSpritesConfiguration(
+src/db/memory.ts:2080:    input: UpsertOrganizationSpritesConfigurationInput,
+src/db/memory.ts:2081:  ): Promise<OrganizationSpritesConfigurationRecord> {
+src/db/memory.ts:2083:      throw new Error("organization_sprites_configuration_memory_mb_check");
+src/db/pg.ts:106:  OrganizationSpritesConfigurationRecord,
+src/db/pg.ts:107:  UpsertOrganizationSpritesConfigurationInput,
+src/db/pg.ts:2464:  async getOrganizationSpritesConfiguration(
+src/db/pg.ts:2466:  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+src/db/pg.ts:2467:    const rows = await query<OrganizationSpritesConfigurationRow>(
+src/db/pg.ts:2469:      `select * from organization_sprites_configuration where organization_id = $1`,
+src/db/pg.ts:2474:      : toOrganizationSpritesConfigurationRecord(rows.rows[0]);
+src/db/pg.ts:2477:  async upsertOrganizationSpritesConfiguration(
+src/db/pg.ts:2478:    input: UpsertOrganizationSpritesConfigurationInput,
+src/db/pg.ts:2479:  ): Promise<OrganizationSpritesConfigurationRecord> {
+src/db/pg.ts:2480:    const rows = await query<OrganizationSpritesConfigurationRow>(
+src/db/pg.ts:2482:      `insert into organization_sprites_configuration
+src/db/pg.ts:2493:    return toOrganizationSpritesConfigurationRecord(rows.rows[0]!);
+src/db/pg.ts:4849:interface OrganizationSpritesConfigurationRow extends QueryRow {
+src/db/pg.ts:4857:function toOrganizationSpritesConfigurationRecord(
+src/db/pg.ts:4858:  row: OrganizationSpritesConfigurationRow,
+src/db/pg.ts:4859:): OrganizationSpritesConfigurationRecord {
+src/db/schema.ts:1316:  "organization_sprites_configuration",
+src/db/schema.ts:1329:    check("organization_sprites_configuration_memory_mb_check", sql`${table.memoryMb} > 0`),
+src/db/types.ts:877:export interface OrganizationSpritesConfigurationRecord {
+src/db/types.ts:885:export interface UpsertOrganizationSpritesConfigurationInput {
+src/db/types.ts:1414:  getOrganizationSpritesConfiguration(
+src/db/types.ts:1416:  ): Promise<OrganizationSpritesConfigurationRecord | undefined>;
+src/db/types.ts:1417:  upsertOrganizationSpritesConfiguration(
+src/db/types.ts:1418:    input: UpsertOrganizationSpritesConfigurationInput,
+src/db/types.ts:1419:  ): Promise<OrganizationSpritesConfigurationRecord>;
+
+$ git grep -n "\.token" -- src/daemons/sprites ":!*.test.ts"
+src/daemons/sprites/client.ts:67:    const headers: Record<string, string> = { Authorization: `Bearer ${options.token}` };
+src/daemons/sprites/functions.ts:36:        token: data.token,
+src/daemons/sprites/panel.tsx:174:            {...(errors.token === undefined ? {} : { error: errors.token })}
+src/daemons/sprites/settings.ts:39:      token: input.token,
+
+## Hub process log
+grep -c token value in /tmp/ac0yj-hub.log (whole run so far): 0
