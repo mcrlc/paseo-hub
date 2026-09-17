@@ -32,6 +32,8 @@ export interface FailureContext {
   projectSlug?: string;
   projectId?: string;
   daemonId?: string;
+  triggerId?: string;
+  sprite?: string;
   executionId?: string;
   method?: string;
   path?: string;

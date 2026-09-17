@@ -70,6 +70,7 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
     }
     const provider = providerFor(configuration.token);
     const secrets = [key.secret, ...Object.values(configuration.env)];
+
     const provision = async () => {
       try {
         await provisionSprite({
@@ -120,7 +121,7 @@ async function provisionSprite(input: {
   specs: { bootstrapHash: string; memoryMb: number };
   apiKey: string;
   organizationEnv: Record<string, string>;
-  secrets: string[];
+  secrets: readonly string[];
 }): Promise<void> {
   const { provider, machine, target } = input;
   if (machine.source.kind !== "sprite") throw new Error("machine is not a sprite");
@@ -147,7 +148,6 @@ async function provisionSprite(input: {
     input.secrets,
   );
   const targetEnv = await resolveTargetEnv(target, input.resolver);
-  input.secrets.push(...Object.values(targetEnv));
   const bootstrapEnv = { PATH, ...input.organizationEnv, ...targetEnv };
   step("sprite activation: bootstrap");
   expectSuccess(
@@ -181,39 +181,53 @@ export function createSpriteServiceRewrite(
   const providerFor = options.provider ?? ((token) => createSpritesClient({ token }));
   return async (organizationId) => {
     const { database } = options;
-    const configuration = await database.getOrganizationSpritesConfiguration(organizationId);
-    if (configuration === undefined) return;
-    const provider = providerFor(configuration.token);
-    for (const trigger of await database.listOrganizationTriggers(organizationId)) {
-      const secrets = Object.values(configuration.env);
-      try {
+    const context = { operation: "sprites.rewrite-service", component: "sprites", organizationId };
+    let secrets: string[] = [];
+    try {
+      const configuration = await database.getOrganizationSpritesConfiguration(organizationId);
+      if (configuration === undefined) return;
+      secrets = Object.values(configuration.env);
+      const provider = providerFor(configuration.token);
+      for (const trigger of await database.listOrganizationTriggers(organizationId)) {
         const machine = await database.findLiveSpriteMachine(trigger.id);
         if (machine?.status !== "alive" || machine.source.kind !== "sprite") continue;
-        const specs = machine.specs;
-        const npmPrefix =
-          typeof specs === "object" && specs !== null && "npmPrefix" in specs
-            ? specs.npmPrefix
-            : undefined;
-        if (typeof npmPrefix !== "string") continue;
-        const revision = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
-        const target = parseCompiledHubConfig(revision?.normalizedConfiguration).environments.find(
-          (environment): environment is SpriteTarget => environment.kind === "sprite",
-        );
-        if (target === undefined) continue;
-        const targetEnv = await resolveTargetEnv(
-          target,
-          options.connectionsForProject(trigger.runtimeProjectId),
-        );
-        secrets.push(...Object.values(targetEnv));
-        const service = daemonService(npmPrefix, { ...configuration.env, ...targetEnv });
-        await provider.service(machine.source.spriteName, "paseo", service.definition);
-      } catch (error) {
-        reportFailure(
-          error,
-          { operation: "sprites.rewrite-service", component: "sprites", organizationId },
-          { scrubValues: secrets },
-        );
+        const sprite = machine.source.spriteName;
+        try {
+          const specs = machine.specs;
+          const npmPrefix =
+            typeof specs === "object" && specs !== null && "npmPrefix" in specs
+              ? specs.npmPrefix
+              : undefined;
+          if (typeof npmPrefix !== "string") continue;
+          const revision = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
+          const target = parseCompiledHubConfig(
+            revision?.normalizedConfiguration,
+          ).environments.find(
+            (environment): environment is SpriteTarget => environment.kind === "sprite",
+          );
+          if (target === undefined) continue;
+          const targetEnv = await resolveTargetEnv(
+            target,
+            options.connectionsForProject(trigger.runtimeProjectId),
+          );
+          const service = daemonService(npmPrefix, { ...configuration.env, ...targetEnv });
+          await provider.service(sprite, "paseo", service.definition);
+          logger.info(
+            { triggerId: trigger.id, sprite, envKeys: Object.keys(service.definition.env).length },
+            "sprite service rewritten",
+          );
+        } catch (error) {
+          reportFailure(
+            error,
+            { ...context, triggerId: trigger.id, sprite },
+            {
+              scrubValues: secrets,
+            },
+          );
+        }
       }
+    } catch (error) {
+      reportFailure(error, context, { scrubValues: secrets });
     }
   };
 }
@@ -280,9 +294,13 @@ function expectSuccess(label: string, result: ExecResult, secrets: readonly stri
   throw new Error(`${label} exited with ${String(result.exitCode)}: ${output}`);
 }
 
+/** Short values match too much of a log line to replace, and are not credentials. */
+const SECRET_MIN_LENGTH = 8;
+
 function scrub(text: string, secrets: readonly string[]): string {
   return secrets.reduce(
-    (scrubbed, secret) => (secret === "" ? scrubbed : scrubbed.replaceAll(secret, "[redacted]")),
+    (scrubbed, secret) =>
+      secret.length < SECRET_MIN_LENGTH ? scrubbed : scrubbed.replaceAll(secret, "[redacted]"),
     text,
   );
 }
