@@ -349,7 +349,7 @@ builtServerTests("built TanStack public API PostgreSQL contract", () => {
     const response = await post("/api/v1/configurations/install", secrets["organization-a"], {
       projectSlug: "same-project",
       files: configurationBundleFixture(
-        "environments:\n  - name: runner\n    kind: docker\n    image: paseo/valid\ntriggers: []",
+        "environments:\n  - name: runner\n    kind: daemon\n    daemon: runner\n    cwd: /repo\ntriggers: []",
       ),
     });
     const restore = await createPostgresQueryRuntime(databaseUrl);
