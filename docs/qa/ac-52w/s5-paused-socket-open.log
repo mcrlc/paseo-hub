@@ -1,0 +1,27 @@
+# s5: paused sprite, daemon socket still open (UTC, 2026-09-17). Machine 20a8b9a8, daemon eb616a99, key qa-ac52w-v5.
+# s5-fire-when-paused.sh polls GET /v1/sprites/:name (no wake) and daemons.presence each second, fires at pause age >= 42 s if still connected.
+
+## first attempts (missed)
+11:01:53  paused; script bug kept it from firing; 11:03:58.887 offline (125 s after pause)
+11:07:17  tasks.sh exec woke the sprite too briefly for the daemon to reconnect; 11:17:17 status cold
+11:17:41  sleep 15 exec from cold; daemon connected 11:18:45.964 (64 s; daemon log: git rev-parse timed out 30 s); exec returned 11:19:00
+11:19:01  paused before the script started; 11:20:51.076 offline (110 s after pause)
+
+## hit
+11:26:27  wake: sleep 10 exec. daemon log 11:26:27.896 "Client disconnected; waiting for reconnect", 11:26:28.772 "Client connected via hello"
+11:26:28.774 daemons.connected_at
+11:26:38  sprite last_warming_at (paused)
+11:26:40  status warm, presence connected
+11:27:20  pause age 42 s, presence connected (connected_at still 11:26:28.774) -> fire qa-run-3b
+11:27:20.530 Hub intake receipt 6f73510c
+11:27:20  hold task 17a8b44e-cd7b-5d40-b672-23f4a632c9a0 started_at 11:27:20Z (listed at 11:27:50)
+11:27:20.660 execution 17a8b44e row created (handoff), intent machineId 20a8b9a8
+11:27:21.538 daemon log: "Created agent 433a1a11-533f-49e7-adb0-79e616923da1" on connection conn_ab7024b8
+11:27:23  execution running
+          daemon log: no disconnect or reconnect between 11:26:28.772 and terminal; connected_at unchanged -> the same socket survived a 42 s pause
+11:29:24.097 execution failed step_idle_timeout (NOT daemon_timeout) -> run failed
+11:29:24  tasks: []   <- released
+11:29:25.548 archive completed (the 11:29:24 tasks.sh exec kept the sprite awake, so this run does not show finding 1)
+
+Timings: fire (42 s into the pause) -> handoff 0.13 s after intake; hold -> agent created about 1 s.
+Result: pass.

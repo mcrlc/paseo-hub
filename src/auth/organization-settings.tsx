@@ -9,7 +9,7 @@ import { useRouteTenant } from "../projects/context.js";
 /**
  * Organization administration. Each section keeps its own `<h1>` and actions, so this contributes
  * only the strip that says which sections exist — the sidebar stops at "Settings" and this is
- * where the choice between Team, API keys, Usage, and Billing is made.
+ * where the choice between Team, API keys, Sprites, Usage, and Billing is made.
  */
 export function OrganizationSettingsLayout() {
   const tenant = useRouteTenant();
@@ -29,6 +29,7 @@ export function OrganizationSettingsLayout() {
       [
         { to: `${base}/team`, label: "Team", shown: true },
         { to: `${base}/api-keys`, label: "API keys", shown: manageResources },
+        { to: `${base}/sprites`, label: "Sprites", shown: manageResources },
         { to: `${base}/usage`, label: "Usage", shown: true },
         { to: `${base}/billing`, label: "Billing", shown: billingShown },
       ]

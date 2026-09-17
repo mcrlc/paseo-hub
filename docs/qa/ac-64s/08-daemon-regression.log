@@ -1,0 +1,43 @@
+# Prereqs: Paseo source at PASEO_E2E_COMMIT 433e67b18b7964a92d593bdc78c518143accfc8b (.github/workflows/ci.yml)
+#   git -C ~/repos/paseo worktree add --detach /tmp/paseo-e2e 433e67b1... && (cd /tmp/paseo-e2e && npm ci && npm run build:server)   # build exit=0
+#   npm run build   # Hub .output/ for the harness Hub child (exit 0)
+
+$ RUN_HUB_E2E=1 PASEO_E2E_WORKTREE=/tmp/paseo-e2e npx vitest run src/e2e/hub-foundation.e2e.test.ts -t "completes an isolated manual run|delivers a long prompt"
+
+ RUN  v3.2.4 /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-target-schema-1
+
+Hub E2E shutdown {"durationMs":366,"hubMs":67,"daemonMs":60,"ownedProcesses":[…],"leakedProcesses":[]}
+Hub E2E shutdown {"durationMs":389,"hubMs":56,"daemonMs":65,"ownedProcesses":[…],"leakedProcesses":[]}
+ ✓ src/e2e/hub-foundation.e2e.test.ts (9 tests | 7 skipped) 32752ms
+   ✓ Paseo Hub cross-repository contract > delivers a long prompt through ordinary agent creation without enabling continuation  8564ms
+   ✓ Paseo Hub cross-repository contract > connects a real daemon and completes an isolated manual run without relay authority  11154ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 7 skipped (9)
+   Start at  09:21:26
+   Duration  33.76s (transform 243ms, setup 0ms, collect 777ms, tests 32.75s, environment 0ms, prepare 28ms)
+
+exit=0
+
+$ npx vitest run src/triggers/schedule/schedule.integration.test.ts src/triggers/store.test.ts
+
+ RUN  v3.2.4 /Users/mic/.paseo/worktrees/01slizkc/sprite-targets-target-schema-1
+
+ ✓ src/triggers/schedule/schedule.integration.test.ts (10 tests) 9726ms
+   ✓ schedule on embedded > atomically coalesces downtime, skips overlap, preserves execution edits, and honors disable/re-enable  1230ms
+   ✓ schedule on embedded > persists finite exhaustion and retains one catch-up after the final occurrence  851ms
+   ✓ schedule on embedded > rolls back occurrence identity and advancement together, and recovers after reopening storage  854ms
+   ✓ schedule on postgres > atomically coalesces downtime, skips overlap, preserves execution edits, and honors disable/re-enable  507ms
+   ✓ schedule on postgres > persists finite exhaustion and retains one catch-up after the final occurrence  337ms
+   ✓ schedule on postgres > rolls back occurrence identity and advancement together, and recovers after reopening storage  323ms
+   ✓ two independent Hub workers leave queued work for the process with the daemon connection  376ms
+   ✓ Hub runtime dispatches through the peer daemon port and completes ordinary scheduled history  436ms
+   ✓ validates, installs, exports and edits scheduled YAML through the existing public API  792ms
+ ✓ src/triggers/store.test.ts (5 tests) 5ms
+
+ Test Files  2 passed (2)
+      Tests  15 passed (15)
+   Start at  09:22:01
+   Duration  11.30s (transform 554ms, setup 0ms, collect 1.30s, tests 9.73s, environment 0ms, prepare 27ms)
+
+exit=0

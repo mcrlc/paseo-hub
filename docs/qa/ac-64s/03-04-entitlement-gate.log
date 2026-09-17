@@ -1,0 +1,74 @@
+organization org-918dcf2c-ac60-46cb-bdd6-a45555fa746c (qa-918dcf2c) stamped with Free provisioning entitlement:
+{"planId":null,"granted":{"seats":{"max":1},"canInviteMembers":false,"canUseSpriteTargets":false,"meters":{"executions.monthly":{"limit":0}}}}
+
+==== Scenario 3: entitlement off (Free) ====
+[save daemon trigger] SAVED trigger=10cab58f-32df-42bc-af12-65e2bd5832fe activeRevisionId=58414c2c-c906-4519-8dff-eecd25fbc824
+
+-- state: before sprite attempts --
+effective.canUseSpriteTargets=false
+trigger name=daemon-review enabled=true activeRevisionId=58414c2c-c906-4519-8dff-eecd25fbc824 version=1 contentHash=6c27012bf66e routes=0
+[save new sprite trigger] REJECTED TriggerDocumentError
+    path=run.target.kind  message=Sprite targets are not enabled for this organization.
+[overwrite daemon trigger with sprite target] REJECTED TriggerDocumentError
+    path=run.target.kind  message=Sprite targets are not enabled for this organization.
+
+-- state: after sprite attempts --
+effective.canUseSpriteTargets=false
+trigger name=daemon-review enabled=true activeRevisionId=58414c2c-c906-4519-8dff-eecd25fbc824 version=1 contentHash=6c27012bf66e routes=0
+
+==== Scenario 4: entitlement on via operator override ====
+operator.override -> overrides={"canUseSpriteTargets":true} effective.canUseSpriteTargets=true
+[save new sprite trigger] SAVED trigger=95b7721f-19c3-43a9-a802-cecb32b8f9fc activeRevisionId=5566ab88-9cb3-487a-bdb6-cae05fedc2c8
+stored normalized_configuration.environments (from Postgres) = [
+  {
+    "name": "target",
+    "kind": "sprite",
+    "bootstrap": "npm install -g @getpaseo/cli\npaseo --version\n",
+    "cwd": "/home/sprite/workspace/project",
+    "memory": 16384,
+    "env": {
+      "GITHUB_TOKEN": "${{ paseo.connections.github.token }}",
+      "ANTHROPIC_API_KEY": "plain-value"
+    },
+    "worktree": {
+      "mode": "branch-off",
+      "newBranch": "hub-work",
+      "base": "origin/main"
+    }
+  }
+]
+any environment has daemonId: false
+
+-- state: override on, sprite saved --
+effective.canUseSpriteTargets=true
+trigger name=daemon-review enabled=true activeRevisionId=58414c2c-c906-4519-8dff-eecd25fbc824 version=1 contentHash=6c27012bf66e routes=0
+trigger name=sprite-review enabled=true activeRevisionId=5566ab88-9cb3-487a-bdb6-cae05fedc2c8 version=1 contentHash=962c1ca99a25 routes=0
+
+operator.clearOverride -> overrides={} effective.canUseSpriteTargets=false
+[fresh save: another new sprite trigger] REJECTED TriggerDocumentError
+    path=run.target.kind  message=Sprite targets are not enabled for this organization.
+[fresh save: prompt edit on the active sprite trigger] REJECTED TriggerDocumentError
+    path=run.target.kind  message=Sprite targets are not enabled for this organization.
+[disable the active sprite trigger (enabled: false)] REJECTED TriggerDocumentError
+    path=run.target.kind  message=Sprite targets are not enabled for this organization.
+
+-- state: override cleared --
+effective.canUseSpriteTargets=false
+trigger name=daemon-review enabled=true activeRevisionId=58414c2c-c906-4519-8dff-eecd25fbc824 version=1 contentHash=6c27012bf66e routes=0
+trigger name=sprite-review enabled=true activeRevisionId=5566ab88-9cb3-487a-bdb6-cae05fedc2c8 version=1 contentHash=962c1ca99a25 routes=0
+
+entitlement history (newest first):
+  override actor=qa-operator reason=ac-64s beta ended overrides={}
+  override actor=qa-operator reason=ac-64s sprite beta overrides={"canUseSpriteTargets":true}
+  provisioning actor=null reason=null overrides={}
+[2026-09-17 09:14:52.644 +0300] ERROR: billing.entitlement.free.resolve failed
+    failureKind: "internal"
+    requestId: "ed8e65a7-9150-46cc-a0d8-b88ce258770b"
+    operation: "billing.entitlement.free.resolve"
+    component: "billing"
+    provider: "stripe"
+    err: {
+      "type": "Error",
+      "code": "billing_free_plan_missing",
+      "stack":
+    }

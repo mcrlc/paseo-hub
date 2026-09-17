@@ -1,0 +1,96 @@
+# ac-7rt scenario 2: tick refresh on a real sprite
+# head a35fe78. trigger qa-ac7rt-sprite (idle_timeout 7m, max_runtime 8m, continuation key qa-ac7rt-s2)
+# machine 7e9f4acc  sprite trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5
+# All times UTC. Hub log lines are local +0300 and are re-stamped to UTC in the annotations.
+#
+# The refresh tick is anchored to recoverSprites() at Hub start, not to the hold: Hub started
+# 13:18:42Z, so ticks fall at 13:23:42, 13:28:42, 13:33:42 ... The run was deliberately fired at
+# 13:23:49, just after the 13:23:42 tick, so exactly one tick (13:28:42) lands inside the execution.
+
+## hold  (hub.log, 16:23:49.927 +0300 = 13:23:49.927Z)
+[2026-09-17 16:23:49.927 +0300] INFO: sprite hold
+    executionId: "eca1f07e-d590-574f-a8c7-26ed4c886c1b"
+    sprite: "trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5"
+    task: "eca1f07e-d590-574f-a8c7-26ed4c886c1b"
+
+## in-sprite task samples, every 30 s (task-poll.sh). expires_at is the hold's expiry.
+13:23:49.932 {"tasks":[]}
+13:24:20.291 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:24:50.624 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:25:21.013 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:25:51.427 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:26:21.750 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:26:52.099 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:27:22.447 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:27:52.803 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:28:23.173 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:23:50Z","expires_at":"2026-09-17T14:23:50Z"}]}
+13:28:53.562 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:28:42Z","expires_at":"2026-09-17T14:28:42Z"}]}
+13:29:23.925 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:28:42Z","expires_at":"2026-09-17T14:28:42Z"}]}
+13:29:54.264 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:28:42Z","expires_at":"2026-09-17T14:28:42Z"}]}
+13:30:24.584 {"tasks":[{"name":"eca1f07e-d590-574f-a8c7-26ed4c886c1b","started_at":"2026-09-17T13:28:42Z","expires_at":"2026-09-17T14:28:42Z"}]}
+13:30:54.975 {"tasks":[]}
+13:31:25.309 {"tasks":[]}
+13:31:55.665 {"tasks":[]}
+13:32:26.007 {"tasks":[]}
+
+## measured
+#   hold            13:23:50Z  expires 14:23:50Z   (60m, one hold, logged once)
+#   refresh seen    between the 13:28:23.173 and 13:28:53.562 samples
+#   refresh stamp   started_at/expires_at moved to 13:28:42Z / 14:28:42Z
+#   refresh - hold  = 13:28:42 - 13:23:50 = 292 s (4 m 52 s)
+#   refreshes       exactly 1 (next tick 13:33:42 is after terminal)
+#   sprites.hold-refresh failures in the whole Hub log: 0
+#   task last seen  13:30:24.584   gone 13:30:54.975
+
+## sprite status (sprite-poll.sh, GET /v1/sprites/:name, does not wake)
+13:23:49.636 status=warm last_running_at=2026-09-17T13:21:51Z last_warming_at="2026-09-17T13:21:51Z"
+13:23:51.138 status=running last_running_at=2026-09-17T13:23:49Z last_warming_at=null
+13:30:55.697 status=warm last_running_at=2026-09-17T13:23:49Z last_warming_at="2026-09-17T13:30:54Z"
+13:31:25.769 status=warm last_running_at=2026-09-17T13:23:49Z last_warming_at="2026-09-17T13:31:25Z"
+13:31:56.119 status=warm last_running_at=2026-09-17T13:23:49Z last_warming_at="2026-09-17T13:31:55Z"
+13:32:26.637 status=warm last_running_at=2026-09-17T13:23:49Z last_warming_at="2026-09-17T13:32:26Z"
+#   running for the whole execution: 13:23:51.138 -> 13:30:55.697. Never paused mid-turn.
+
+## terminal, archive, release, pause (db-poll.sh + hub.log)
+== 13:30:53.845
+machine|7e9f4acc|alive|-|trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5
+exec|eca1f07e|failed|archive|13:23:51.124|13:30:53.528|-|7e9f4acc-fa30-4304-887d-b62081038d02
+run|failed|step_idle_timeout
+daemon|7e9f4acc|connected|13:30:12.108|13:30:11.153
+== 13:30:54.426
+machine|7e9f4acc|alive|-|trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5
+exec|eca1f07e|failed|archive|13:23:51.124|13:30:53.528|13:30:54.022|7e9f4acc-fa30-4304-887d-b62081038d02
+run|failed|step_idle_timeout
+daemon|7e9f4acc|connected|13:30:12.108|13:30:11.153
+== 13:32:59.255
+machine|7e9f4acc|alive|-|trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5
+[2026-09-17 16:30:54.265 +0300] INFO: sprite release
+    executionId: "eca1f07e-d590-574f-a8c7-26ed4c886c1b"
+    sprite: "trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5"
+    task: "eca1f07e-d590-574f-a8c7-26ed4c886c1b"
+#   terminal (step_idle_timeout) 13:30:53.528  (hold 13:23:50 + 7m03s, idle_timeout 7m)
+#   archive  hub_action_completed_at 13:30:54.022  (+494 ms)
+#   release  13:30:54.265  (+243 ms after archive)   -> ordering of ac-52w r2 finding 1 still holds
+#   pause    last_warming_at 13:30:54Z             (<1.5 s after release)
+
+## Hub WARN/ERROR lines for the whole scenario (none are sprite operations)
+[2026-09-17 16:19:43.567 +0300] WARN: http.response failed
+[2026-09-17 16:23:52.794 +0300] WARN: http.response failed
+[2026-09-17 16:23:53.186 +0300] WARN: http.response failed
+#   All three are the credential-less agent hitting /agent-sessions/:id/mcp (POST 400, GET 405),
+#   ac-52w finding 9. operation="sprites.hold-refresh" count 0, "sprites.hold" 0, "sprites.recover" 0.
+
+## daemon presence during the execution (db-poll.sh, deduplicated)
+daemon|7e9f4acc|connected|13:23:50.925|13:22:23.985
+daemon|7e9f4acc|connected|13:25:59.485|13:25:58.533
+daemon|7e9f4acc|connected|13:28:05.824|13:28:04.871
+daemon|7e9f4acc|connected|13:30:12.108|13:30:11.153
+daemon|7e9f4acc|offline|13:20:18.984|13:22:23.985
+daemon|7e9f4acc|offline|13:23:50.925|13:25:58.533
+daemon|7e9f4acc|offline|13:25:59.485|13:28:04.871
+daemon|7e9f4acc|offline|13:28:05.824|13:30:11.153
+daemon|7e9f4acc|offline|13:30:12.108|13:32:59.033
+#   The socket recycles about every 2 m 06 s (13:23:50.9, 13:25:59.5, 13:28:05.8, 13:30:12.1) with a
+#   ~1 s gap each time. This is the cloudflared quick tunnel dropping an idle WebSocket, not the tick
+#   (which is 5 m) and not the hold: the sprite stayed `running` throughout and the run did not fail.
+#   Recorded as finding 5.

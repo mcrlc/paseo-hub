@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { AgentExecutionStatus, MachineStatus } from "./schema.js";
+import type { AgentExecutionStatus, MachineStatus, SpriteMachineSource } from "./schema.js";
 import { parseCompiledHubConfig, type JsonValue } from "../config/compiler.js";
 import type { LaunchMachineIntent } from "../dispatcher/launch-machine-intent.js";
 import { linearConnectionRequiresReauthorization } from "../providers/linear/client.js";
+import { slugify } from "../slug.js";
 import type {
   AgentExecutionRecord,
   AgentExecutionOutputAttempt,
@@ -85,6 +86,8 @@ import type {
   OrganizationEntitlementsRecord,
   OrganizationSpritesConfigurationRecord,
   UpsertOrganizationSpritesConfigurationInput,
+  SetOrganizationSpritesEnvInput,
+  RemoveOrganizationSpritesEnvInput,
   OperatorOrganizationRecord,
   StampOrganizationEntitlementsInput,
   OverrideOrganizationEntitlementsInput,
@@ -1320,12 +1323,40 @@ class MemoryDatabase implements Database {
     return this.machines.get(id);
   }
 
+  async findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined> {
+    return Array.from(this.machines.values()).find(
+      (machine) =>
+        machine.status !== "terminated" &&
+        machine.source.kind === "sprite" &&
+        machine.source.triggerId === triggerId,
+    );
+  }
+
+  async findSpawningSpriteMachines(): Promise<MachineRecord[]> {
+    return Array.from(this.machines.values()).filter(
+      (machine) => machine.status === "spawning" && machine.source.kind === "sprite",
+    );
+  }
+
+  async insertSpriteMachine(input: {
+    orgId: string;
+    source: SpriteMachineSource;
+    specs: unknown;
+  }): Promise<MachineRecord | undefined> {
+    if ((await this.findLiveSpriteMachine(input.source.triggerId)) !== undefined) return undefined;
+    return this.insertMachine({ ...input, status: "spawning" });
+  }
+
   async findMachineForOrganization(
     organizationId: string,
     id: string,
   ): Promise<MachineRecord | undefined> {
     const machine = this.machines.get(id);
     return machine?.orgId === organizationId ? machine : undefined;
+  }
+
+  async setMachineSpecs(id: string, specs: unknown): Promise<void> {
+    this.machines.set(id, { ...this.readMachine(id), specs });
   }
 
   async transitionMachine(
@@ -1521,7 +1552,20 @@ class MemoryDatabase implements Database {
     if (replay) return replay;
     const token = this.enrollmentTokens.get(input.tokenVerifier);
     if (!token || token.consumedAt || token.expiresAt <= input.now) return undefined;
-    const suggestedSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+    const sprite = Array.from(this.machines.values()).find(
+      (candidate) =>
+        candidate.status === "spawning" &&
+        candidate.orgId === token.organizationId &&
+        candidate.source.kind === "sprite" &&
+        candidate.source.apiKeyId === token.issuedByApiKeyId,
+    );
+    const hostnameSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+    const triggerName =
+      sprite?.source.kind === "sprite"
+        ? this.organizationTriggers.get(sprite.source.triggerId)?.name
+        : undefined;
+    const suggestedSlug =
+      triggerName === undefined ? hostnameSlug : slugify(triggerName, hostnameSlug);
     const suggestedSlugTaken = Array.from(this.daemons.values()).some(
       (daemon) =>
         daemon.slug === suggestedSlug &&
@@ -1539,11 +1583,14 @@ class MemoryDatabase implements Database {
       ...token,
       consumedAt: input.now,
     });
-    const machine = await this.insertMachine({
-      orgId: token.organizationId,
-      source: { kind: "daemon", daemonId: input.daemonId },
-      status: "alive",
-    });
+    if (sprite !== undefined) this.machines.set(sprite.id, { ...sprite, status: "alive" });
+    const machine =
+      sprite ??
+      (await this.insertMachine({
+        orgId: token.organizationId,
+        source: { kind: "daemon", daemonId: input.daemonId },
+        status: "alive",
+      }));
     const daemon: DaemonRecord = {
       id: input.daemonId,
       slug,
@@ -1572,6 +1619,9 @@ class MemoryDatabase implements Database {
   }
   async findDaemonById(id: string) {
     return this.daemons.get(id);
+  }
+  async findDaemonByMachineId(machineId: string) {
+    return Array.from(this.daemons.values()).find((daemon) => daemon.machineId === machineId);
   }
   async findDaemonForOrganization(organizationId: string, id: string) {
     const daemon = this.daemons.get(id);
@@ -2082,7 +2132,29 @@ class MemoryDatabase implements Database {
     if (input.memoryMb < 1) {
       throw new Error("organization_sprites_configuration_memory_mb_check");
     }
-    const record = { ...input, updatedAt: new Date() };
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    const record = { ...input, env: input.env ?? existing?.env ?? {}, updatedAt: new Date() };
+    this.organizationSpritesConfigurations.set(input.organizationId, record);
+    return record;
+  }
+
+  async setOrganizationSpritesEnv(
+    input: SetOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    if (existing === undefined) return undefined;
+    const record = { ...existing, env: { ...existing.env, [input.key]: input.value } };
+    this.organizationSpritesConfigurations.set(input.organizationId, record);
+    return record;
+  }
+
+  async removeOrganizationSpritesEnv(
+    input: RemoveOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const existing = this.organizationSpritesConfigurations.get(input.organizationId);
+    if (existing === undefined || !Object.hasOwn(existing.env, input.key)) return undefined;
+    const { [input.key]: _removed, ...env } = existing.env;
+    const record = { ...existing, env };
     this.organizationSpritesConfigurations.set(input.organizationId, record);
     return record;
   }

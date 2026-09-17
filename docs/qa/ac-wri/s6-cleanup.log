@@ -1,0 +1,28 @@
+# Scenario 6: cleanup and secret grep (11:42:52Z)
+DELETE /v1/sprites/trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d -> HTTP 404
+GET    /v1/sprites/trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d -> {"error":"sprite not found"} HTTP 404
+DELETE /v1/sprites/trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55 -> HTTP 404
+GET    /v1/sprites/trigger-da481d6d-97c0-4d81-8bce-532a7ead5f55 -> {"error":"sprite not found"} HTTP 404
+sprite list entries named trigger-7c7a81b1… or trigger-da481d6d…: 0
+temporary token against GET /v1/sprites before revoke: HTTP 200
+DELETE /v1/tokens/<id of the token inserted 11:32:55Z> -> HTTP 204
+token ids after: still listed: 0
+temporary token against GET /v1/sprites after revoke: HTTP 401
+Hub pid 93518: SIGTERM, exited in 2 s
+cloudflared pid 92733: SIGTERM, exited in 1 s
+docker stop qa-acwri-pg -> qa-acwri-pg (started with --rm; docker ps -a matches after: 0)
+port 3001 listeners after: 0
+
+## Secret grep over docs/qa/ac-wri (11:44:40Z, 13 files)
+grep -rlF <temporary Sprites token> -> 0 files
+grep -rlF <token id> -> 0 files
+grep -rlF <tunnel hostname> -> 0 files
+grep -rlF <tunnel subdomain> -> 0 files
+grep -rlF <org marker value> -> 0 files
+grep -rlF <marker hex> -> 0 files
+grep -rlF <owner password> -> 0 files
+grep -rlF <auth secret> -> 0 files
+grep -rlF <public API key> -> 0 files
+grep -rlF <session cookie value> -> 0 files
+grep -rlE 'PASEO_PASSWORD=[A-Za-z0-9_-]{20,}' (any raw PASEO_PASSWORD value; values were never read into files) -> 0 files
+grep -rlE 'trycloudflare' -> 0 files

@@ -1,0 +1,183 @@
+sprite machine 74388af5-31b1-4d73-8eaa-b48d02d539fa key 21272dca-1f75-4dd1-afd5-818cc76e70c1; unrelated key e6db5569-fa63-4308-8dbc-8ea74eae7cbb
+-- before
+machines [
+ {
+  "id": "74388af5-31b1-4d73-8eaa-b48d02d539fa",
+  "status": "spawning",
+  "kind": "sprite",
+  "api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1"
+ }
+]
+daemons []
+enrollment tokens [
+ {
+  "issued_by_api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "consumed": false,
+  "expired": false
+ },
+ {
+  "issued_by_api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "consumed": false,
+  "expired": false
+ },
+ {
+  "issued_by_api_key_id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb",
+  "consumed": false,
+  "expired": false
+ }
+]
+api keys [
+ {
+  "id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "name": "Sprite qa",
+  "scopes": [
+   "daemons:enroll"
+  ],
+  "revoked": false
+ },
+ {
+  "id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb",
+  "name": "Laptop",
+  "scopes": [
+   "daemons:enroll"
+  ],
+  "revoked": false
+ }
+]
+enrollDaemon(laptop) -> {"status":"active"}
+-- after unrelated-key enrollment
+machines [
+ {
+  "id": "74388af5-31b1-4d73-8eaa-b48d02d539fa",
+  "status": "spawning",
+  "kind": "sprite",
+  "api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1"
+ },
+ {
+  "id": "be79ca3d-3a23-4bb6-8197-27cd36bdaf1c",
+  "status": "alive",
+  "kind": "daemon",
+  "api_key_id": null
+ }
+]
+daemons [
+ {
+  "id": "a57a7fcd-5609-4135-bb7d-42905752b40d",
+  "slug": "laptop",
+  "machine_id": "be79ca3d-3a23-4bb6-8197-27cd36bdaf1c",
+  "scopes": [
+   "hub.execute"
+  ],
+  "registered_by_api_key_id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb"
+ }
+]
+enrollment tokens [
+ {
+  "issued_by_api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "consumed": false,
+  "expired": false
+ },
+ {
+  "issued_by_api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "consumed": false,
+  "expired": false
+ },
+ {
+  "issued_by_api_key_id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb",
+  "consumed": true,
+  "expired": false
+ }
+]
+api keys [
+ {
+  "id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "name": "Sprite qa",
+  "scopes": [
+   "daemons:enroll"
+  ],
+  "revoked": false
+ },
+ {
+  "id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb",
+  "name": "Laptop",
+  "scopes": [
+   "daemons:enroll"
+  ],
+  "revoked": false
+ }
+]
+enrollDaemon(sprite-host) -> {"status":"active"}
+-- after sprite-key enrollment
+machines [
+ {
+  "id": "74388af5-31b1-4d73-8eaa-b48d02d539fa",
+  "status": "alive",
+  "kind": "sprite",
+  "api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1"
+ },
+ {
+  "id": "be79ca3d-3a23-4bb6-8197-27cd36bdaf1c",
+  "status": "alive",
+  "kind": "daemon",
+  "api_key_id": null
+ }
+]
+daemons [
+ {
+  "id": "a57a7fcd-5609-4135-bb7d-42905752b40d",
+  "slug": "laptop",
+  "machine_id": "be79ca3d-3a23-4bb6-8197-27cd36bdaf1c",
+  "scopes": [
+   "hub.execute"
+  ],
+  "registered_by_api_key_id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb"
+ },
+ {
+  "id": "135d9247-eefb-4f70-96c2-9ab1a68d2b11",
+  "slug": "sprite-host",
+  "machine_id": "74388af5-31b1-4d73-8eaa-b48d02d539fa",
+  "scopes": [
+   "hub.execute"
+  ],
+  "registered_by_api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1"
+ }
+]
+enrollment tokens [
+ {
+  "issued_by_api_key_id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb",
+  "consumed": true,
+  "expired": false
+ },
+ {
+  "issued_by_api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "consumed": true,
+  "expired": false
+ },
+ {
+  "issued_by_api_key_id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "consumed": false,
+  "expired": true
+ }
+]
+api keys [
+ {
+  "id": "21272dca-1f75-4dd1-afd5-818cc76e70c1",
+  "name": "Sprite qa",
+  "scopes": [
+   "daemons:enroll"
+  ],
+  "revoked": true
+ },
+ {
+  "id": "e6db5569-fa63-4308-8dbc-8ea74eae7cbb",
+  "name": "Laptop",
+  "scopes": [
+   "daemons:enroll"
+  ],
+  "revoked": false
+ }
+]
+ ✓ src/daemons/daemons.test.ts > daemon enrollment and execution > binds a daemon enrolled with a sprite's key to its spawning machine and revokes the key 5472ms
+ ✓ src/daemons/daemons.test.ts > daemon enrollment and execution > gives a daemon enrolled with an unrelated key a fresh machine 3996ms
+ Test Files  1 passed (1)
+      Tests  2 passed | 101 skipped (103)

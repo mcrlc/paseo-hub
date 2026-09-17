@@ -36,7 +36,15 @@ export const CONNECTION_PROVIDERS = ["github", "slack", "discord", "linear"] as 
 
 export type MachineSource =
   | { kind: "manual"; userId?: string }
-  | { kind: "daemon"; daemonId: string };
+  | { kind: "daemon"; daemonId: string }
+  | SpriteMachineSource;
+
+export interface SpriteMachineSource {
+  kind: "sprite";
+  triggerId: string;
+  spriteName: string;
+  apiKeyId: string;
+}
 
 export const machineStatus = pgEnum("machine_status", MACHINE_STATUSES);
 export const agentExecutionStatus = pgEnum("agent_execution_status", AGENT_EXECUTION_STATUSES);
@@ -1320,6 +1328,7 @@ export const organizationSpritesConfiguration = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     token: text().notNull(),
     memoryMb: integer("memory_mb").default(8192).notNull(),
+    env: jsonb().$type<Record<string, string>>().default({}).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     updatedByUserId: text("updated_by_user_id").references(() => users.id, {
       onDelete: "set null",

@@ -1,0 +1,15 @@
+# s7: cleanup and secret grep (UTC, 2026-09-17)
+== 11:30:04 delete sprite
+DELETE 204
+{"error":"sprite not found"}
+GET 404
+"sprites":[]
+== 11:30:09 revoke token 20ee0b89ce063c4aeb2f1097c170ddb7
+token self-check before revoke: 200
+DELETE 204
+revoked token GET /v1/sprites: 401
+token id still listed: 0
+== 11:30:18 SIGTERM hub pid 75011 (daemon presence before: offline,offline)
+11:30:20 hub exited after SIGTERM
+11:30:22 cloudflared exited
+11:30:26 postgres container qa-ac52w-pg stopped (--rm, removed)

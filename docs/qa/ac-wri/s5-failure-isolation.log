@@ -1,0 +1,37 @@
+# Scenario 5: rewrite failure isolation (head 024c0a0). Sprite trigger-7c7a81b1-f9cc-4077-8c93-e8d991fd614d.
+# The Sprites API has no stop call (spike 6 lists create, policy, services, exec, destroy), so two attempts were made:
+# (A) let the sprite pause naturally and save; (B) delete the sprite behind Hub's back (row stays alive) and save.
+
+## A. Paused sprite: the service put wakes it, the rewrite succeeds
+sprite went warm at 11:39:24Z (last_warming_at); Hub marked the daemon offline at 11:40:26.723Z
+before 11:41:15  sprite status=warm last_running_at=2026-09-17T11:39:23Z last_warming_at=2026-09-17T11:39:24Z
+                 daemon: alive | offline | connected_at 11:38:21.727 | disconnected_at 11:40:26.723
+setSpritesEnv QA_PAUSED=1 sent 11:41:15.841 -> HTTP/2 200 status ok; returned 11:41:22.492, latency 6.68 s
+after            sprite status=running last_running_at=2026-09-17T11:41:17Z last_warming_at=null
+stored keys: QA_CLASH,QA_ORG_MARKER,QA_PAUSED
+watch.sh  == 11:41:23  alive | connected | 11:41:21.568 | 11:40:26.723
+service paseo: status=running pid=883 started_at=2026-09-17T11:41:17.501072824Z
+service env: HOME PASEO_HOME PASEO_PASSWORD=<43 chars sha256:7a4d641f> PATH QA_CLASH=from-target QA_ORG_MARKER=<org-marker> QA_PAUSED=1 QA_TARGET_ONLY=t
+/proc/883/environ: ... PASEO_PASSWORD=<43 chars sha256:7a4d641f> QA_CLASH=from-target QA_ORG_MARKER=<org-marker> QA_PAUSED=1 QA_TARGET_ONLY=t
+Hub log lines during A: 0
+
+## B. Sprite deleted while its machine row is alive: the provider call fails, the save still succeeds
+DELETE /v1/sprites/trigger-7c7a81b1-… at 11:42:20 -> HTTP 204; GET -> {"error":"sprite not found"} HTTP 404
+watch.sh  == 11:42:23  alive | offline | 11:41:21.568 | 11:42:22.514   (row stays alive: nothing reconciles it)
+setSpritesEnv QA_GONE=1 sent 11:42:26.042 -> HTTP/2 200 status ok; returned 11:42:27.686, latency 1.67 s
+stored keys: QA_CLASH,QA_GONE,QA_ORG_MARKER,QA_PAUSED
+Hub log (local +0300), stack frames cut at 150 chars:
+[2026-09-17 14:42:27.665 +0300] WARN: sprites.rewrite-service failed
+    failureKind: "notFound"
+    requestId: "f34100f9-fd2d-4c80-aab9-2af8f0f415af"
+    operation: "sprites.rewrite-service"
+    component: "sprites"
+    organizationId: "b7c42e33-12e9-47ee-9a90-bfaa86529e92"
+    err: {
+      "type": "SpritesError",
+      "stack":
+              a[Redacted] reques[Redacted] (file:///Users/mic/.paseo/work[Redacted]rees/0[Redac[Redacted]ed]slizkc/verify-org-env-ac[Redacted]iva[Reda
+              a[Redacted] process.processTicksAndRejec[Redacted]ions (node:in[Redacted]ernal/process/[Redacted]ask_queues:[Redac[Redacted]ed]04:5)
+              a[Redacted] async Objec[Redacted].service (file:///Users/mic/.paseo/work[Redacted]rees/0[Redac[Redacted]ed]slizkc/verify-org-env-ac[Reda
+              a[Redacted] async Spri[Redacted]esSe[Redacted][Redacted]ings.rewri[Redacted]eServices (file:///Users/mic/.paseo/work[Redacted]rees/0[Red
+              a[Redacted] async Spri[Redacted]esSe[Redacted][Redacted]ings.se[Redacted]Env (file:///Users/mic/.paseo/work[Redacted]rees/0[Redac[Redact

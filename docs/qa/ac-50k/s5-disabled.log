@@ -1,0 +1,82 @@
+# s5: trigger disabled and re-enabled   (UTC 2026-09-17)
+
+## Recreate a sprite first (s4 left the row terminated)
+
+$ docs/qa/ac-50k/run.sh qa-s5-run-1
+fire 13:41:45.670
+13:42:18.780 daemon c749a98e connected, machine fbafb1f3 alive, bootstrapHash d6c22065… (`echo v3`)
+13:42:20.081 exec d0a0443c action=reset        <- second independent observation of the reset path
+13:42:21.289 exec d0a0443c running
+13:44:21.529 exec d0a0443c failed step_idle_timeout
+fire -> alive 33 s.
+
+## Disable while idle   (trigger-v6-disabled.yml, `enabled: false`)
+
+$ docs/qa/ac-50k/install.sh trigger-v6-disabled.yml
+save 13:45:50.3   HTTP 201 version 10   latency 1.783 s
+
+Hub log:
+  [16:45:52.107 +0300] INFO: sprite retired
+      machineId: "fbafb1f3-679f-4a5c-bf7a-5bf9abe74c9b"
+      reason: "trigger no longer targets a sprite"
+
+  machine fbafb1f3 terminated "trigger no longer targets a sprite" terminated_at 13:45:52.103
+  daemon  c749a98e revoked
+  organization_triggers.enabled = f
+  GET /v1/sprites/trigger-9803bdab-…  -> HTTP 404
+
+PASS: the disabled trigger retires the sprite with the "no longer targets a sprite" reason and destroys it.
+
+## Re-enable   (trigger-v7-enabled.yml)
+
+$ docs/qa/ac-50k/install.sh trigger-v7-enabled.yml
+save 13:45:59.3   HTTP 201 version 11   latency 0.279 s
+
+Hub log, starting 1 s later:
+  16:45:59.251  sprite activation: destroy leftover
+  16:45:59.733  sprite activation: create
+  16:46:00.939  sprite activation: npm prefix
+  16:46:02.707  sprite activation: install paseo
+  16:46:18.922  sprite activation: bootstrap
+  …
+  machine 690e8576 spawning within 20 s of the save; alive at 13:46:35 with daemon 35dabe2d (connected 13:46:34.410)
+  GET /v1/sprites/trigger-9803bdab-…  -> HTTP 200
+
+OBSERVED, not as the brief predicted: re-enabling activates IMMEDIATELY. It does not wait for the next run.
+The save returns in 0.279 s and the activation runs as the usual fire-and-forget job (createSpriteActivation
+takes the create branch, since findLiveSpriteMachine returns nothing for the terminated row). This matches
+PRD section 6's first row, "Trigger activated with sprite target -> create … ", so it is correct behaviour;
+recorded because the scenario expected recreation only on the next arrival. See finding 5.
+
+## Observation: disable while an execution is running
+
+$ docs/qa/ac-50k/run.sh qa-s5-run-2
+fire 13:46:42.061
+13:46:46.541 exec 44df28b4 status=running   (action=reset; the sprite was recreated at 13:46:34)
+
+$ docs/qa/ac-50k/install.sh trigger-v6-disabled.yml     <- while it is running
+save 13:46:46.3   HTTP 201 version 12   latency 1.676 s     <- ACCEPTED, no guard
+
+  [16:46:48.323 +0300] INFO: sprite retired   (machineId 690e8576, reason "trigger no longer targets a sprite")
+  machine 690e8576 terminated "trigger no longer targets a sprite" terminated_at 13:46:48.320
+  daemon  35dabe2d revoked  offline  disconnected 13:46:48.316
+  GET /v1/sprites/trigger-9803bdab-…  -> HTTP 404, about 2 s after the save
+
+The running execution then:
+  13:46:54.889 exec 44df28b4 still `running` on daemon 35dabe2d, 6 s after its sprite was destroyed
+  13:48:45.069 exec 44df28b4 failed {"reason":"step_idle_timeout"}   run failed step_idle_timeout
+
+  save -> execution terminal: 1 m 58.8 s, which is the trigger's `idle_timeout: 2m` to the second.
+  The execution did not fail fast and did not fail as `daemon_timeout` or `sprite_unavailable`; it burned
+  its whole idle timeout and then reported the generic idle reason.
+
+  hub_action_completed_at for 44df28b4 is NULL: the auto_archive could not be delivered, the sprite is gone.
+  Hub log at terminal:
+    [16:48:45.572 +0300] WARN: sprites.release failed
+        failureKind: "notFound"   operation: "sprites.release"   component: "daemons"
+        diagnostic: { "executionId": "44df28b4-f14f-5e0c-8299-617a62f75e50" }
+        err: SpritesError … at Object.release … DaemonDispatchLifecycle.releaseSpriteHold
+            … sendPendingHubAction … failAgentExecution … expireExecutionAtCurrentDeadline
+  No `daemon.execution.hub-action failed` line (0 in the window).
+
+Reported as findings 1 and 2, not as pass or fail, exactly as the brief asks.

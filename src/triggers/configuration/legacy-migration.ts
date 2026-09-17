@@ -104,8 +104,9 @@ function convertSingleRun(
     (candidate) => candidate.name === step.environment,
   );
   if (environment === undefined) blockers.push("target environment is selected dynamically");
+  else if (environment.kind !== "daemon") blockers.push("target environment is not a daemon");
   if (hasDuplicateOutputs(step)) blockers.push("run contains duplicate output grants");
-  if (blockers.length > 0 || environment === undefined) {
+  if (blockers.length > 0 || environment?.kind !== "daemon") {
     return { success: false, blockers };
   }
 
@@ -115,7 +116,7 @@ function convertSingleRun(
 function singleRunDocument(
   trigger: CompiledTrigger,
   step: CompiledStep,
-  environment: CompiledEnvironment,
+  environment: Extract<CompiledEnvironment, { kind: "daemon" }>,
 ): TriggerDocument {
   const filters = trigger.filters === undefined ? undefined : authoredFilters(trigger.filters);
   const connection = trigger.filters?.connection;

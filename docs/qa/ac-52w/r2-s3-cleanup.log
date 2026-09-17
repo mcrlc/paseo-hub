@@ -1,0 +1,27 @@
+# ac-52w r2 scenario 3 — cleanup and secret grep. Head 3296637. UTC 2026-09-17.
+
+== delete the sprite
+DELETE /v1/sprites/trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4 -> 204
+GET    /v1/sprites/trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4 -> 404
+list still contains it? 0
+
+== revoke the temporary Sprites token (f9acab7f68a1b8729af20f26e5499cd6)
+DELETE /v1/tokens/f9acab7f68a1b8729af20f26e5499cd6 -> 204
+GET /v1/sprites with the revoked token -> 401
+token still listed? 0
+
+== stop Hub and cloudflared by PID, stop Postgres
+hub pid alive after SIGTERM? no
+cloudflared pid alive? no
+port 3000 listener: 0
+qa-ac52w-pg container: qa-ac52w-pg Dead
+
+== secret grep over the new evidence files (r2-*)
+sprites-token: 0 matches
+tunnel-hostname: 0 matches
+owner-password: 0 matches
+auth-secret: 0 matches
+public-api-key: 0 matches
+PASEO_PASSWORD-literal: 1 match, and it is this report line itself (self-reference); no PASEO_PASSWORD
+   variable was set in this round at all — Hub took PASEO_BOOTSTRAP_OWNER_PASSWORD, grepped above as owner-password
+trycloudflare.com anywhere in r2-*: 0 matches

@@ -1,0 +1,88 @@
+# s2: unchanged, env-only, and memory-only edits   (all times UTC 2026-09-17)
+
+Trigger id 9803bdab-ed94-44cc-938d-484098f54241, sprite trigger-9803bdab-…, machine bb340165, daemon a86478c3.
+
+## Activation (baseline)
+
+$ docs/qa/ac-50k/install.sh trigger-v1.yml        # QA_A: one, no `memory`, org default 8192
+save 13:23:04.3   HTTP 201 version 1   latency 0.544 s
+
+13:23:09.674 machine bb340165 spawning
+  specs {"envHash":"ea49ca9c…","memoryMb":8192,"npmPrefix":"/.sprite/languages/node/nvm/versions/node/v24.18.0",
+         "bootstrapHash":"06a53e14…"}
+13:23:37.996 machine bb340165 alive | daemon a86478c3 active connected 13:23:37.923 machine bb340165
+Save to alive: 33.6 s.  `specs.envHash` is written at creation, beside bootstrapHash and memoryMb.
+
+Baseline in the sprite:
+  pgrep -f "paseo start --foreground"          -> 759
+  tr '\0' '\n' < /proc/759/environ | grep QA_A -> QA_A=one
+  GET /v1/sprites/<n>/policy/resources         -> {"memory":{"limit_mb":8192}}
+
+## Unchanged re-save  (identical trigger-v1.yml)
+
+$ docs/qa/ac-50k/install.sh trigger-v1.yml
+save 13:25:07.3   HTTP 201 version 2   latency 0.594 s
+
+before  machine bb340165 alive specs envHash ea49ca9c… memoryMb 8192
+        daemon  a86478c3 active connected 13:23:37.923 disconnected -
+after   machine bb340165 alive specs envHash ea49ca9c… memoryMb 8192   (byte-identical)
+        daemon  a86478c3 active connected 13:23:37.923 disconnected -   (unchanged)
+new Hub log lines matching sprite|daemon: none
+pid after: 759 (unchanged)
+
+PASS: a new revision is stored (version 2) and nothing reaches the provider.
+
+## env-only change  (QA_A: one -> two)
+
+$ docs/qa/ac-50k/install.sh trigger-v2-env.yml
+save 13:25:25.3   HTTP 201 version 3   latency 6.130 s
+
+Hub log:
+  [16:25:32.035 +0300] INFO: sprite service rewritten
+      triggerId: "9803bdab-…"  sprite: "trigger-9803bdab-…"  envKeys: 5
+
+13:25:32.172 machine bb340165 alive  specs envHash 329c4977…  memoryMb 8192  bootstrapHash 06a53e14… (unchanged)
+             daemon  a86478c3 active connected 13:25:30.746  disconnected 13:25:26.443  machine bb340165
+
+  daemon offline 13:25:26.443 -> 13:25:30.746 = 4.30 s; same daemon row, same machine row, no destroy.
+  pgrep -f "paseo start --foreground"          -> 827   (was 759: the service was restarted)
+  tr '\0' '\n' < /proc/827/environ | grep QA_A -> QA_A=two
+  GET /v1/sprites/<n>/policy/resources         -> {"memory":{"limit_mb":8192}}  (untouched)
+
+PASS: one service rewrite, daemon restart and reconnect, envHash changed, no recreation.
+
+## memory-only change  (add memory: 12288, env unchanged)
+
+$ docs/qa/ac-50k/install.sh trigger-v3-memory.yml
+save 13:26:31.3   HTTP 201 version 4   latency 21.533 s      <-- see finding 3
+
+after 6 s:
+  machine bb340165 alive specs {"envHash":"329c4977…","memoryMb":12288,"npmPrefix":"…","bootstrapHash":"06a53e14…"}
+  daemon  a86478c3 active connected 13:25:30.746 disconnected 13:25:26.443   (unchanged by this save)
+  GET /v1/sprites/<n>/policy/resources -> {"memory":{"limit_mb":12288}}
+  pgrep -f "paseo start --foreground"  -> 827  (unchanged: no restart)
+  new Hub log lines: none — this path logs nothing
+
+PASS on effect. The 21.5 s latency was chased down:
+
+  sprite status at the time of the repeat runs: "warm"
+  direct POST /v1/sprites/<n>/policy/resources {"memory":{"limit_mb":12288}}  -> 0.32 s, 0.35 s
+  install.sh with memory: 10240  (warm)   -> latency 0.735 s, policy reads 10240
+  install.sh with memory: 12288  (warm)   -> latency 0.364 s, policy reads 12288
+  install.sh identical again     (warm)   -> latency 0.339 s
+
+So a memory-only save is 0.34-0.74 s when the sprite is warm. The single 21.5 s sample was 26 s after the
+last exec, when the sprite had probably been paused; Hub logs nothing on this path, so it is not attributable
+from the evidence. Recorded as finding 3, not as a failure.
+
+## Save latency summary
+
+| Save                       | Version | Latency  |
+| -------------------------- | ------- | -------- |
+| activation (new sprite)    | 1       | 0.544 s  (fire-and-forget job; alive 33.6 s later) |
+| unchanged re-save          | 2       | 0.594 s  |
+| env-only                   | 3       | 6.130 s  (blocks on the delete-then-put service rewrite) |
+| memory-only (first)        | 4       | 21.533 s |
+| memory-only 12288 -> 10240 | 5       | 0.735 s  |
+| memory-only 10240 -> 12288 | 6       | 0.364 s  |
+| unchanged re-save          | 7       | 0.339 s  |

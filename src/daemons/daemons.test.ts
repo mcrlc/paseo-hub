@@ -120,6 +120,53 @@ describe("daemon enrollment and execution", () => {
     assert.equal(second.slug, `studio-mac-local-${second.daemonId.slice(0, 8)}`);
   });
 
+  it("binds a daemon enrolled with a sprite's key to its spawning machine and revokes the key", async () => {
+    const machineId = await hub.spawningSpriteMachine();
+    const enrollment = await hub.enrollDaemon("sprite-host");
+
+    assert.equal((await hub.daemon(enrollment.daemonId)).machineId, machineId);
+    assert.equal(enrollment.slug, "nightly-deploy");
+    assert.equal((await hub.machine(machineId)).status, "alive");
+    assert.equal(await hub.harnessApiKeyRevoked(), true);
+  });
+
+  it("terminates a sprite machine still spawning when the hub restarts", async () => {
+    const machineId = await hub.spawningSpriteMachine();
+
+    await hub.restartApp();
+
+    const machine = await hub.machine(machineId);
+    assert.equal(machine.status, "terminated");
+    assert.equal(machine.shutdownReason, "hub restarted during activation");
+  });
+
+  it("suffixes a sprite daemon slug the organization already uses", async () => {
+    const occupant = await hub.enrollDaemon("Nightly deploy");
+    await hub.spawningSpriteMachine();
+    const enrollment = await hub.enrollDaemon("sprite-host");
+
+    assert.equal(occupant.slug, "nightly-deploy");
+    assert.equal(enrollment.slug, `nightly-deploy-${enrollment.daemonId.slice(0, 8)}`);
+  });
+
+  it("gives a daemon enrolled with an unrelated key a fresh machine", async () => {
+    const machineId = await hub.spawningSpriteMachine(
+      "nightly_deploy",
+      "00000000-0000-4000-8000-0000000000bb",
+    );
+    const enrollment = await hub.enrollDaemon("devbox");
+    const daemon = await hub.daemon(enrollment.daemonId);
+
+    assert.notEqual(daemon.machineId, machineId);
+    assert.deepEqual((await hub.machine(daemon.machineId)).source, {
+      kind: "daemon",
+      daemonId: enrollment.daemonId,
+    });
+    assert.equal((await hub.machine(machineId)).status, "spawning");
+    assert.equal(enrollment.slug, "devbox");
+    assert.equal(await hub.harnessApiKeyRevoked(), false);
+  });
+
   it("rejects invalid and revoked credentials on reconnect", async () => {
     await hub.connectDaemon();
     assert.equal(await hub.invalidCredentialReconnectStatus(), 403);

@@ -1,0 +1,40 @@
+# s7: cleanup and secret grep   (UTC 2026-09-17)
+
+## Sprite
+$ sprite api /v1/sprites/trigger-9803bdab-ed94-44cc-938d-484098f54241 -- -X DELETE
+DELETE HTTP 204
+GET    HTTP 404
+sprite list (only other verifiers' sprites must remain):
+  (empty)
+
+## Temporary org token c4336af4c03b638e1864e1b660423a98 (description qa-ac-50k)
+DELETE HTTP 204
+the revoked token against the API:
+  GET /v1/sprites with the revoked token -> HTTP 401
+remaining tokens:
+  1204a632108beba7bd844ccc2000c175 | Sprite SDK Token
+
+## Processes and container
+pids recorded at start: cloudflared pid 4956 hub pid 5245 
+hub exited after 3s of SIGTERM
+cloudflared exited
+listener on 3001: 0 lines (0 = none)
+listener on 3000 (the other verifier, must be untouched): 0
+container qa-ac50k-pg removed
+containers still running with qa- prefix: 
+
+## Secret grep of docs/qa/ac-50k
+  Sprites org token: 0 files
+  tunnel hostname: 0 files
+  tunnel URL: 0 files
+  owner password 1: 0 files
+  owner password 2: 0 files
+  auth secret: 0 files
+  public API key: 0 files
+  literal PASEO_PASSWORD: 0 files
+  (a non-zero count for any of these is a leak)
+
+## Note
+At cleanup the provider's sprite list and token list were empty of everything but the permanent
+'Sprite SDK Token'. The two sprites and the one extra token that belonged to the other verifiers
+running at the same time were gone by then; they were never named by any command in this round.

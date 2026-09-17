@@ -1,6 +1,7 @@
 import { createScheduleSource, createScheduleProvider } from "./triggers/schedule/index.js";
 import { createExecutionCapabilityServer } from "./execution-capabilities/server.js";
 import { OutputExecutorRegistry } from "./execution-capabilities/outputs.js";
+import type { SpriteActivation } from "./daemons/sprites/activation.js";
 import {
   createAttachmentCapabilityRegistry,
   type AttachmentCapabilityRegistry,
@@ -70,6 +71,8 @@ export interface HubRuntimeOptions {
   dispatchTimeoutMs?: number;
   browserOrganizationAccess?: BrowserOrganizationAccess;
   daemonConnectionForId?: DaemonDispatchLifecycleOptions["connectionForDaemon"];
+  spriteActivation?: SpriteActivation | null;
+  spriteApiKeys?: DaemonDispatchLifecycleOptions["spriteApiKeys"];
 }
 
 export interface HubRuntime {
@@ -211,6 +214,9 @@ export function createHubApplication(options: HubRuntimeOptions): HubApplication
           onWorkflowDeadlineExceeded: async (recovery: WorkflowDeadlineRecovery) => {
             await daemonModule.lifecycle.recoverWorkflowDeadlineExecutions(recovery.executionIds);
           },
+          prepareSpriteDispatch: (
+            input: Parameters<DaemonModule["lifecycle"]["prepareSpriteDispatch"]>[0],
+          ) => daemonModule.lifecycle.prepareSpriteDispatch(input),
           onWorkflowRunAccepted: (run: AcceptedTriggerRunRecord) =>
             daemonModule.lifecycle.notifyWorkflowRunAccepted(run),
           onWorkflowRunStarted: (run: AcceptedTriggerRunRecord) =>
@@ -243,6 +249,7 @@ export function createHubApplication(options: HubRuntimeOptions): HubApplication
       await Promise.all([
         daemonModule?.lifecycle.recoverAgentExecutionDeadlines(),
         daemonModule?.lifecycle.recoverPendingHubActions(),
+        daemonModule?.lifecycle.recoverSprites(),
       ]);
       workflowEngine.start();
       activeSources = [
@@ -328,7 +335,12 @@ function createAppPublicOperations(
     createDatabasePublicOperationRepository(database),
     {
       triggerForOrganization: (organizationId) => {
-        const store = new OrganizationTriggerStore(database, organizationId);
+        const store = new OrganizationTriggerStore(
+          database,
+          organizationId,
+          options.entitlements,
+          options.spriteActivation ?? null,
+        );
         return {
           async list() {
             return Promise.all(
@@ -462,6 +474,8 @@ function createAppDaemonModule(
       ? {}
       : { executionAuthority: options.executionAuthority }),
     ...(options.publicBaseUrl === undefined ? {} : { publicBaseUrl: options.publicBaseUrl }),
+    ...(options.spriteActivation == null ? {} : { spriteActivation: options.spriteActivation }),
+    ...(options.spriteApiKeys === undefined ? {} : { spriteApiKeys: options.spriteApiKeys }),
     ...(usesTestTiming
       ? {
           test: {

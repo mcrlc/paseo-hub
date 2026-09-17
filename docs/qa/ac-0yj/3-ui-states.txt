@@ -1,0 +1,48 @@
+# Scenario 3: UI states (production build, Playwright chromium 1280x900, dark theme)
+Scripts: setup-accounts.ts (bootstrap owner password change, admin and member invited through the Team UI and accepted),
+ui-journey.ts (steps access, first, replace), stale-notice.ts. Sign-in follows e2e/helpers/hub.ts (completeBootstrapJourney, invite, invitation sign-up); storage states reused per account.
+
+## step access (ui-access.log)
+member settings nav links: ["Team","Usage"]
+member direct visit main text: "Toggle Sidebar\nAcme\n/\nSettings\n/\nSprites\nTeam\nUsage\nSprites\n\nThe Fly Sprites organization token Hub uses to create sprites for Acme.\n\nNo access to Sprites\n\nYou don't have permission to configure Sprites."
+admin settings nav links: ["Team","API keys","Sprites","Usage"]
+
+## step first (ui-first.log)
+not-configured main text: "Toggle Sidebar\nAcme\n/\nSettings\n/\nSprites\nTeam\nAPI keys\nSprites\nUsage\nSprites\nNot configured\n\nThe Fly Sprites organization token Hub uses to create sprites for Acme.\n\nConnect Sprites\n\nThe token is stored write-only. Hub never shows it again.\n\nToken\nDefault memory (MB)\n\nMemory limit for each sprite unless its trigger sets one.\n\nSave"
+token input outerHTML: <input data-slot="input" class="h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 text-sm transition-colors duration-150 selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:text-foreground placeholder:text-extra-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive [&amp;::-webkit-inner-spin-button]:appearance-none [&amp;::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]" spellcheck="false" autocomplete="off" id="sprites-token" required="" aria-invalid="false" type="password" name="token" style="">
+token input type: password
+buttons inside the form: ["Save"]
+token field container HTML: <div role="group" data-slot="field" data-orientation="vertical" class="group/field flex w-full gap-2 data-[invalid=true]:text-destructive flex-col [&amp;&gt;*]:w-full [&amp;&gt;.sr-only]:w-auto" data-invalid="false"><label data-slot="field-label" class="items-center text-sm select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-[&gt;[data-slot=field]]:w-full has-[&gt;[data-slot=field]]:flex-col has-[&gt;[data-slot=field]]:rounded-md has-[&gt;[data-slot=field]]:border [&amp;&gt;*]:data-[slot=field]:p-4 has-data-[state=checked]:border-ring has-data-[state=checked]:bg-accent" for="sprites-token">Token</label><input data-slot="input" class="h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 text-sm transition-colors duration-150 selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:text-foreground placeholder:text-extra-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive [&amp;::-webkit-inner-spin-button]:appearance-none [&amp;::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]" spellcheck="false" autocomplete="off" id="sprites-token" required="" aria-invalid="false" type="password" name="token" style=""></div>
+validation form text: "Token\nEnter the Sprites organization token.\nDefault memory (MB)\n\nMemory limit for each sprite unless its trigger sets one.\n\nEnter a whole number of megabytes above zero.\nSave"
+aria-invalid token/memory: true / true
+server functions sent by invalid submit: 0
+memory field value before first save: 8192
+after save main text: "Toggle Sidebar\nAcme\n/\nSettings\n/\nSprites\nTeam\nAPI keys\nSprites\nUsage\nSprites\nConfigured\n\nThe Fly Sprites organization token Hub uses to create sprites for Acme.\n\nDefault memory\n8192 MB\nUpdated\njust now\nReplace token\n\nThe token is stored write-only. Hub never shows it again.\n\nSprites configuration saved.\nNew token (replaces the stored token)\nDefault memory (MB)\n\nMemory limit for each sprite unless its trigger sets one.\n\nSave"
+token input value after save: ""
+configured (reloaded) main text: "Toggle Sidebar\nAcme\n/\nSettings\n/\nSprites\nTeam\nAPI keys\nSprites\nUsage\nSprites\nConfigured\n\nThe Fly Sprites organization token Hub uses to create sprites for Acme.\n\nDefault memory\n8192 MB\nUpdated\njust now\nReplace token\n\nThe token is stored write-only. Hub never shows it again.\n\nNew token (replaces the stored token)\nDefault memory (MB)\n\nMemory limit for each sprite unless its trigger sets one.\n\nSave"
+
+## step replace (ui-replace.log)
+after replace main text: "Toggle Sidebar\nAcme\n/\nSettings\n/\nSprites\nTeam\nAPI keys\nSprites\nUsage\nSprites\nConfigured\n\nThe Fly Sprites organization token Hub uses to create sprites for Acme.\n\nDefault memory\n16384 MB\nUpdated\njust now\nReplace token\n\nThe token is stored write-only. Hub never shows it again.\n\nSprites configuration saved.\nNew token (replaces the stored token)\nDefault memory (MB)\n\nMemory limit for each sprite unless its trigger sets one.\n\nSave"
+
+## stale notice (ui-stale-notice.log)
+success notice still visible alongside the token error: true
+
+## Screenshots
+01-member-settings-nav-no-sprites.png   member: settings strip is Team, Usage (no API keys, no Sprites)
+02-member-sprites-route-no-access.png   member opens /settings/sprites directly: PageHeader + EmptyState "No access to Sprites"; snapshot query is not sent
+03-admin-settings-nav-with-sprites.png  admin: Team, API keys, Sprites, Usage
+04-admin-not-configured.png             PageHeader StatusPill "Not configured" (neutral), Card "Connect Sprites", Token + Default memory 8192
+05-token-field-password.png             the form alone: token is <input type="password" autocomplete="off">, the only button in the form is Save (no reveal control)
+06-validation-empty-token-memory-0.png  "Enter the Sprites organization token." and "Enter a whole number of megabytes above zero.", aria-invalid=true on both, no request sent
+07-saved-notice.png                     NoticeAlert success "Sprites configuration saved.", StatusPill "Configured" (success), SummaryPanel Default memory 8192 MB / Updated just now, Card "Replace token", token field emptied
+08-configured-summary-replace-form.png  reloaded configured state: SummaryPanel + "New token (replaces the stored token)" form
+09-replaced-16384.png                   after saving token B with 16384: SummaryPanel "16384 MB"
+10-success-notice-beside-validation-error.png  F1: success notice from the previous save still shown next to a new validation error
+
+## docs/design.md checks
+- Status: PageHeader status prop -> StatusPill (src/components/app/page.tsx:68). No Badge, no coloured span. pass
+- Composition: only app components (Page/PageHeader, Section, SummaryPanel, Card, FormField, FormActions, NoticeAlert, FailureAlert, EmptyState, RelativeTime); Button from ui. pass
+- Weight/case/tracking/arbitrary sizes: none in panel.tsx; npx vitest run src/typography-policy.test.ts passes (see 6-gates.txt). pass
+- Alerts inside the form carry no standalone and no margin; the form's gap-4 spaces them. pass
+- SummaryPanel wrapped in an untitled Section for its mb-8 and the no-access EmptyState copy: same pattern as src/auth/api-key-panel.tsx:216-226. consistent with existing screens, not recorded as deviations
+- Memory field: text-sm h-8 input, description text-xs muted under it; FormField owns spacing. pass

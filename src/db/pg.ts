@@ -12,6 +12,7 @@ import {
   mergeOverrides,
 } from "../entitlements/catalog.js";
 import { toDatabaseError } from "./errors.js";
+import { slugify } from "../slug.js";
 import { withApiKeySerialization } from "./api-key-serialization.js";
 import { ConnectionRepository } from "./connections.js";
 import { ProviderEventAcceptanceRepository } from "./trigger-acceptance.js";
@@ -24,7 +25,12 @@ import {
   toProviderEventReceiptSummary,
   toProviderEventReceiptRecord,
 } from "./mappers.js";
-import type { AgentExecutionStatus, MachineSource, MachineStatus } from "./schema.js";
+import type {
+  AgentExecutionStatus,
+  MachineSource,
+  MachineStatus,
+  SpriteMachineSource,
+} from "./schema.js";
 import type { DatabaseRuntime, QueryHandle, QueryRow } from "./runtime/index.js";
 import type { Locks } from "./runtime/locks/index.js";
 import type {
@@ -105,6 +111,8 @@ import type {
   OrganizationEntitlementsRecord,
   OrganizationSpritesConfigurationRecord,
   UpsertOrganizationSpritesConfigurationInput,
+  SetOrganizationSpritesEnvInput,
+  RemoveOrganizationSpritesEnvInput,
   OperatorOrganizationRecord,
   StampOrganizationEntitlementsInput,
   OverrideOrganizationEntitlementsInput,
@@ -267,6 +275,51 @@ class PgDatabase implements Database {
     }
   }
 
+  async findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined> {
+    try {
+      const rows = await query<MachineRow>(this.pool, LIVE_SPRITE_MACHINE_SQL, [triggerId]);
+      return rows.rows[0] === undefined ? undefined : toMachineRecord(rows.rows[0]);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async findSpawningSpriteMachines(): Promise<MachineRecord[]> {
+    try {
+      const rows = await query<MachineRow>(
+        this.pool,
+        "select * from machines where status = 'spawning' and source->>'kind' = 'sprite'",
+      );
+      return rows.rows.map(toMachineRecord);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async insertSpriteMachine(input: {
+    orgId: string;
+    source: SpriteMachineSource;
+    specs: unknown;
+  }): Promise<MachineRecord | undefined> {
+    try {
+      return await this.pool.transaction(async (client) => {
+        await this.locks.withTxLock(client, `sprite-machine:${input.source.triggerId}`);
+        const live = await client.query<MachineRow>(LIVE_SPRITE_MACHINE_SQL, [
+          input.source.triggerId,
+        ]);
+        if (live.rows[0] !== undefined) return undefined;
+        const rows = await client.query<MachineRow>(
+          `insert into machines (org_id, source, status, specs)
+           values ($1, $2, 'spawning', $3) returning *`,
+          [input.orgId, input.source, input.specs],
+        );
+        return toMachineRecord(rows.rows[0]!);
+      });
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
   async findMachineForOrganization(
     organizationId: string,
     id: string,
@@ -279,6 +332,14 @@ class PgDatabase implements Database {
       );
 
       return rows.rows[0] === undefined ? undefined : toMachineRecord(rows.rows[0]);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
+  async setMachineSpecs(id: string, specs: unknown): Promise<void> {
+    try {
+      await query(this.pool, "update machines set specs = $2 where id = $1", [id, specs]);
     } catch (error) {
       throw toDatabaseError(error);
     }
@@ -1567,11 +1628,48 @@ class PgDatabase implements Database {
         const consumedToken = token.rows[0];
         if (consumedToken?.organization_id === null || consumedToken === undefined)
           return client.rollback(undefined);
-        const machine = await client.query<MachineRow>(
-          `insert into machines (org_id, source, status) values ($1, $2, 'alive') returning *`,
-          [consumedToken.organization_id, { kind: "daemon", daemonId: input.daemonId }],
-        );
-        const suggestedSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+        const apiKeyId = consumedToken.issued_by_api_key_id;
+        const sprite =
+          apiKeyId === null
+            ? undefined
+            : await client.query<MachineRow>(
+                `update machines set status = 'alive'
+                 where status = 'spawning' and org_id = $1
+                   and source->>'kind' = 'sprite' and source->>'apiKeyId' = $2
+                 returning *`,
+                [consumedToken.organization_id, apiKeyId],
+              );
+        if (sprite?.rows[0] !== undefined) {
+          await client.query(
+            `update organization_api_keys set revoked_at = coalesce(revoked_at, $2) where id = $1`,
+            [apiKeyId, input.now],
+          );
+          await client.query(
+            `update daemon_enrollment_tokens set expires_at = least(expires_at, $2)
+             where issued_by_api_key_id = $1 and consumed_at is null`,
+            [apiKeyId, input.now],
+          );
+        }
+        const machine =
+          sprite?.rows[0] === undefined
+            ? await client.query<MachineRow>(
+                `insert into machines (org_id, source, status) values ($1, $2, 'alive') returning *`,
+                [consumedToken.organization_id, { kind: "daemon", daemonId: input.daemonId }],
+              )
+            : sprite;
+        const hostnameSlug = input.suggestedSlug ?? `daemon-${input.daemonId.slice(0, 8)}`;
+        const spriteSource = sprite?.rows[0]?.source;
+        const triggerName =
+          spriteSource?.kind === "sprite"
+            ? (
+                await client.query<{ name: string }>(
+                  `select name from organization_triggers where id = $1 and organization_id = $2`,
+                  [spriteSource.triggerId, consumedToken.organization_id],
+                )
+              ).rows[0]?.name
+            : undefined;
+        const suggestedSlug =
+          triggerName === undefined ? hostnameSlug : slugify(triggerName, hostnameSlug);
         requestedSlug = suggestedSlug;
         let daemon = await client.query<DaemonRow>(
           `insert into daemons
@@ -1651,6 +1749,13 @@ class PgDatabase implements Database {
 
   async findDaemonById(id: string): Promise<DaemonRecord | undefined> {
     const rows = await query<DaemonRow>(this.pool, `select * from daemons where id = $1`, [id]);
+    return rows.rows[0] ? toDaemon(rows.rows[0]) : undefined;
+  }
+
+  async findDaemonByMachineId(machineId: string): Promise<DaemonRecord | undefined> {
+    const rows = await query<DaemonRow>(this.pool, `select * from daemons where machine_id = $1`, [
+      machineId,
+    ]);
     return rows.rows[0] ? toDaemon(rows.rows[0]) : undefined;
   }
 
@@ -2480,17 +2585,56 @@ class PgDatabase implements Database {
     const rows = await query<OrganizationSpritesConfigurationRow>(
       this.pool,
       `insert into organization_sprites_configuration
-         (organization_id, token, memory_mb, updated_by_user_id, updated_at)
-       values ($1, $2, $3, $4, clock_timestamp())
+         (organization_id, token, memory_mb, env, updated_by_user_id, updated_at)
+       values ($1, $2, $3, coalesce($4::jsonb, '{}'::jsonb), $5, clock_timestamp())
        on conflict (organization_id) do update set
          token = excluded.token,
          memory_mb = excluded.memory_mb,
+         env = coalesce($4::jsonb, organization_sprites_configuration.env),
          updated_by_user_id = excluded.updated_by_user_id,
          updated_at = excluded.updated_at
        returning *`,
-      [input.organizationId, input.token, input.memoryMb, input.updatedByUserId],
+      [
+        input.organizationId,
+        input.token,
+        input.memoryMb,
+        input.env === undefined ? null : JSON.stringify(input.env),
+        input.updatedByUserId,
+      ],
     );
     return toOrganizationSpritesConfigurationRecord(rows.rows[0]!);
+  }
+
+  async setOrganizationSpritesEnv(
+    input: SetOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const rows = await query<OrganizationSpritesConfigurationRow>(
+      this.pool,
+      `update organization_sprites_configuration
+         set env = env || jsonb_build_object($2::text, $3::text)
+       where organization_id = $1
+       returning *`,
+      [input.organizationId, input.key, input.value],
+    );
+    return rows.rows[0] === undefined
+      ? undefined
+      : toOrganizationSpritesConfigurationRecord(rows.rows[0]);
+  }
+
+  async removeOrganizationSpritesEnv(
+    input: RemoveOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined> {
+    const rows = await query<OrganizationSpritesConfigurationRow>(
+      this.pool,
+      `update organization_sprites_configuration
+         set env = env - $2::text
+       where organization_id = $1 and env -> $2::text is not null
+       returning *`,
+      [input.organizationId, input.key],
+    );
+    return rows.rows[0] === undefined
+      ? undefined
+      : toOrganizationSpritesConfigurationRecord(rows.rows[0]);
   }
 
   async stampOrganizationEntitlements(
@@ -4850,6 +4994,7 @@ interface OrganizationSpritesConfigurationRow extends QueryRow {
   organization_id: string;
   token: string;
   memory_mb: number;
+  env: Record<string, string>;
   updated_at: Date;
   updated_by_user_id: string | null;
 }
@@ -4861,6 +5006,7 @@ function toOrganizationSpritesConfigurationRecord(
     organizationId: row.organization_id,
     token: row.token,
     memoryMb: row.memory_mb,
+    env: row.env,
     updatedAt: row.updated_at,
     updatedByUserId: row.updated_by_user_id,
   };
@@ -5490,3 +5636,7 @@ interface TenantRouteAccessRow extends QueryRow {
   project_archived_at: Date | null;
   project_active_configuration_revision_id: string | null;
 }
+
+const LIVE_SPRITE_MACHINE_SQL = `select * from machines
+  where status <> 'terminated' and source->>'kind' = 'sprite' and source->>'triggerId' = $1
+  limit 1`;

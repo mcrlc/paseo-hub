@@ -1,0 +1,46 @@
+# Scenario 7: failure path on a real sprite. Verified at head de489e1 (Hub pid 88008, rebuilt).
+## Save bad bootstrap (docs/qa/ac-vni/s7-trigger-bad.yml) at 09:19:25Z
+{"triggerId":"5742bdb0-2840-429c-8420-d6ec874dcb69","name":"qa-acvni-fail","revisionId":"ac4b040e-af0b-43a0-9bd2-33c39e5143a6","version":1,"active":true}
+HTTP 201
+
+## Save fixed bootstrap (s7-trigger-fixed.yml), same trigger, at 09:20:00Z
+{"triggerId":"5742bdb0-2840-429c-8420-d6ec874dcb69","name":"qa-acvni-fail","revisionId":"d0550415-51f5-40e3-9042-9893683cc131","version":2,"active":true}
+HTTP 201
+
+## Hub log
+2026-09-17T09:18:03.909Z INFO database runtime ready: postgres {}
+2026-09-17T09:18:03.960Z INFO server started, available at: https://<tunnel> {}
+2026-09-17T09:19:26.473Z INFO sprite activation: destroy leftover {"machineId":"80d4b498-7d58-4148-a9cf-334e5b6f2064","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:19:26.943Z INFO sprite activation: create {"machineId":"80d4b498-7d58-4148-a9cf-334e5b6f2064","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:19:28.035Z INFO sprite activation: npm prefix {"machineId":"80d4b498-7d58-4148-a9cf-334e5b6f2064","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:19:29.855Z INFO sprite activation: install paseo {"machineId":"80d4b498-7d58-4148-a9cf-334e5b6f2064","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:19:46.133Z INFO sprite activation: bootstrap {"machineId":"80d4b498-7d58-4148-a9cf-334e5b6f2064","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:19:46.420Z WARN sprite activation failed {"machineId":"80d4b498-7d58-4148-a9cf-334e5b6f2064","reason":"bootstrap exited with 3: bad"}
+2026-09-17T09:20:01.064Z INFO sprite activation: destroy leftover {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:20:01.526Z INFO sprite activation: create {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:20:02.604Z INFO sprite activation: npm prefix {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:20:04.402Z INFO sprite activation: install paseo {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:20:19.153Z INFO sprite activation: bootstrap {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:20:19.535Z INFO sprite activation: daemon service {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:20:24.770Z INFO sprite activation: hub connect {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69"}
+2026-09-17T09:20:28.857Z INFO sprite activation: hub connect output {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504","sprite":"trigger-5742bdb0-2840-429c-8420-d6ec874dcb69","output":"STATE       HUB                                                            DAEMON                                PERMISSIONS  CONNECTED  ERROR  WARNING\nconnecting  https://<tunnel>/  fecb2095-e5df-45e7-86bf-4668d0f2e47d  hub.execute                           \n"}
+2026-09-17T09:20:28.858Z INFO sprite activation bootstrapped {"machineId":"d5c67cde-84bc-4c7a-a802-07b59da93504"}
+
+## After the failure (09:19:53Z)
+sprite list: trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c   (trigger-5742bdb0-... absent)
+GET /v1/sprites/trigger-5742bdb0-2840-429c-8420-d6ec874dcb69 -> {"error":"sprite not found"}
+
+## After the fixed save: alive 09:20:28Z, 28 s after save
+sprite list: trigger-5742bdb0-2840-429c-8420-d6ec874dcb69, trigger-f44f3290-3fe4-42f4-a1e5-a5af9baf587c
+                  id                  |   status   |       shutdown_reason        |          started_at           |         terminated_at         |              api_key_id              |                     slug                     | presence  |     scopes      
+--------------------------------------+------------+------------------------------+-------------------------------+-------------------------------+--------------------------------------+----------------------------------------------+-----------+-----------------
+ 80d4b498-7d58-4148-a9cf-334e5b6f2064 | terminated | bootstrap exited with 3: bad | 2026-09-17 09:19:26.460492+00 | 2026-09-17 09:19:46.421189+00 | b8f1be78-a540-435e-8cb3-3c20b29a5ef3 |                                              |           | 
+ d5c67cde-84bc-4c7a-a802-07b59da93504 | alive      |                              | 2026-09-17 09:20:01.062241+00 |                               | b18eca77-fa07-4c96-b6ee-506921facec1 | trigger-5742bdb0-2840-429c-8420-d6ec874dcb69 | connected | ["hub.execute"]
+(2 rows)
+
+                  id                  |                    name                     |          created_at           |          revoked_at           
+--------------------------------------+---------------------------------------------+-------------------------------+-------------------------------
+ b8f1be78-a540-435e-8cb3-3c20b29a5ef3 | Sprite 5742bdb0-2840-429c-8420-d6ec874dcb69 | 2026-09-17 09:19:26.456243+00 | 2026-09-17 09:19:46.439263+00
+ b18eca77-fa07-4c96-b6ee-506921facec1 | Sprite 5742bdb0-2840-429c-8420-d6ec874dcb69 | 2026-09-17 09:20:01.060308+00 | 2026-09-17 09:20:28.684+00
+(2 rows)
+

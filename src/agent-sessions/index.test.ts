@@ -219,7 +219,9 @@ test("new-agent policy isolates arrivals and incompatible targets fail without r
   expect((await a.dispatch()).agentId).not.toBe((await b.dispatch()).agentId);
   const first = await f.arrival();
   await first.dispatch();
-  const changed = await f.arrival("conversation", "different-daemon");
+  const changed = await f.arrival("conversation", "daemon", {}, "hello", {
+    continuation: { key: "conversation", compatibility: { target: "daemon", cwd: "/elsewhere" } },
+  });
   await expect(changed.dispatch()).rejects.toThrow("Continuation settings differ");
   expect(f.connection.creates).toHaveLength(3);
 });
@@ -306,4 +308,24 @@ test("a ping cannot send more work after the inherited deadline while timeout cl
   });
   await expect(next.dispatch()).rejects.toThrow("execution_deadline_exceeded");
   expect(f.connection.deliveries).toHaveLength(1);
+});
+
+test("a new daemon for the same key resets the conversation and records the new daemon", async () => {
+  const f = await fixture();
+  const first = await f.arrival("conversation", "sprite-daemon-old");
+  const before = await first.dispatch();
+  await f.database.transitionAgentExecution(first.executionId, "succeeded");
+
+  const second = await f.arrival("conversation", "sprite-daemon-new");
+  const after = await second.dispatch();
+
+  expect(after.action).toBe("reset");
+  expect(after.agentId).not.toBe(before.agentId);
+  expect(await f.execution(second.executionId)).toMatchObject({
+    daemonId: "sprite-daemon-new",
+    agentSessionAction: "reset",
+  });
+  const session = await f.database.findAgentSessionByKey("project", "conversation");
+  expect(session?.daemonId).toBe("sprite-daemon-new");
+  expect((await f.database.findAgentSession(before.agentId))?.continuationKey).toBeUndefined();
 });

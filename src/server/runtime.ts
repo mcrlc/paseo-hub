@@ -13,6 +13,7 @@ import type {
 } from "../organizations/resources.js";
 import type { ProjectDashboard } from "../projects/dashboard.js";
 import type { TriggerDashboard } from "../triggers/dashboard.js";
+import type { SpritesSettings } from "../daemons/sprites/settings.js";
 import type { PublicApi } from "../public-api/index.js";
 import type { UsageDashboard } from "../usage/dashboard.js";
 import type { ProviderApplications } from "../provider-applications/index.js";
@@ -77,6 +78,7 @@ export interface ApplicationRuntime {
   billing: BillingRuntime | null;
   projectDashboard: ProjectDashboard | null;
   triggerDashboard?: TriggerDashboard | null;
+  spritesSettings?: SpritesSettings | null;
   daemonProviderCatalog?: DaemonProviderCatalog | null;
   /** Org-scoped, read-only limits and usage. Present whenever database + browser auth are; no
    * billing dependency, so it renders on self-hosted and hosted alike. */

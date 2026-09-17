@@ -1,4 +1,9 @@
-import type { AgentExecutionStatus, MachineSource, MachineStatus } from "./schema.js";
+import type {
+  AgentExecutionStatus,
+  MachineSource,
+  MachineStatus,
+  SpriteMachineSource,
+} from "./schema.js";
 import type { JsonValue } from "../config/compiler.js";
 import type { LaunchMachineIntent } from "../dispatcher/launch-machine-intent.js";
 import type { InvocationRejection } from "../triggers/invocation.js";
@@ -878,6 +883,7 @@ export interface OrganizationSpritesConfigurationRecord {
   organizationId: string;
   token: string;
   memoryMb: number;
+  env: Record<string, string>;
   updatedAt: Date;
   updatedByUserId: string | null;
 }
@@ -886,7 +892,19 @@ export interface UpsertOrganizationSpritesConfigurationInput {
   organizationId: string;
   token: string;
   memoryMb: number;
+  env?: Record<string, string>;
   updatedByUserId: string | null;
+}
+
+export interface SetOrganizationSpritesEnvInput {
+  organizationId: string;
+  key: string;
+  value: string;
+}
+
+export interface RemoveOrganizationSpritesEnvInput {
+  organizationId: string;
+  key: string;
 }
 
 /** An organization as the instance-operator surface sees it — identity only, no membership. */
@@ -1299,6 +1317,14 @@ export interface Database {
     attachmentId: string,
   ): Promise<AttachmentRecord | undefined>;
   insertMachine(input: InsertMachineInput): Promise<MachineRecord>;
+  findLiveSpriteMachine(triggerId: string): Promise<MachineRecord | undefined>;
+  findSpawningSpriteMachines(): Promise<MachineRecord[]>;
+  /** Resolves undefined when a non-terminated sprite machine already exists for the trigger. */
+  insertSpriteMachine(input: {
+    orgId: string;
+    source: SpriteMachineSource;
+    specs: unknown;
+  }): Promise<MachineRecord | undefined>;
   findMachineById(id: string): Promise<MachineRecord | undefined>;
   findMachineForOrganization(
     organizationId: string,
@@ -1309,6 +1335,7 @@ export interface Database {
     toStatus: MachineStatus,
     fields?: TerminateMachineFields,
   ): Promise<MachineRecord>;
+  setMachineSpecs(id: string, specs: unknown): Promise<void>;
   insertAgentExecution(input: InsertAgentExecutionInput): Promise<AgentExecutionRecord>;
   insertAgentExecutionIfAbsent(
     input: InsertAgentExecutionInput & { id: string },
@@ -1331,6 +1358,7 @@ export interface Database {
     slug: string,
   ): Promise<DaemonRecord | undefined>;
   findDaemonById(id: string): Promise<DaemonRecord | undefined>;
+  findDaemonByMachineId(machineId: string): Promise<DaemonRecord | undefined>;
   findDaemonForOrganization(organizationId: string, id: string): Promise<DaemonRecord | undefined>;
   listDaemonsForOrganization(organizationId: string): Promise<DaemonRecord[]>;
   renameDaemonForOrganization(
@@ -1417,6 +1445,12 @@ export interface Database {
   upsertOrganizationSpritesConfiguration(
     input: UpsertOrganizationSpritesConfigurationInput,
   ): Promise<OrganizationSpritesConfigurationRecord>;
+  setOrganizationSpritesEnv(
+    input: SetOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined>;
+  removeOrganizationSpritesEnv(
+    input: RemoveOrganizationSpritesEnvInput,
+  ): Promise<OrganizationSpritesConfigurationRecord | undefined>;
   stampOrganizationEntitlements(
     input: StampOrganizationEntitlementsInput,
   ): Promise<OrganizationEntitlementsRecord>;

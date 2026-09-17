@@ -62,7 +62,7 @@ export class OrganizationApiKeys {
 
   async create(
     organizationId: string,
-    createdByUserId: string,
+    createdByUserId: string | null,
     name: string,
     scopes: readonly ApiKeyScope[],
     client: QueryHandle = this.pool,

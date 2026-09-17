@@ -1,0 +1,19 @@
+# s1: harness regression at d70e75d (2026-09-17)
+$ npx vitest run src/daemons/sprites/dispatch.test.ts src/daemons/lifecycle.test.ts src/workflows --reporter=verbose
+# per-file pass counts:
+  10  ✓ src/daemons/lifecycle.test.ts 
+   7  ✓ src/daemons/sprites/dispatch.test.ts 
+  42  ✓ src/workflows/engine.test.ts 
+   2  ✓ src/workflows/expression.test.ts 
+   2  ✓ src/workflows/phase-three.test.ts 
+  14  ✓ src/workflows/reactions.test.ts 
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > holds an awake sprite before handing off 3ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > holds, defers while the socket is closed, and hands off once the daemon reconnects 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > defers a spawning sprite without reaching the provider 0ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > recreates a terminated sprite once and defers 0ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > fails the run as sprite_unavailable when recreation fails 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > terminates the machine and defers when hold fails, so the next claim recreates 1ms
+ ✓ src/daemons/sprites/dispatch.test.ts > sprite dispatch > releases the hold once when an execution succeeds and once when one fails 1ms
+ Test Files  6 passed (6)
+      Tests  77 passed (77)
+# ran twice (default and verbose reporter): 77/77 both times, no flake

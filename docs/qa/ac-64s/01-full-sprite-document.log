@@ -1,0 +1,63 @@
+== Scenario 1: full sprite document ==
+name: sprite-review
+on:
+  manual.run: {}
+run:
+  target:
+    kind: sprite
+    bootstrap: |
+      npm install -g @getpaseo/cli
+      paseo --version
+    cwd: /home/sprite/workspace/project
+    memory: 16384
+    env:
+      ANTHROPIC_API_KEY: plain-value
+      GITHUB_TOKEN: ${{ paseo.connections.github.token }}
+    worktree:
+      mode: branch-off
+      newBranch: hub-work
+      base: origin/main
+  agent: { provider: claude, mode: bypassPermissions }
+  prompt: Review it.
+  max_runtime: 30m
+  idle_timeout: 5m
+
+compiled.environment = {
+  "name": "target",
+  "kind": "sprite",
+  "bootstrap": "npm install -g @getpaseo/cli\npaseo --version\n",
+  "cwd": "/home/sprite/workspace/project",
+  "memory": 16384,
+  "env": {
+    "ANTHROPIC_API_KEY": "plain-value",
+    "GITHUB_TOKEN": "${{ paseo.connections.github.token }}"
+  },
+  "worktree": {
+    "mode": "branch-off",
+    "newBranch": "hub-work",
+    "base": "origin/main"
+  }
+}
+authored.run.auto_archive = true
+events[0].steps[0].autoArchive = true
+events[0].steps[0] = {
+  "id": "run",
+  "environment": "target",
+  "maxRuntimeMs": 1800000,
+  "idleTimeoutMs": 300000,
+  "agent": {
+    "provider": "claude",
+    "mode": "bypassPermissions"
+  },
+  "prompt": [
+    {
+      "kind": "text",
+      "value": "Review it."
+    }
+  ],
+  "allowOutputs": [],
+  "autoArchive": true,
+  "continuation": {
+    "mode": "conversation"
+  }
+}

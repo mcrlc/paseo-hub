@@ -15,7 +15,7 @@ import {
   deriveAgentExecutionCompletionToken,
   hashAgentExecutionCompletionToken,
 } from "../agent-executions/completion-token.js";
-import type { AgentSessionRecord } from "./types.js";
+import type { AgentSessionAction, AgentSessionRecord } from "./types.js";
 export type { AgentSessionRecord, AgentSessionAction } from "./types.js";
 
 export class AgentSessionError extends Error {}
@@ -39,7 +39,7 @@ export class AgentSessions {
   }): Promise<{
     agentId: string;
     unsubscribe: () => void;
-    action: "created" | "continued" | "restored";
+    action: AgentSessionAction;
   }> {
     const incoming = await this.database.findAgentExecutionById(input.executionId);
     if (!incoming || !isActive(incoming)) throw new AgentSessionError("execution_terminal");
@@ -58,6 +58,7 @@ export class AgentSessions {
           )
         : this.database.findAgentSessionByKey(projectId, continuationKey);
     };
+    const daemonId = input.intent.environment.daemonId;
     const isFinishedCredentialedSession = async (session: AgentSessionRecord) => {
       const executions = await this.database.listAgentSessionExecutions(session.id);
       return (
@@ -69,10 +70,13 @@ export class AgentSessions {
         )
       );
     };
+    // A recreated sprite is a new daemon, and the old agent does not exist on it.
+    const needsFreshAgent = async (session: AgentSessionRecord) =>
+      session.daemonId !== daemonId || (await isFinishedCredentialedSession(session));
     // External credential minting must not hold a database connection open during shutdown.
     const storedSession = await findSession();
     const options =
-      !storedSession || (await isFinishedCredentialedSession(storedSession))
+      !storedSession || (await needsFreshAgent(storedSession))
         ? await input.createOptions()
         : undefined;
     const dispatched = await this.database.withAdvisoryLock(`agent-session:${lockId}`, async () => {
@@ -82,10 +86,11 @@ export class AgentSessions {
       );
       const compatibility = fingerprint({ settings: policy?.compatibility, tools });
       let session = await findSession();
-      if (session && (await isFinishedCredentialedSession(session))) {
+      let freshAction: AgentSessionAction = "created";
+      if (session && (await needsFreshAgent(session))) {
         // Completion may have raced credential preparation. Retry outside the lock.
         if (!options) return undefined;
-        await this.database.saveAgentSession({ ...session, continuationKey: null });
+        freshAction = await this.retireSession(session, daemonId);
         session = undefined;
       }
       const id = session?.id ?? deriveSessionId(projectId, `execution:${input.executionId}`);
@@ -102,7 +107,7 @@ export class AgentSessions {
           projectId: input.intent.projectId,
           organizationId: input.intent.organizationId,
           continuationKey,
-          daemonId: input.intent.environment.daemonId,
+          daemonId,
           agentId: null,
           workspaceId: null,
           compatibility,
@@ -136,20 +141,16 @@ export class AgentSessions {
       if (Number.isFinite(deadline))
         await this.database.limitAgentExecutionDeadline(input.executionId, new Date(deadline));
       await this.database.attachExecutionToSession(input.executionId, id);
-      let action: "created" | "continued" | "restored" = "continued";
+      let action: AgentSessionAction = "continued";
       if (session.agentId === null) {
         const agent = await input.connection.create(id, session.creationOptions, startupTimeoutMs);
         session = { ...session, agentId: agent.id, workspaceId: agent.workspaceId };
         await this.database.saveAgentSession(session);
-        action = "created";
+        action = freshAction;
       }
       if (session.agentId === null || session.workspaceId === null)
         throw new Error("Session agent is missing");
-      await this.database.attachAgentToExecution(
-        input.executionId,
-        session.daemonId,
-        session.agentId,
-      );
+      await this.database.attachAgentToExecution(input.executionId, daemonId, session.agentId);
       const agent = await input.connection.get(session.agentId);
       if (!agent.archivedAt && (agent.status === "closed" || agent.status === "error")) {
         throw new AgentSessionError("agent_interrupted");
@@ -163,6 +164,14 @@ export class AgentSessions {
       return { agentId: session.agentId, unsubscribe, action };
     });
     return dispatched ?? this.dispatch(input);
+  }
+
+  private async retireSession(
+    session: AgentSessionRecord,
+    daemonId: string,
+  ): Promise<AgentSessionAction> {
+    await this.database.saveAgentSession({ ...session, continuationKey: null });
+    return session.daemonId === daemonId ? "created" : "reset";
   }
 
   private async deliver(

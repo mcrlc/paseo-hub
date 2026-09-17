@@ -1,0 +1,777 @@
+[2026-09-17 12:46:47.604 +0300] INFO: database runtime ready: postgres
+[2026-09-17 12:46:47.685 +0300] INFO: server started, available at: http://127.0.0.1:4117
+[2026-09-17 12:47:41.929 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "18de1092-8773-4bbd-8248-721f2cfc91fc"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37152:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:49:52.564 +0300] WARN: sprites.settings failed
+    failureKind: "forbidden"
+    requestId: "30094756-f45f-4850-81d2-b2c343e71de4"
+    operation: "sprites.settings"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProjectCommandError",
+      "code": "forbidden",
+      "stack":
+              at SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37168:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async SpritesSettings.snapshot (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37115:24)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:104:22)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1075:18
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+    }
+[2026-09-17 12:49:52.819 +0300] WARN: sprites.settings failed
+    failureKind: "authentication"
+    requestId: "5337ba43-a12c-4ec6-90d9-5ad2ba180747"
+    operation: "sprites.settings"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProductRequestError",
+      "code": "unauthenticated",
+      "stack":
+              at OrganizationAccess.requireSession (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26636:35)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async OrganizationAccess.account (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26137:21)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35513:19)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.snapshot (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37115:24)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:104:22)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+    }
+[2026-09-17 12:50:01.433 +0300] WARN: sprites.settings failed
+    failureKind: "forbidden"
+    requestId: "0d287704-1f60-40c3-9cec-153cb9d29370"
+    operation: "sprites.settings"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProjectCommandError",
+      "code": "forbidden",
+      "stack":
+              at SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37168:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async SpritesSettings.snapshot (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37115:24)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:104:22)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1075:18
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+    }
+[2026-09-17 12:50:01.687 +0300] WARN: sprites.settings failed
+    failureKind: "authentication"
+    requestId: "c573db06-3a38-4787-a5f7-68224c4c5192"
+    operation: "sprites.settings"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProductRequestError",
+      "code": "unauthenticated",
+      "stack":
+              at OrganizationAccess.requireSession (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26636:35)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async OrganizationAccess.account (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26137:21)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35513:19)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.snapshot (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37115:24)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:104:22)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+    }
+[2026-09-17 12:50:06.738 +0300] WARN: sprites.env.set failed
+    failureKind: "forbidden"
+    requestId: "2b142077-416b-439e-92a7-acca04898ed1"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProjectCommandError",
+      "code": "forbidden",
+      "stack":
+              at SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37168:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37141:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+    }
+[2026-09-17 12:50:07.273 +0300] WARN: sprites.env.set failed
+    failureKind: "forbidden"
+    requestId: "c010db2a-1009-4932-a7a7-74ed98dd5d5b"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProjectCommandError",
+      "code": "forbidden",
+      "stack":
+              at SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37168:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37141:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+    }
+[2026-09-17 12:50:07.835 +0300] WARN: sprites.env.remove failed
+    failureKind: "forbidden"
+    requestId: "7756e66a-a7f5-47e2-bf60-ab63201df3fa"
+    operation: "sprites.env.remove"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProjectCommandError",
+      "code": "forbidden",
+      "stack":
+              at SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37168:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async SpritesSettings.removeEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37156:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:198:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+    }
+[2026-09-17 12:50:08.262 +0300] WARN: sprites.settings failed
+    failureKind: "forbidden"
+    requestId: "d38f8562-8534-448b-bd7b-2eeaf7ae97c3"
+    operation: "sprites.settings"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProjectCommandError",
+      "code": "forbidden",
+      "stack":
+              at SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37168:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async SpritesSettings.snapshot (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37115:24)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:104:22)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1075:18
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+    }
+[2026-09-17 12:50:08.868 +0300] WARN: sprites.env.set failed
+    failureKind: "authentication"
+    requestId: "5b49c6f0-7eeb-4d40-b881-d578ad4b2e5d"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProductRequestError",
+      "code": "unauthenticated",
+      "stack":
+              at OrganizationAccess.requireSession (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26636:35)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async OrganizationAccess.account (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26137:21)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35513:19)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37141:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+    }
+[2026-09-17 12:50:09.264 +0300] WARN: sprites.env.set failed
+    failureKind: "authentication"
+    requestId: "7d439f78-7b3c-40f8-935f-bac99454a0f4"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProductRequestError",
+      "code": "unauthenticated",
+      "stack":
+              at OrganizationAccess.requireSession (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26636:35)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async OrganizationAccess.account (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26137:21)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35513:19)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37141:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+    }
+[2026-09-17 12:50:09.913 +0300] WARN: sprites.env.remove failed
+    failureKind: "authentication"
+    requestId: "3442ed6f-a290-4367-9a2b-e63e3db184a1"
+    operation: "sprites.env.remove"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProductRequestError",
+      "code": "unauthenticated",
+      "stack":
+              at OrganizationAccess.requireSession (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26636:35)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async OrganizationAccess.account (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26137:21)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35513:19)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.removeEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37156:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:198:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+    }
+[2026-09-17 12:50:10.210 +0300] WARN: sprites.settings failed
+    failureKind: "authentication"
+    requestId: "6e92b177-003d-4bd4-8077-e3461d418442"
+    operation: "sprites.settings"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "ProductRequestError",
+      "code": "unauthenticated",
+      "stack":
+              at OrganizationAccess.requireSession (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26636:35)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async OrganizationAccess.account (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:26137:21)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35513:19)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.snapshot (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37115:24)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:104:22)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+    }
+[2026-09-17 12:50:16.788 +0300] WARN: sprites.env.set failed
+    failureKind: "notFound"
+    requestId: "0f74d2e0-fdef-4f00-96d2-6a056fc7f993"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "other-org-acav6"
+    err: {
+      "type": "TenantRouteNotFoundError",
+      "stack":
+              at ProjectTenantResolver.resolve (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35508:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35514:18)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37141:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+    }
+[2026-09-17 12:50:17.517 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "b095752d-b5eb-4a20-acc0-29651b644c4d"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37152:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:22.381 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "c7cb777a-0794-444f-b72a-32ee2a8203ad"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:22.907 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "a35fb569-601c-41f0-97b5-41c92fa6b81f"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:23.436 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "b28ce442-9ec5-4cc4-9280-891088c1a953"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:23.934 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "97560352-a406-4404-b541-e0136da083d0"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:24.433 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "2dd039c3-2321-4e77-9069-e2d9fa779972"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:24.941 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "bf07d651-eaff-40c1-b938-14d8c6796054"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:25.454 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "f4a4d68f-d2d9-4ee9-9aa9-a512801d0471"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:25.955 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "fdc33a4c-c9ed-4ad5-8935-0744f41310ee"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:26.465 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "f3d21aed-b052-4f57-a961-254778b0bcb5"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:27.127 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "ea1e3231-b525-486a-a104-211bae80ea4c"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:42.380 +0300] WARN: sprites.env.set failed
+    failureKind: "notFound"
+    requestId: "8cf07916-ef6b-4a08-8bf3-c18f37159465"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "other-org-acav6"
+    err: {
+      "type": "TenantRouteNotFoundError",
+      "stack":
+              at ProjectTenantResolver.resolve (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35508:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async resolveRouteTenant (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:35514:18)
+              at async SpritesSettings.manager (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37164:22)
+              at async SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37141:33)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+    }
+[2026-09-17 12:50:42.852 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "f063c0e3-7c7a-4fb9-ad62-ddd8143bfda4"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37152:13)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:47.203 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "3ad5c414-4c02-4257-80f7-29a08ef8fcba"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:47.727 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "d77b2d21-64f0-4a69-a6a3-22881f8d9f1e"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:48.230 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "64f369a2-c2b7-41c5-9b0e-ea8fb30ce8b9"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:48.874 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "ca786380-6b22-4559-8fcb-cc33df8c5d91"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:49.388 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "813d0933-614e-420a-91c0-7ec9d5d41654"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:49.930 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "a3ab2ad7-a587-44d7-81d1-fe2653bd5f09"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:50.490 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "dbd65aa8-7cbd-4fdb-9974-f3e7584e9e98"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:51.003 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "2a641fe2-c910-49c4-b904-df2790809e09"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:51.523 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "a14f6e0d-135f-45f1-b346-2334dbd23faa"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }
+[2026-09-17 12:50:52.249 +0300] WARN: sprites.env.set failed
+    failureKind: "validation"
+    requestId: "4e498e1f-72eb-44c5-822c-87582e954632"
+    operation: "sprites.env.set"
+    component: "sprites"
+    organizationSlug: "acme-56b508fa"
+    err: {
+      "type": "SpritesEnvInputError",
+      "code": "invalidInput",
+      "stack":
+              at SpritesSettings.setEnv (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:37144:34)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async Object.serverFn (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/assets/functions-CuinPDV4.js:168:5)
+              at async server (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:696:24)
+              at async callNextMiddleware (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:624:24)
+              at async Object.assign.__executeServer (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:568:18)
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1082:16
+              at async file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1047:17
+              at async handleServerAction (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:933:10)
+              at async Object.next (file:///Users/mic/.paseo/worktrees/01slizkc/sprite-targets-org-env-1/.output/server/start-server.js:1783:16)
+    }

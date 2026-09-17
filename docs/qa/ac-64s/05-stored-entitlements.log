@@ -1,0 +1,20 @@
+== Stored document without canUseSpriteTargets (Postgres) ==
+raw granted column: {"seats":{"max":null},"meters":{"executions.monthly":{"limit":null}},"canInviteMembers":true}
+service.read -> granted.canUseSpriteTargets=false effective.canUseSpriteTargets=false
+requireFlag(canUseSpriteTargets): EntitlementDenied: entitlement denied: canUseSpriteTargets
+normalizeStoredEntitlements(pre-flag) = {"seats":{"max":null},"canInviteMembers":true,"canUseSpriteTargets":false,"meters":{"executions.monthly":{"limit":null}}}
+
+== Templates ==
+Free fallback (no Free plan mirrored): {"planId":null,"granted":{"seats":{"max":1},"canInviteMembers":false,"canUseSpriteTargets":false,"meters":{"executions.monthly":{"limit":0}}}}
+UNLIMITED_TEMPLATE: {"seats":{"max":null},"canInviteMembers":true,"canUseSpriteTargets":false,"meters":{"executions.monthly":{"limit":null}}}
+
+== Plan metadata ==
+ent_can_use_sprite_targets=true: {"success":true,"data":{"slug":"team","template":{"seats":{"max":5},"canInviteMembers":true,"canUseSpriteTargets":true,"meters":{"executions.monthly":{"limit":2000}}}}}
+ent_can_use_sprite_targets=false: {"success":true,"data":{"slug":"team","template":{"seats":{"max":5},"canInviteMembers":true,"canUseSpriteTargets":false,"meters":{"executions.monthly":{"limit":2000}}}}}
+key absent: {"success":true,"data":{"slug":"team","template":{"seats":{"max":5},"canInviteMembers":true,"canUseSpriteTargets":false,"meters":{"executions.monthly":{"limit":2000}}}}}
+ent_can_use_sprite_targets=yes (invalid): {"success":false,"message":"✖ Invalid option: expected one of \"true\"|\"false\"\n  → at ent_can_use_sprite_targets"}
+    err: {
+      "type": "Error",
+      "code": "billing_free_plan_missing",
+      "stack":
+    }

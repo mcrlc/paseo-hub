@@ -1,0 +1,18 @@
+# s2: fresh-DB entitlement (2026-09-17T10:45:16Z)
+# Postgres: fresh postgres:17-alpine container qa-ac52w-pg; Hub startup ran migrations and PASEO_BOOTSTRAP_* provisioned the org.
+$ select id, slug, created_at from organization
+73fc97ed-5a78-4250-96f2-b42d19a83101 | qa-ac52w-73fc97ed | 2026-09-17 10:45:03.111839+00
+$ select * from organization_entitlements
+organization_id | 73fc97ed-5a78-4250-96f2-b42d19a83101
+granted | {"seats": {"max": null}, "meters": {"executions.monthly": {"limit": null}}, "canInviteMembers": true, "canUseSpriteTargets": true}
+overrides | {}
+plan_id | 
+plan_version | 7c9902f9bddff96bdbea160eba81d00903355875f5944995d065c73d78c48e09
+stamped_at | 2026-09-17 10:45:03.111839+00
+updated_at | 2026-09-17 10:45:03.111839+00
+$ select * from entitlement_changes
+source | provisioning
+before | 
+after | {"granted": {"seats": {"max": null}, "meters": {"executions.monthly": {"limit": null}}, "canInviteMembers": true, "canUseSpriteTargets": true}, "overrides": {}}
+reason | 
+created_at | 2026-09-17 10:45:03.111839+00

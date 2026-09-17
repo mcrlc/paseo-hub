@@ -83,7 +83,7 @@ export function compileTriggerDocument(yaml: string): CompiledTriggerDocument {
         environments: [environment],
         triggers,
       },
-      namedAgents === undefined ? {} : { namedAgents },
+      namedAgents === undefined ? { spriteTargets: true } : { spriteTargets: true, namedAgents },
     );
   } catch (error) {
     throw new TriggerDocumentError([

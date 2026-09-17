@@ -1,0 +1,36 @@
+# s6: recreate path on a real sprite (UTC, 2026-09-17). Trigger saved as version 3 with the Claude Code bootstrap and key qa-ac52w-v2.
+
+## before (10:51:36), no run active
+api keys: 41972952 qa ac-52w (public API) | 605e3fd8 "Sprite c8477b8e-…" daemons:enroll revoked
+machines: 26ad1faa alive apiKey 605e3fd8 bootstrapHash 749c8595… (the v1 bootstrap; re-saving the changed bootstrap did not recreate)
+daemons:  06e580e0 machine 26ad1faa active connected
+sprite:   id sprite-7f9ef59d-…, created 10:45:55Z, status warm
+sessions: custom:qa-ac52w-v2 daemonId 06e580e0 agentId null (created by run 1c, which never reached an agent)
+
+## terminate the row by SQL, real sprite left alive
+10:51:43  update machines set status='terminated', shutdown_reason='qa' where id='26ad1faa…'  -> UPDATE 1
+10:51:43  fire qa-run-4; Hub intake 10:51:43.701, trigger run ec062e0e
+10:51:43.946 new key 530087f7 "Sprite c8477b8e-…" daemons:enroll created
+10:51:43.949 new machine 20a8b9a8-587f-494a-b4cc-94148681f31c spawning; Hub log "sprite activation: destroy leftover"
+10:51:45.205 old daemon 06e580e0 offline (old sprite destroyed)
+10:51:45.209 "sprite activation: create" (new sprite id sprite-df78328c-…, created 10:51:45.6Z)
+10:51:46 … 10:52:16  run running, no execution row  <- deferred while spawning
+10:51:47.745 install paseo | 10:52:02.172 bootstrap | 10:52:05.880 daemon service | 10:52:11.227 hub connect
+10:52:15.579 key 530087f7 revoked | 10:52:15.768 "sprite activation bootstrapped"
+10:52:16.108 daemon eb616a99 connected (slug trigger-c8477b8e-…-eb616a99)
+10:52:16.123 execution eee20edc row created: intent machineId 20a8b9a8, intent daemonId eb616a99
+10:52:16.779 new sprite's daemon log: "Created agent ee334e80-16c9-4711-980b-e4f6e8645636"
+10:52:17.850 agent calls Hub /agent-sessions/27638f7c-…/mcp
+          agent_executions.daemon_id = 06e580e0 (the OLD daemon, copied from the session), daemon_agent_id ee334e80  <- finding 4
+10:54:18.575 execution failed step_idle_timeout -> run failed; sprite last_warming_at 10:54:18
+10:54:22  tasks: []
+10:54:23.576 daemon eb616a99 offline (5 s after pause)
+          hub_action_completed_at for eee20edc stays null: archive never ran
+
+## after
+api keys: exactly one new Sprite key (530087f7, revoked on enrollment); machines: 26ad1faa terminated + 20a8b9a8 alive (one new row)
+daemons: 06e580e0 still status active (offline, not revoked) + eb616a99 active
+Fire -> alive and handed off: 32.4 s. Activation ran once for the execution.
+Hold on the new sprite was not sampled during this run: it is inferred from the intent carrying machineId (prepareSpriteDispatch
+returns ready only after hold succeeds) and shown directly on the same sprite in s3 to s5.
+Result: pass for recreate, deferral, and a single activation; see findings 4 and 5.

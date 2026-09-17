@@ -472,6 +472,49 @@ export class HubHarness {
     return daemon;
   }
 
+  async spawningSpriteMachine(
+    triggerName = "nightly_deploy",
+    apiKeyId = HUB_API_KEY_ID,
+  ): Promise<string> {
+    if (this.postgres === undefined) throw new Error("Postgres is unavailable");
+    const client = await createPostgresQueryRuntime(this.postgres.getConnectionUri());
+    const triggers = await client.query<{ id: string }>(
+      `insert into organization_triggers (organization_id, name, format)
+       values ($1, $2, 'single_run') returning id`,
+      [HUB_ORGANIZATION_ID, triggerName],
+    );
+    await client.close();
+    const machine = await this.requireDatabase().insertSpriteMachine({
+      orgId: HUB_ORGANIZATION_ID,
+      source: {
+        kind: "sprite",
+        triggerId: triggers.rows[0]!.id,
+        spriteName: "sprite",
+        apiKeyId,
+      },
+      specs: null,
+    });
+    if (machine === undefined) throw new Error("Sprite machine was not inserted");
+    return machine.id;
+  }
+
+  async machine(id: string) {
+    const machine = await this.requireDatabase().findMachineById(id);
+    if (!machine) throw new Error("Machine does not exist");
+    return machine;
+  }
+
+  async harnessApiKeyRevoked(): Promise<boolean> {
+    if (this.postgres === undefined) throw new Error("Postgres is unavailable");
+    const client = await createPostgresQueryRuntime(this.postgres.getConnectionUri());
+    const rows = await client.query<{ revoked_at: Date | null }>(
+      `select revoked_at from organization_api_keys where id = $1`,
+      [HUB_API_KEY_ID],
+    );
+    await client.close();
+    return rows.rows[0]?.revoked_at !== null;
+  }
+
   async enrollmentPrivacy(): Promise<{
     daemonHasCredential: boolean;
     databaseHasVerifierOnly: boolean;

@@ -1,0 +1,40 @@
+# ac-7rt scenario 6: cleanup and secret grep   2026-09-17T13:59:46Z
+
+## destroy both sprites, then confirm 404
+DELETE /v1/sprites/trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5 -> HTTP 204
+DELETE /v1/sprites/trigger-3315590f-e450-455d-b0eb-57c05c0f41cb -> HTTP 204
+GET    /v1/sprites/trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5 -> HTTP 404
+GET    /v1/sprites/trigger-3315590f-e450-455d-b0eb-57c05c0f41cb -> HTTP 404
+
+## sprites remaining in the org that belong to this QA run
+(no output above = both gone from the list)
+
+## revoke the temporary org token, then confirm it is dead
+DELETE /v1/tokens/<token-id> -> HTTP 204
+GET https://api.sprites.dev/v1/sprites with the revoked token -> HTTP 401
+token still listed? 0 occurrence(s)
+
+## stop Hub and cloudflared by pid, stop and remove Postgres
+hub pid 49132 gone after SIGTERM
+cloudflared pid 1325 gone after SIGTERM
+listener on 3000: '' (empty = none)
+cloudflared processes: 0
+container qa-ac7rt-pg removed
+container still present? 0
+
+## secret grep of docs/qa/ac-7rt/ (every file that will be committed)
+files: db-poll.sh del-task.sh hub-start.sh install.sh race-alive.sh run.sh s1-harness.log s2-tick-refresh.log s3-restart-mid-execution.log s3b-missing-task.log s4-restart-mid-bootstrap.log s5-reconcile-alive.log sprite-poll.sh task-poll.sh trigger-b.yml trigger.yml 
+  sprites org token: 0 match(es)
+  tunnel hostname: 0 match(es)
+  owner password: 0 match(es)
+  hub auth secret: 0 match(es)
+  public api key: 0 match(es)
+  literal PASEO_PASSWORD: 0 match(es)
+  total: 0
+
+  PASEO_PASSWORD note: GET /v1/sprites/:name does not return the service env, so no value was
+  ever obtainable by this session; the literal string is grepped instead and is absent.
+
+## leftovers
+  qa-ac7rt-pg: removed. One other container, qa-ac50k-pg, is a different bead's session and was left alone.
+  private temp dir <private temp dir> held the chmod 600 secrets and was removed with rm -rf after this grep

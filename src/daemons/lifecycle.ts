@@ -24,7 +24,10 @@ import type {
 import {
   DEFAULT_STARTUP_TIMEOUT_MS,
   type LaunchMachineIntent,
+  type SpriteDispatchReadiness,
 } from "../dispatcher/launch-machine-intent.js";
+import type { SpriteActivation, SpriteTarget } from "./sprites/activation.js";
+import { createSpritesClient, type SpritesClient } from "./sprites/client.js";
 import { logger as defaultLogger } from "../logger.js";
 import { reportFailure } from "../failures/index.js";
 import type { TriggerProvider } from "../triggers/index.js";
@@ -51,6 +54,7 @@ import type { JsonValue } from "../config/compiler.js";
 import { compileJsonSchema, formatJsonSchemaErrors } from "../workflows/json-schema.js";
 import type { Logger } from "pino";
 import { isHubFinishExecutionToolName } from "../hub/protocol.js";
+import type { OrganizationApiKeys } from "../auth/api-keys.js";
 
 export interface DaemonDispatchResult {
   execution: AgentExecutionRecord;
@@ -75,6 +79,7 @@ interface HubExecutionEnv {
 const DEFAULT_DISPATCH_TIMEOUT_MS = 30_000;
 const DEFAULT_AGENT_EXECUTION_TIMEOUT_MS = 60 * 60_000;
 const DEFAULT_AGENT_IDLE_TIMEOUT_MS = 5 * 60_000;
+const SPRITE_HOLD_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 type AgentStatus = Extract<DaemonEvent, { type: "agent_update" }>["agent"]["status"];
 interface ExecutionDeadline {
@@ -106,10 +111,14 @@ export interface DaemonDispatchLifecycleOptions {
   executionAuthority?: ExecutionAuthority;
   publicBaseUrl?: string;
   completionTokenSecret?: string;
+  spriteActivation?: SpriteActivation | null;
+  spriteProvider?: (token: string) => Pick<SpritesClient, "hold" | "release" | "destroy">;
+  spriteApiKeys?: Pick<OrganizationApiKeys, "revoke">;
   test?: {
     logger?: Logger;
     dispatchTimeoutMs?: number;
     deadlineClock?: ExecutionDeadlineClock;
+    spriteHoldRefreshIntervalMs?: number;
   };
 }
 
@@ -158,6 +167,9 @@ export class DaemonDispatchLifecycle {
   private readonly reconcilingHubActions = new Map<string, Promise<void>>();
   private readonly daemonRecoveries = new Set<Promise<void>>();
   private readonly executionSubscriptions = new Map<string, () => void>();
+  private readonly heldSpriteExecutions = new Set<string>();
+  private readonly recreatedSpriteExecutions = new Set<string>();
+  private clearSpriteHoldRefresh: (() => void) | undefined;
   private stopping = false;
 
   constructor(private readonly options: DaemonDispatchLifecycleOptions) {
@@ -173,6 +185,8 @@ export class DaemonDispatchLifecycle {
 
   async stop(): Promise<void> {
     this.stopping = true;
+    this.clearSpriteHoldRefresh?.();
+    this.clearSpriteHoldRefresh = undefined;
     for (const unsubscribe of this.executionSubscriptions.values()) unsubscribe();
     this.executionSubscriptions.clear();
     for (const clear of this.deadlineTimersByExecution.values()) clear();
@@ -218,6 +232,64 @@ export class DaemonDispatchLifecycle {
     }
     this.startDurableDispatch(prepared, this.notifyDispatchAccepted(intent, true));
     return { execution: prepared.execution };
+  }
+
+  async prepareSpriteDispatch(input: {
+    organizationId: string;
+    projectId: string;
+    executionId: string;
+    target: SpriteTarget;
+  }): Promise<SpriteDispatchReadiness> {
+    const { database } = this.options;
+    const trigger = (await database.listOrganizationTriggers(input.organizationId)).find(
+      (candidate) => candidate.runtimeProjectId === input.projectId,
+    );
+    const machine =
+      trigger === undefined ? undefined : await database.findLiveSpriteMachine(trigger.id);
+    if (trigger === undefined || machine === undefined) {
+      const activation = this.options.spriteActivation;
+      if (
+        trigger !== undefined &&
+        activation != null &&
+        !this.recreatedSpriteExecutions.has(input.executionId)
+      ) {
+        this.recreatedSpriteExecutions.add(input.executionId);
+        try {
+          await activation({ trigger, target: input.target, userId: null });
+          return { status: "deferred" };
+        } catch (error) {
+          this.report(error, "sprites.recreate", { executionId: input.executionId });
+        }
+      }
+      this.forgetSpriteExecution(input.executionId);
+      return { status: "unavailable" };
+    }
+    if (machine.status !== "alive" || machine.source.kind !== "sprite")
+      return { status: "deferred" };
+    const daemon = await database.findDaemonByMachineId(machine.id);
+    if (daemon === undefined) return { status: "deferred" };
+    if (!this.heldSpriteExecutions.has(input.executionId)) {
+      try {
+        const provider = await this.spriteProviderFor(machine.orgId);
+        await provider.hold(machine.source.spriteName, input.executionId, "60m");
+        this.heldSpriteExecutions.add(input.executionId);
+        this.logger.info(
+          {
+            executionId: input.executionId,
+            sprite: machine.source.spriteName,
+            task: input.executionId,
+          },
+          "sprite hold",
+        );
+      } catch (error) {
+        this.report(error, "sprites.hold", { executionId: input.executionId });
+        await database.transitionMachine(machine.id, "terminated", {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        return { status: "deferred" };
+      }
+    }
+    return { status: "ready", machineId: machine.id, daemonId: daemon.id };
   }
 
   async notifyWorkflowRunAccepted(
@@ -924,6 +996,58 @@ export class DaemonDispatchLifecycle {
     await Promise.all(executions.map((execution) => this.reconcileHubActionSafely(execution)));
   }
 
+  /** The held-execution set does not survive a restart, so holds are re-derived from rows. */
+  async recoverSprites(): Promise<void> {
+    await this.reconcileSpawningSprites();
+    await this.refreshSpriteHolds();
+    this.scheduleSpriteHoldRefresh();
+  }
+
+  private async reconcileSpawningSprites(): Promise<void> {
+    for (const machine of await this.options.database.findSpawningSpriteMachines()) {
+      if (machine.source.kind !== "sprite") continue;
+      try {
+        if ((await this.options.database.findDaemonByMachineId(machine.id)) !== undefined) {
+          await this.options.database.transitionMachine(machine.id, "alive");
+          continue;
+        }
+        await this.options.database.transitionMachine(machine.id, "terminated", {
+          reason: "hub restarted during activation",
+        });
+        await this.options.spriteApiKeys?.revoke(machine.orgId, machine.source.apiKeyId);
+        await (await this.spriteProviderFor(machine.orgId)).destroy(machine.source.spriteName);
+      } catch (error) {
+        this.report(error, "sprites.recover", { machineId: machine.id });
+      }
+    }
+  }
+
+  private async refreshSpriteHolds(): Promise<void> {
+    for (const execution of await this.options.database.findPendingAgentExecutions()) {
+      const machineId = execution.launchIntent?.environment.machineId;
+      if (machineId === undefined || machineId === null) continue;
+      try {
+        const machine = await this.options.database.findMachineById(machineId);
+        if (machine?.status !== "alive" || machine.source.kind !== "sprite") continue;
+        const provider = await this.spriteProviderFor(machine.orgId);
+        await provider.hold(machine.source.spriteName, execution.id, "60m");
+        this.heldSpriteExecutions.add(execution.id);
+      } catch (error) {
+        this.report(error, "sprites.hold-refresh", { executionId: execution.id });
+      }
+    }
+  }
+
+  private scheduleSpriteHoldRefresh(): void {
+    this.clearSpriteHoldRefresh = this.scheduleDeadline(async () => {
+      try {
+        if (!this.stopping) await this.refreshSpriteHolds();
+      } finally {
+        if (!this.stopping) this.scheduleSpriteHoldRefresh();
+      }
+    }, this.options.test?.spriteHoldRefreshIntervalMs ?? SPRITE_HOLD_REFRESH_INTERVAL_MS);
+  }
+
   async recoverWorkflowDeadlineExecutions(executionIds: readonly string[]): Promise<void> {
     for (const executionId of executionIds) {
       this.clearExecutionDeadline(executionId);
@@ -1079,6 +1203,7 @@ export class DaemonDispatchLifecycle {
     await this.options.database.transitionMachine(machineId, "terminated", {
       reason,
     });
+    await this.destroySprite(machineId);
 
     await Promise.all(
       failedExecutions.map((execution) =>
@@ -1311,14 +1436,18 @@ export class DaemonDispatchLifecycle {
     const action = execution.hubAction;
     const daemonId = execution.daemonId;
     if (action === null || daemonId === null) return;
-    const connection = this.options.connectionForDaemon(daemonId);
-    if (connection === undefined) return;
-    const completed = await withHubActionTimeout(
-      this.sessionOwner().control(execution, connection.agents, action),
-      this.dispatchTimeoutMs,
-      (callback, delayMs) => this.scheduleDeadline(async () => callback(), delayMs),
-    );
-    if (completed) await this.options.database.completeHubAction(execution.id, action);
+    try {
+      const connection = this.options.connectionForDaemon(daemonId);
+      if (connection === undefined) return;
+      const completed = await withHubActionTimeout(
+        this.sessionOwner().control(execution, connection.agents, action),
+        this.dispatchTimeoutMs,
+        (callback, delayMs) => this.scheduleDeadline(async () => callback(), delayMs),
+      );
+      if (completed) await this.options.database.completeHubAction(execution.id, action);
+    } finally {
+      await this.releaseSpriteHold(execution);
+    }
   }
 
   private async notifyMachineTerminated(
@@ -1376,7 +1505,55 @@ export class DaemonDispatchLifecycle {
     await this.options.database.setAgentExecutionReactionState(execution.id, reactionState);
   }
 
+  private async releaseSpriteHold(execution: AgentExecutionRecord): Promise<void> {
+    this.forgetSpriteExecution(execution.id);
+    if (execution.launchIntent?.environment.machineId === undefined) return;
+    try {
+      const machine = await this.options.database.findMachineById(
+        execution.launchIntent.environment.machineId,
+      );
+      if (machine?.source.kind !== "sprite") return;
+      const provider = await this.spriteProviderFor(machine.orgId);
+      await provider.release(machine.source.spriteName, execution.id);
+      this.logger.info(
+        { executionId: execution.id, sprite: machine.source.spriteName, task: execution.id },
+        "sprite release",
+      );
+    } catch (error) {
+      this.report(error, "sprites.release", { executionId: execution.id });
+    }
+  }
+
+  private async destroySprite(machineId: string): Promise<void> {
+    const machine = await this.options.database.findMachineById(machineId);
+    if (machine?.source.kind !== "sprite") return;
+    try {
+      const provider = await this.spriteProviderFor(machine.orgId);
+      await provider.destroy(machine.source.spriteName);
+      this.logger.info({ machineId, sprite: machine.source.spriteName }, "sprite destroyed");
+    } catch (error) {
+      this.report(error, "sprites.destroy", { machineId });
+    }
+  }
+
+  private forgetSpriteExecution(executionId: string): void {
+    this.heldSpriteExecutions.delete(executionId);
+    this.recreatedSpriteExecutions.delete(executionId);
+  }
+
+  private async spriteProviderFor(
+    organizationId: string,
+  ): Promise<Pick<SpritesClient, "hold" | "release" | "destroy">> {
+    const configuration =
+      await this.options.database.getOrganizationSpritesConfiguration(organizationId);
+    if (configuration === undefined) throw new Error("Sprites are not configured");
+    return (this.options.spriteProvider ?? ((token) => createSpritesClient({ token })))(
+      configuration.token,
+    );
+  }
+
   private async notifyExecutionTerminal(execution: AgentExecutionRecord): Promise<void> {
+    if (execution.hubAction === null) await this.releaseSpriteHold(execution);
     const provider = this.findProviderForTriggerContext(execution.triggerContext);
     if (provider !== undefined) {
       await notifyAgentExecutionTerminal({

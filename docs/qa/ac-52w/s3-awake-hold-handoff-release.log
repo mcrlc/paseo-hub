@@ -1,0 +1,46 @@
+# s3: awake sprite — hold, handoff, release (all times UTC, 2026-09-17)
+# ids: trigger c8477b8e-…, sprite trigger-c8477b8e-29bf-4c03-8dea-c86cf47032c2
+# Hold = in-sprite task named by the execution id, listed with tasks.sh. Run state from watch.sh / fastwatch.sh.
+
+## activation (trigger.yml v1: no Claude Code in bootstrap, key qa-ac52w)
+10:45:54  POST /api/v1/triggers/install -> version 1
+10:45:57  machine 26ad1faa-875e-470c-bbbe-60b2f8711520 spawning
+10:46:44.9 enroll key 605e3fd8 revoked (daemon enrolled)
+10:46:46  machine 26ad1faa alive, daemon 06e580e0-02ab-4faa-bce8-ceb3cde6a269 connected, sprite status running
+
+## run 1 (qa-run-1), sprite running, daemon connected
+10:46:54  fire
+10:46:55.222 trigger run 4a43b4ee created
+10:46:55  tasks: [{"name":"fe40e174-363d-5120-9117-ae5df933a10c","started_at":"10:46:55Z","expires_at":"11:46:55Z"}]   <- hold, 60 m, named by execution id
+10:46:55.460 execution fe40e174 row created, launch_intent.environment.machineId = 26ad1faa (= machine row), daemonId = 06e580e0
+10:46:57.757 Hub ERROR daemon.dispatch failed {daemonId 06e580e0, machineId 26ad1faa, executionId fe40e174}: DaemonAgentError from the daemon
+10:46:57.765 execution failed, run failed "Provider 'claude' is not available"  (the daemon answered: handoff reached it)
+10:47:04  tasks: []   <- released after terminal
+10:47:33  sprite status warm
+
+## run 1c (qa-run-1c, after installing Claude Code by hand; the daemon still reported it unavailable, see finding 8)
+10:51:12  sprite running (sleep exec), daemon connected; fire
+10:51:12  tasks: [{"name":"0f3f7d9e-1f46-5daf-a65e-2d84fe1f81fe","started_at":"10:51:12Z",…}]
+10:51:12.497 execution 0f3f7d9e created, intent machineId 26ad1faa
+10:51:13.557 failed "Provider 'claude' is not available"
+10:51:20  tasks: []
+
+## run 3 (qa-run-3) on the recreated sprite (machine 20a8b9a8-587f-494a-b4cc-94148681f31c, daemon eb616a99, Claude Code installed by bootstrap, key qa-ac52w-v3)
+10:55:19  sprite status running (sleep 20 exec), daemon connected; fire
+10:55:19.394 trigger run 4a067f39 created
+10:55:19  tasks: [{"name":"35e7ace7-abcd-5480-93a4-264705f82a65","started_at":"10:55:19Z","expires_at":"11:55:19Z"}]
+10:55:19.423 execution 35e7ace7 row created (handoff), launch_intent.environment.machineId = 20a8b9a8 (= machine row), daemonId = eb616a99
+10:55:21.452 agent on the sprite calls Hub /agent-sessions/b484a03d-…/mcp (POST 400, GET 405) -> agent started
+10:55:22  execution running
+10:55:19 … 10:57:20  30 task samples every ~4 s, every one lists hold 35e7ace7
+10:57:22.092 execution failed step_idle_timeout (no Claude credential; agent never finished) -> run failed step_idle_timeout
+10:57:23  sprite status warm
+10:57:26  tasks: []   <- released
+10:57:52.378 Hub ERROR daemon.execution.hub-action failed {executionId 35e7ace7, hubAction archive} (timeout; see finding 1)
+10:59:50.509 archive for 35e7ace7 finally completes (hub_action_completed_at), when run 2's hold woke the sprite
+
+## Hub log for a successful handoff
+none: Hub logs no INFO line for hold, release, or a successful daemon spawn (finding 6). Handoff time is the
+agent_executions row creation / started_at and the daemon log "Created agent".
+
+Result: pass (hold before handoff, intent carries the machine row id, hold present for the whole run, gone after terminal).

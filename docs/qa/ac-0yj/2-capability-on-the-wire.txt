@@ -1,0 +1,96 @@
+# Scenario 2: capability enforcement on the wire
+Same production build and database as scenario 1. Roles: owner@ac0yj.test owner, admin@ac0yj.test admin, member@ac0yj.test member (joined through real invitations, setup-accounts.ts).
+
+## Membership rows
+       email       |                  id                  |  role  
+-------------------+--------------------------------------+--------
+ admin@ac0yj.test  | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni     | admin
+ member@ac0yj.test | zBaZ9zkVWlLvfSmMXY9PW427MJIyJpRe     | member
+ owner@ac0yj.test  | 07e75ede-db0d-421b-94cd-cc7e60f9a7c2 | owner
+(3 rows)
+
+## Row before the member's attempt
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+memory_mb          | 8192
+updated_by_user_id | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni
+updated_at         | 2026-09-17 08:37:25.412653+00
+
+## Member (role member, no manage-resources) calls save directly
+> POST http://127.0.0.1:4107/_serverFn/76522ab385cab7d2d1a2f76850d758df52966bdd6dba3a45c91a83a1cf1be5bb  cookie: <session of member>
+> body: {"t":{"t":10,"i":0,"p":{"k":["data"],"v":[{"t":10,"i":1,"p":{"k":["organizationSlug","token","memoryMb"],"v":[{"t":1,"s":"acme-704c1be6"},{"t":1,"s":"ac0yj-member-attempt-token"},{"t":0,"s":4096}]},"o":0}]},"o":0},"f":63,"m":[]}
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"You don't have permission to configure Sprites."}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+## Row after the member's attempt (must be identical)
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+memory_mb          | 8192
+updated_by_user_id | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni
+updated_at         | 2026-09-17 08:37:25.412653+00
+
+## No session at all calls save
+> POST http://127.0.0.1:4107/_serverFn/76522ab385cab7d2d1a2f76850d758df52966bdd6dba3a45c91a83a1cf1be5bb  cookie: none
+> body: {"t":{"t":10,"i":0,"p":{"k":["data"],"v":[{"t":10,"i":1,"p":{"k":["organizationSlug","token","memoryMb"],"v":[{"t":1,"s":"acme-704c1be6"},{"t":1,"s":"ac0yj-anonymous-attempt-token"},{"t":0,"s":4096}]},"o":0}]},"o":0},"f":63,"m":[]}
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","error"],"v":[{"t":1,"s":"error"},{"t":10,"i":2,"p":{"k":["message"],"v":[{"t":1,"s":"Hub couldn't save the Sprites configuration. The stored token is unchanged."}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+## Row after the anonymous attempt
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+memory_mb          | 8192
+updated_by_user_id | AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni
+updated_at         | 2026-09-17 08:37:25.412653+00
+
+## Member calls the snapshot directly (observation: read is not capability-gated, token absent)
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["configured","memoryMb","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":8192},{"t":1,"s":"2026-09-17T08:37:25.412Z"},{"t":1,"s":"AmW9pbhfF3YExKie8KuHyR9yR1zZ5Nni"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+
+## Owner saves directly (token A again, memoryMb omitted from the payload -> server default)
+> POST http://127.0.0.1:4107/_serverFn/76522ab385cab7d2d1a2f76850d758df52966bdd6dba3a45c91a83a1cf1be5bb  cookie: <session of owner>
+> body: {"t":{"t":10,"i":0,"p":{"k":["data"],"v":[{"t":10,"i":1,"p":{"k":["organizationSlug","token"],"v":[{"t":1,"s":"acme-704c1be6"},{"t":1,"s":"ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579"}]},"o":0}]},"o":0},"f":63,"m":[]}
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["state"],"v":[{"t":1,"s":"complete"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+## Row after the owner's save
+-[ RECORD 1 ]------+-----------------------------------------------
+organization_id    | 704c1be6-ae0e-4df9-98c6-02dd1b55dbcb
+token              | ac0yj-sprites-token-A-b5015454be2c64ed6c9fe579
+memory_mb          | 8192
+updated_by_user_id | 07e75ede-db0d-421b-94cd-cc7e60f9a7c2
+updated_at         | 2026-09-17 08:39:01.000003+00
+
+## Snapshot after the owner's save (owner session)
+HTTP/1.1 200 OK
+content-type: application/json
+x-tss-serialized: true
+Transfer-Encoding: chunked
+
+{"t":10,"i":0,"p":{"k":["result","error","context"],"v":[{"t":10,"i":1,"p":{"k":["status","data"],"v":[{"t":1,"s":"ok"},{"t":10,"i":2,"p":{"k":["configured","memoryMb","updatedAt","updatedByUserId"],"v":[{"t":2,"s":2},{"t":0,"s":8192},{"t":1,"s":"2026-09-17T08:39:01.000Z"},{"t":1,"s":"07e75ede-db0d-421b-94cd-cc7e60f9a7c2"}]},"o":0}]},"o":0},{"t":2,"s":1},{"t":11,"i":3,"p":{"k":[],"v":[]},"o":0}]},"o":0}
+
+
+## Hub log lines for the refused saves
+45:[2026-09-17 11:38:59.132 +0300] WARN: sprites.save failed
+48:    operation: "sprites.save"
+66:[2026-09-17 11:38:59.347 +0300] WARN: sprites.save failed
+69:    operation: "sprites.save"

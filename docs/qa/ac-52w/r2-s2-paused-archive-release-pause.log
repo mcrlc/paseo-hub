@@ -1,0 +1,61 @@
+# ac-52w r2 scenario 2 — fired at a PAUSED sprite whose daemon socket Hub had already closed.
+# Head 3296637. All times UTC, 2026-09-17. Sprite trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4, machine e05184ae.
+
+== which case this is
+12:13:06Z     sprite paused after scenario 1's release (last_warming_at)
+12:15:10.908  db   daemons.presence offline, disconnected_at 12:15:10.908   <- 124.7 s after the pause
+   -> the DAEMON-OFFLINE case (finding 3 of round 1 measured 5 / 110 / 120 / 125 s; this is 125 s).
+
+== run qa-r2-run-3, execution 80f85980
+sprite GET before fire: 12:15:23.586 status=warm last_warming_at=2026-09-17T12:13:06Z, presence=offline
+fire 12:15:24
+12:15:25.015  hub  INFO sprite hold     executionId=80f85980-063b-51d7-9658-2cc58b0e1179
+                                        sprite=trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4
+                                        task=80f85980-063b-51d7-9658-2cc58b0e1179
+12:15:25.782  db   daemons.presence connected, connected_at 12:15:25.782   <- hold -> reconnect 767 ms
+12:15:25.804  db   agent_executions.started_at (handoff)                   <- hold -> handoff 789 ms
+12:15:26.452  sprite GET status=running last_warming_at=null
+12:15:26.430  task  first sample showing the hold:
+              12:15:26.430 {"tasks":[{"name":"80f85980-063b-51d7-9658-2cc58b0e1179","started_at":"2026-09-17T12:15:25Z","expires_at":"2026-09-17T13:15:25Z"}]}
+              ... 88 further samples, all listing the same task (12:15:27.778 .. 12:17:27.418) ...
+12:17:28.023  db   exec 80f85980 TERMINAL (failed, step_idle_timeout)
+12:17:28.557  db   exec 80f85980 hub_action_completed_at  <- archive completed, terminal +534 ms
+12:17:28.756  task sample AFTER the archive completed and BEFORE the release line:
+              12:17:28.756 {"tasks":[{"name":"80f85980-063b-51d7-9658-2cc58b0e1179","started_at":"2026-09-17T12:15:25Z","expires_at":"2026-09-17T13:15:25Z"}]}
+12:17:28.801  hub  INFO sprite release  executionId=80f85980-... task=80f85980-...  <- archive +244 ms
+12:17:30.106  task first sample with the hold gone:
+              12:17:30.106 {"tasks":[]}
+12:17:28Z     sprite last_warming_at (paused); GET saw status=warm at 12:17:29.735  <- release +~0.9 s
+   terminal -> archive 534 ms | archive -> release 244 ms | terminal -> release 778 ms | release -> pause ~0.9 s
+
+== sprite hold lines for BOTH runs (and the warm-up run), with executionId, sprite and task
+[2026-09-17 15:08:11.413 +0300] INFO: sprite hold
+    executionId: "b4fb15da-3c9d-5acc-8482-e3b85cbb25e4"
+    sprite: "trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4"
+    task: "b4fb15da-3c9d-5acc-8482-e3b85cbb25e4"
+--
+[2026-09-17 15:11:03.517 +0300] INFO: sprite hold
+    executionId: "a999f849-df8d-58c8-8fe2-983b781763e7"
+    sprite: "trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4"
+    task: "a999f849-df8d-58c8-8fe2-983b781763e7"
+--
+[2026-09-17 15:15:25.015 +0300] INFO: sprite hold
+    executionId: "80f85980-063b-51d7-9658-2cc58b0e1179"
+    sprite: "trigger-4912952f-bf10-4de8-bffb-0a186bcee3c4"
+    task: "80f85980-063b-51d7-9658-2cc58b0e1179"
+
+== assertions
+hub_action_completed_at (12:17:28.557) BEFORE the sprite release line (12:17:28.801)         PASS
+no 'daemon.execution.hub-action failed' in the whole Hub log                                  PASS (grep -c = 0)
+hold task present at 12:17:28.756, i.e. AFTER the archive completed and BEFORE the release    PASS (direct)
+hold task gone at 12:17:30.106, after the release line                                        PASS
+pause follows the release                                                                     PASS
+'sprite hold' line with executionId + sprite + task present for every run (3 of 3)            PASS
+'sprite release' line with executionId + sprite + task present for every run (3 of 3)         PASS
+
+== all three executions archived at terminal
+   exec   | status | hub_action |        hub_action_completed_at (utc)
+ b4fb15da | failed | archive    | 2026-09-17 12:10:13.988253
+ a999f849 | failed | archive    | 2026-09-17 12:13:05.901354
+ 80f85980 | failed | archive    | 2026-09-17 12:17:28.557914
+ (round 1 had hub_action_completed_at land 30 s late, on the next wake, or never)

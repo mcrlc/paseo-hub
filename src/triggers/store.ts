@@ -4,6 +4,13 @@ import type {
   OrganizationTriggerRevisionRecord,
 } from "../db/types.js";
 import { resolveTriggerConfigurationForOrganization } from "../configuration/store.js";
+import { EntitlementDenied } from "../entitlements/catalog.js";
+import type { EntitlementsService } from "../entitlements/service.js";
+import {
+  bootstrapHash,
+  spriteSpecs,
+  type SpriteActivation,
+} from "../daemons/sprites/activation.js";
 import { compileTriggerDocument, TriggerDocumentError } from "./configuration/index.js";
 
 export interface SaveTriggerInput {
@@ -18,6 +25,8 @@ export class OrganizationTriggerStore {
   constructor(
     private readonly database: Database,
     private readonly organizationId: string,
+    private readonly entitlements: Pick<EntitlementsService, "requireFlag"> | null = null,
+    private readonly spriteActivation: SpriteActivation | null = null,
   ) {}
 
   list(): Promise<OrganizationTriggerRecord[]> {
@@ -41,8 +50,16 @@ export class OrganizationTriggerStore {
   async save(input: SaveTriggerInput): Promise<OrganizationTriggerRecord> {
     const unchangedLegacyAuthoring = await this.isUnchangedExistingYaml(input);
     const prepared = await this.validate(input.yaml, !unchangedLegacyAuthoring);
+    const environment = prepared.compiled.environment;
+    if (input.triggerId !== undefined) {
+      await this.requireIdleSpriteBeforeRetiring(
+        input.triggerId,
+        environment,
+        prepared.compiled.authored.enabled,
+      );
+    }
     const recurrence = prepared.compiled.authored.on["schedule.tick"]?.recurrence;
-    return this.database.saveOrganizationTrigger({
+    const trigger = await this.database.saveOrganizationTrigger({
       organizationId: this.organizationId,
       ...(input.triggerId === undefined ? {} : { triggerId: input.triggerId }),
       ...(recurrence === undefined ? {} : { recurrence }),
@@ -60,11 +77,36 @@ export class OrganizationTriggerStore {
       createdByUserId: input.userId,
       routes: prepared.compiled.authored.enabled ? prepared.resolved.routes : [],
     });
+    await this.spriteActivation?.({
+      trigger,
+      target: environment.kind === "sprite" && trigger.enabled ? environment : undefined,
+      userId: input.userId,
+    });
+    return trigger;
   }
 
   async validate(yaml: string, enforceAuthoringContract = true) {
     const compiled = compileTriggerDocument(yaml);
     if (enforceAuthoringContract) validateAuthoringContract(compiled.authored);
+    if (
+      compiled.environment.kind === "sprite" &&
+      compiled.authored.enabled &&
+      !(await this.canUseSpriteTargets())
+    ) {
+      throw new TriggerDocumentError([
+        {
+          path: ["run", "target", "kind"],
+          message: "Sprite targets are not enabled for this organization.",
+        },
+      ]);
+    }
+    const unavailable =
+      compiled.environment.kind === "sprite" && compiled.authored.enabled
+        ? await this.spriteActivationUnavailable()
+        : undefined;
+    if (unavailable !== undefined) {
+      throw new TriggerDocumentError([{ path: ["run", "target", "kind"], message: unavailable }]);
+    }
     const resolved = await resolveTriggerConfigurationForOrganization(
       this.database,
       this.organizationId,
@@ -79,12 +121,78 @@ export class OrganizationTriggerStore {
     return { compiled, resolved };
   }
 
+  private async requireIdleSpriteBeforeRetiring(
+    triggerId: string,
+    environment: CompiledTriggerEnvironment,
+    enabled: boolean,
+  ): Promise<void> {
+    const machine = await this.database.findLiveSpriteMachine(triggerId);
+    if (machine === undefined) return;
+    const retirement = retirementOf(environment, enabled, spriteSpecs(machine).bootstrapHash);
+    if (retirement === undefined) return;
+    const running = await this.database.findRunningAgentExecutionsForMachine(machine.id);
+    if (running.length === 0) return;
+    throw new TriggerDocumentError([
+      {
+        path: retirement.path,
+        message: `${retirement.consequence} and ends its ${String(running.length)} running execution${running.length === 1 ? "" : "s"}. Save again once it is idle.`,
+      },
+    ]);
+  }
+
+  private async spriteActivationUnavailable(): Promise<string | undefined> {
+    if (this.spriteActivation === null) {
+      return "Sprite targets are unavailable on this Hub: no public base URL or API keys configured.";
+    }
+    if (
+      (await this.database.getOrganizationSpritesConfiguration(this.organizationId)) === undefined
+    ) {
+      return "Sprites are not configured for this organization.";
+    }
+    return undefined;
+  }
+
+  private async canUseSpriteTargets(): Promise<boolean> {
+    if (this.entitlements === null) return false;
+    try {
+      await this.entitlements.requireFlag(this.organizationId, "canUseSpriteTargets");
+      return true;
+    } catch (error) {
+      if (error instanceof EntitlementDenied) return false;
+      throw error;
+    }
+  }
+
   private async isUnchangedExistingYaml(input: SaveTriggerInput): Promise<boolean> {
     if (input.triggerId === undefined) return false;
     const trigger = (await this.list()).find(({ id }) => id === input.triggerId);
     if (trigger === undefined) return false;
     return (await this.activeRevision(trigger)).yaml === input.yaml;
   }
+}
+
+type CompiledTriggerEnvironment = ReturnType<typeof compileTriggerDocument>["environment"];
+
+/** Mirrors the retire branch of `reconcileSprite`, which executes what this refuses. */
+function retirementOf(
+  environment: CompiledTriggerEnvironment,
+  enabled: boolean,
+  liveBootstrapHash: string | undefined,
+): { path: readonly string[]; consequence: string } | undefined {
+  if (environment.kind !== "sprite") {
+    return {
+      path: ["run", "target", "kind"],
+      consequence: "Changing the target destroys the sprite",
+    };
+  }
+  if (!enabled) {
+    return { path: ["enabled"], consequence: "Disabling the trigger destroys the sprite" };
+  }
+  if (liveBootstrapHash === bootstrapHash(environment.bootstrap)) return undefined;
+  return {
+    path: ["run", "target", "bootstrap"],
+    consequence: "Changing bootstrap recreates the sprite",
+  };
 }
 
 function validateAuthoringContract(

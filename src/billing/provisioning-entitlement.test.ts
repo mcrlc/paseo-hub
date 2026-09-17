@@ -41,6 +41,7 @@ function freePlan(overrides: Partial<SyncBillingPlanInput> = {}): SyncBillingPla
     template: {
       seats: { max: 1 },
       canInviteMembers: false,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: 0 } },
     },
     templateHash: "hash-free",
@@ -65,6 +66,7 @@ describe("BillingRuntime.provisioningEntitlement", () => {
     assert.deepEqual(entitlement.granted, {
       seats: { max: 1 },
       canInviteMembers: false,
+      canUseSpriteTargets: false,
       meters: { "executions.monthly": { limit: 0 } },
     });
   });

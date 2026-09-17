@@ -98,6 +98,24 @@ describe("Sprites client", () => {
     );
   });
 
+  it("updates the memory limit on its own", async () => {
+    const stub = stubFetch(() => new Response(null, { status: 204 }));
+    const client = createSpritesClient({ token: "token", fetch: stub.fetch });
+
+    await client.setMemory("sprite-a", 4096);
+
+    assert.deepEqual(
+      stub.requests.map(({ method, url, body }) => [method, url, body]),
+      [
+        [
+          "POST",
+          "https://api.sprites.dev/v1/sprites/sprite-a/policy/resources",
+          '{"memory":{"limit_mb":4096}}',
+        ],
+      ],
+    );
+  });
+
   it("deletes a service before writing it and tolerates a missing one", async () => {
     const stub = stubFetch((request) =>
       request.method === "DELETE"
@@ -174,6 +192,14 @@ describe("Sprites client", () => {
     ]);
     assert.deepEqual(stub.requests[1]!.method, "DELETE");
     assert.equal(stub.requests[1]!.url, "https://api.sprites.dev/v1/sprites/sprite-a");
+
+    const destroyed = stubFetch(() => new Response("sprite not found", { status: 404 }));
+    const client404 = createSpritesClient({ token: "token", fetch: destroyed.fetch });
+
+    await client404.release("sprite-a", "hub-hold");
+
+    assert.equal(destroyed.requests.length, 1);
+    await assert.rejects(client404.hold("sprite-a", "hub-hold", "60m"), /Sprites API 404/u);
   });
 
   it("raises provider failures with their status and body", async () => {

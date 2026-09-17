@@ -1,0 +1,78 @@
+# s3: bootstrap change while idle, then recreation on the next arrival   (UTC 2026-09-17)
+
+## Run 1, to put a session on the old daemon
+
+$ docs/qa/ac-50k/run.sh qa-s3-run-1
+fire 13:28:39.819   triggerRunId 9c13d906
+13:28:40.135 daemon a86478c3 offline (disconnected 13:27:35.771) — the sprite had paused
+13:28:41.271 daemon a86478c3 connected 13:28:40.751 ; exec 66fd4c91 spawning on a86478c3
+             session b4172226 key custom:qa-ac50k daemon a86478c3 agent -
+13:28:41.844 exec 66fd4c91 action=created ; session b4172226 agent dbbf5c26
+13:28:42.416 exec 66fd4c91 running
+13:30:42.928 exec 66fd4c91 failed  {"reason":"step_idle_timeout"}   run failed step_idle_timeout
+Terminal is step_idle_timeout because this environment has no Claude credential. An agent was created,
+so the session is a real one with an agent id.
+
+## Bootstrap change while idle   (trigger-v4-bootstrap.yml adds `echo v2`)
+
+$ docs/qa/ac-50k/install.sh trigger-v4-bootstrap.yml
+save 13:32:15.3   HTTP 201 version 8   latency 1.879 s
+
+Hub log:
+  [16:32:17.003 +0300] INFO: sprite retired
+      machineId: "bb340165-1bce-4d90-945e-80e4a69729a1"
+      reason: "bootstrap changed"
+
+  machine bb340165 terminated  shutdown_reason "bootstrap changed"  terminated_at 13:32:17.002
+  daemon  a86478c3 revoked  offline  machine bb340165          (revoked, not merely disconnected)
+  GET /v1/sprites/trigger-9803bdab-…                -> HTTP 404
+  sprite list                                       -> the name is absent
+
+PASS: retired with the right reason, destroyed at the provider, daemon revoked, row terminated.
+
+## Next arrival recreates
+
+$ docs/qa/ac-50k/run.sh qa-s3-run-2
+fire 13:32:32.130   triggerRunId 61eab1c5
+
+Hub log, in order:
+  16:32:32.499  sprite activation: destroy leftover
+  16:32:32.919  sprite activation: create
+  16:32:34.057  sprite activation: npm prefix
+  16:32:37.331  sprite activation: install paseo
+  16:32:53.161  sprite activation: bootstrap
+  16:32:57.959  sprite activation: daemon service
+  16:33:03.337  sprite activation: hub connect
+  16:33:09.997  sprite activation: hub connect output / sprite activation bootstrapped
+  16:33:10.236  sprite hold          executionId c6f85312  task c6f85312
+  16:35:13.850  sprite release       executionId c6f85312
+
+  13:32:33ish machine 23e8ae24 spawning, bootstrapHash 2e44dfdc…  (old row's was 06a53e14…)
+  13:33:09.907 machine 23e8ae24 alive ; daemon aa680e0c bound to 23e8ae24
+  13:33:10.489 daemon aa680e0c connected 13:33:10.248 ; exec c6f85312 spawning
+  13:33:11.053 session b4172226 continuation_key -> NULL (the old session is retired)
+               session 6fbcea36 key custom:qa-ac50k daemon aa680e0c
+  13:33:11.638 exec c6f85312 action=reset ; session 6fbcea36 agent 6c586685
+  13:33:13.043 exec c6f85312 running
+  13:35:13.036 exec c6f85312 failed {"reason":"step_idle_timeout"}   (the normal terminal here)
+
+  fire -> alive: 37.8 s.   alive -> hold: 0.24 s.   hold -> daemon connected: 12 ms.
+
+Final rows:
+
+  agent_executions (id|status|daemon_id|agent_session_action|agent_session_id|daemon_agent_id|started|hub_action_completed)
+    66fd4c91|failed|a86478c3|created|b4172226|dbbf5c26|13:28:40.929|13:30:43.563
+    c6f85312|failed|aa680e0c|reset  |6fbcea36|6c586685|13:33:10.460|13:35:13.610
+
+  agent_sessions (id|continuation_key|daemonId|agentId)
+    b4172226|NULL            |a86478c3|dbbf5c26     <- key cleared, still points at the dead daemon
+    6fbcea36|custom:qa-ac50k |aa680e0c|6c586685     <- fresh session on the new daemon
+
+  grep "Continuation settings differ" hub.log  -> 0
+  grep "Continuation agent was deleted" hub.log -> 0
+
+PASS on every clause:
+  - recreation happened ("destroy leftover" before "create"), a new sprite id and a new daemon identity;
+  - the session action recorded on the run is `reset`, not `created`, so Activity shows the reset;
+  - agent_executions.daemon_id for c6f85312 is aa680e0c, the NEW daemon (ac-52w finding 4 is fixed);
+  - hub_action_completed_at is set on both executions, so the archive no longer strands.
