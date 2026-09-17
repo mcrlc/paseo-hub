@@ -1,0 +1,85 @@
+# ac-7rt scenario 4: restart mid-bootstrap (kill -9 while the row is `spawning`)
+# head a35fe78. Second trigger qa-ac7rt-sprite-b (trigger-b.yml), its own sprite, so scenario 2/3's
+# sprite is untouched. machine b0ba9edc  sprite trigger-3315590f-e450-455d-b0eb-57c05c0f41cb
+# All times UTC. Hub log is local +0300.
+
+## the spawning row, caught by polling machines every 0.3 s after the install
+new machine row seen 13:48:01.699: b0ba9edc-4eec-46fa-807b-5620e1324d51|spawning|trigger-3315590f-e450-455d-b0eb-57c05c0f41cb|666e1162-cf1b-4980-b6ef-94ab28124316
+
+## state immediately before the kill, and the kill
+--- provider state just before the kill 13:48:21.003 ---
+GET /v1/sprites/<b> -> HTTP 200
+--- db row and enrollment key just before the kill ---
+machine|b0ba9edc-4eec-46fa-807b-5620e1324d51|spawning|-
+key|666e1162-cf1b-4980-b6ef-94ab28124316|NOT REVOKED
+daemon|0
+kill -9 10167 at 13:48:21.527
+hub gone at 13:48:22.058
+
+## restart, recovery outcome, and the provider
+hub pid 49132 starting 13:48:46.140
+hub answering 200 at 13:48:49.365
+--- db row and enrollment key after recovery 13:48:57.461 ---
+machine|b0ba9edc-4eec-46fa-807b-5620e1324d51|terminated|hub restarted during activation|2026-09-17 13:48:47.457844+00
+key|666e1162-cf1b-4980-b6ef-94ab28124316|2026-09-17 13:48:47.460705+00
+daemon|0
+--- provider: is the sprite gone? (retry up to 30 s) ---
+13:48:58.046 GET /v1/sprites/<b> -> HTTP 404
+
+## measured (part A: recovery)
+#   row b0ba9edc inserted `spawning`      13:48:01.699 (first poll that saw it)
+#   sprite exists at the provider          GET /v1/sprites/<b> -> 200 at 13:48:21.003
+#   enrollment key 666e1162                NOT REVOKED, 0 daemons bound  -> the terminate branch
+#   kill -9 (pid 10167)                    13:48:21.527, gone 13:48:22.058
+#   Hub C process start                    13:48:46.140
+#   row terminated, reason                 13:48:47.458  "hub restarted during activation"   PASS
+#   enrollment key revoked_at              13:48:47.461  (3 ms later)                        PASS
+#   sprite destroyed, GET -> 404           13:48:58.046 (first probe after recovery)         PASS
+#   recovery latency                       13:48:47.46 - 13:48:46.14 = about 1.3 s from process start
+#   operation="sprites.recover" failures    0
+
+## part B: the next run recreates the sprite
+fire 13:49:10.286 qa-ac7rt-sprite-b qa-7rt-s4-run1
+{"deliveryKey":"qa-7rt-s4-run1","providerEventReceiptId":"d518faba-4ad6-4243-a4db-f2c7c9149e7e","triggerRunId":"e9f78bb5-7723-44b5-bb1b-0617a60c1a16","configuredTriggerName":"qa-ac7rt-sprite-b","workflowStatus":"running"}
+#   fire                       13:49:10.286
+#   old row still terminated   13:49:10.383
+#   new row 3b664fa3 spawning  13:49:12.482
+#   new row alive              13:49:41.533   -> 29.1 s spawning -> alive
+#
+## activation log for the recreation (hub.log, local +0300 = UTC+3)
+[2026-09-17 16:49:10.532 +0300] INFO: sprite activation: destroy leftover
+[2026-09-17 16:49:11.066 +0300] INFO: sprite activation: create
+[2026-09-17 16:49:12.202 +0300] INFO: sprite activation: npm prefix
+[2026-09-17 16:49:13.765 +0300] INFO: sprite activation: install paseo
+[2026-09-17 16:49:27.120 +0300] INFO: sprite activation: bootstrap
+[2026-09-17 16:49:30.992 +0300] INFO: sprite activation: daemon service
+[2026-09-17 16:49:36.326 +0300] INFO: sprite activation: hub connect
+[2026-09-17 16:49:40.125 +0300] INFO: sprite activation: hub connect output
+[2026-09-17 16:49:40.125 +0300] INFO: sprite activation bootstrapped
+[2026-09-17 16:49:40.268 +0300] INFO: sprite hold
+#   "sprite activation: destroy leftover" IS present (16:49:10.532 = 13:49:10.532Z) and precedes
+#   "create" (13:49:11.066). It was a no-op here: restart recovery had already destroyed the sprite
+#   at 13:48:47 and the probe at 13:48:58 answered 404. The create path destroys by name with
+#   allowNotFound, so the two destroys do not conflict.
+#
+## handoff, terminal, archive, release
+exec|b606d31b|failed|archive|13:49:40.416|13:52:44.580|13:52:54.250|3b664fa3-ae1d-4943-b447-15001d57667e
+
+## in-sprite task samples every 15 s (task-poll.sh)
+13:49:53.083 {"tasks":[{"name":"b606d31b-4969-531e-8d0d-5cc125931c64","started_at":"2026-09-17T13:49:40Z","expires_at":"2026-09-17T14:49:40Z"}]}
+13:50:08.519 {"tasks":[{"name":"b606d31b-4969-531e-8d0d-5cc125931c64","started_at":"2026-09-17T13:49:40Z","expires_at":"2026-09-17T14:49:40Z"}]}
+  ... unchanged ...
+13:54:30.126 {"tasks":[]}
+13:54:45.561 {"tasks":[]}
+[2026-09-17 16:52:54.604 +0300] INFO: sprite release
+    executionId: "b606d31b-4969-531e-8d0d-5cc125931c64"
+    sprite: "trigger-3315590f-e450-455d-b0eb-57c05c0f41cb"
+    task: "b606d31b-4969-531e-8d0d-5cc125931c64"
+#   hold                 13:49:40Z, expires 14:49:40Z, logged 13:49:40.268 -- on the RECREATED sprite
+#   execution b606d31b   started 13:49:40.416, launch intent machineId = 3b664fa3 (the new row)
+#   terminal             13:52:44.580  step_idle_timeout (idle_timeout 3m)
+#   archive completed    13:52:54.250  -- +9.67 s, an order of magnitude slower than scenario 2/3
+#   release              13:52:54.604  -- +354 ms after the archive, still AFTER it
+#   task gone            13:52:57.858
+#   This is the strongest case yet for ac-52w r2's release ordering: a 9.7 s hub action completed
+#   with the hold still in place. Recorded as finding 6.

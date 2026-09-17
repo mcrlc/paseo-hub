@@ -1,0 +1,85 @@
+# ac-7rt scenario 3: restart mid-execution (kill -9)
+# head a35fe78. trigger qa-ac7rt-sprite v2 (idle_timeout 4m, max_runtime 5m, key qa-ac7rt-s3)
+# machine 7e9f4acc  sprite trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5  execution 0b0a0254
+# All times UTC. Hub log is local +0300.
+
+## the restart
+kill -9 1630 at 13:35:19.439
+hub gone at 13:35:19.959; port3000=
+hub pid 10167 starting 13:35:30.637
+hub answering 200 at 13:35:32.855
+#   Hub A pid 1630 started 13:18:42.2 and was killed -9 at 13:35:19.4 (gone 13:35:20.0, port 3000 free).
+#   Hub B pid 10167 started 13:35:30.6, "server started" 13:35:32.1, answering 200 at 13:35:32.9.
+#   The kill is 16.5 s after Hub A's last tick would have been (13:33:42) and 8.5 min before its next,
+#   so nothing but recoverSprites() on Hub B can explain a refresh here.
+
+## in-sprite task samples every 5 s (task-poll.sh), across the kill and the restart
+13:35:03.753 {"tasks":[]}
+13:35:09.085 {"tasks":[{"name":"0b0a0254-6d97-53ec-84a9-daf5031aa3e3","started_at":"2026-09-17T13:35:03Z","expires_at":"2026-09-17T14:35:03Z"}]}
+13:35:14.414 {"tasks":[{"name":"0b0a0254-6d97-53ec-84a9-daf5031aa3e3","started_at":"2026-09-17T13:35:03Z","expires_at":"2026-09-17T14:35:03Z"}]}
+13:35:19.742 {"tasks":[{"name":"0b0a0254-6d97-53ec-84a9-daf5031aa3e3","started_at":"2026-09-17T13:35:03Z","expires_at":"2026-09-17T14:35:03Z"}]}
+13:35:25.095 {"tasks":[{"name":"0b0a0254-6d97-53ec-84a9-daf5031aa3e3","started_at":"2026-09-17T13:35:03Z","expires_at":"2026-09-17T14:35:03Z"}]}
+13:35:30.457 {"tasks":[{"name":"0b0a0254-6d97-53ec-84a9-daf5031aa3e3","started_at":"2026-09-17T13:35:03Z","expires_at":"2026-09-17T14:35:03Z"}]}
+13:35:35.771 {"tasks":[{"name":"0b0a0254-6d97-53ec-84a9-daf5031aa3e3","started_at":"2026-09-17T13:35:32Z","expires_at":"2026-09-17T14:35:32Z"}]}
+13:35:41.119 {"tasks":[{"name":"0b0a0254-6d97-53ec-84a9-daf5031aa3e3","started_at":"2026-09-17T13:35:32Z","expires_at":"2026-09-17T14:35:32Z"}]}
+  ... unchanged at 13:35:32Z through ...
+13:41:50.964 {"tasks":[]}
+13:41:56.346 {"tasks":[]}
+13:42:01.672 {"tasks":[]}
+
+## measured
+#   hold                 13:35:03Z  expires 14:35:03Z
+#   kill -9              13:35:19.439   (task still 13:35:03Z at the 13:35:19.742 sample)
+#   hub gone             13:35:19.959
+#   hub B process start  13:35:30.637
+#   hub B "server started" 13:35:32.073
+#   REFRESH              started_at moved to 13:35:32Z / expires 14:35:32Z, first seen 13:35:35.771
+#   refresh - hub B start = about 1.4 s;  refresh - "server started" = under 1 s
+#   downtime with a stale hold = 13:35:32 - 13:35:19 = 13 s, far inside the 60 m expiry
+#   exactly one refresh after recovery (next tick 13:40:32 is after terminal)
+#   operation="sprites.hold-refresh" 0, "sprites.recover" 0, "sprites.hold" 0 in the whole Hub log
+
+## the execution survived the restart (db-poll.sh, deduplicated)
+exec|0b0a0254|failed|archive|13:35:04.669|13:39:07.056|-|7e9f4acc-fa30-4304-887d-b62081038d02
+exec|0b0a0254|failed|archive|13:35:04.669|13:39:07.056|13:39:07.648|7e9f4acc-fa30-4304-887d-b62081038d02
+exec|0b0a0254|running|-|13:35:04.669|-|-|7e9f4acc-fa30-4304-887d-b62081038d02
+exec|0b0a0254|spawning|-|13:35:04.669|-|-|7e9f4acc-fa30-4304-887d-b62081038d02
+run|failed|step_idle_timeout
+run|running|
+#   started_at 13:35:04.669, still `running` across the restart, terminal (step_idle_timeout)
+#   13:39:07.056 = started_at + 4 m 02.4 s. The idle deadline was recovered, not restarted: a
+#   deadline re-armed at Hub B's start (13:35:32) would have fired at 13:39:32, 25 s later.
+#   hub_action_completed_at 13:39:07.648 -> the archive completed (+592 ms).
+
+## daemon presence across the restart (db-poll.sh, deduplicated)
+daemon|7e9f4acc|connected|13:35:04.570|13:32:59.033
+daemon|7e9f4acc|connected|13:35:36.157|13:32:59.033
+daemon|7e9f4acc|connected|13:37:42.485|13:37:41.518
+daemon|7e9f4acc|offline|13:30:12.108|13:32:59.033
+daemon|7e9f4acc|offline|13:35:36.157|13:37:41.518
+#   connected 13:35:04.570 -> Hub A dies -> reconnected to Hub B at 13:35:36.157, about 4.1 s after
+#   "server started". daemons.presence is `connected` again. NOTE the refresh (13:35:32) came BEFORE
+#   the daemon reconnected (13:35:36): recovery re-derives the hold from the execution row, it does
+#   not wait for a socket.
+
+## release and pause
+[2026-09-17 16:39:07.973 +0300] INFO: sprite release
+    executionId: "0b0a0254-6d97-53ec-84a9-daf5031aa3e3"
+    sprite: "trigger-43cde572-858f-417e-a2ed-e1a451cdc3f5"
+    task: "0b0a0254-6d97-53ec-84a9-daf5031aa3e3"
+13:35:03.844 status=warm last_running_at=2026-09-17T13:23:49Z last_warming_at="2026-09-17T13:32:26Z"
+13:35:05.321 status=running last_running_at=2026-09-17T13:35:03Z last_warming_at=null
+13:39:08.425 status=warm last_running_at=2026-09-17T13:35:03Z last_warming_at="2026-09-17T13:39:08Z"
+13:39:27.271 status=warm last_running_at=2026-09-17T13:35:03Z last_warming_at="2026-09-17T13:39:26Z"
+13:39:43.123 status=warm last_running_at=2026-09-17T13:35:03Z last_warming_at="2026-09-17T13:39:42Z"
+13:39:59.453 status=warm last_running_at=2026-09-17T13:35:03Z last_warming_at="2026-09-17T13:39:58Z"
+13:40:15.118 status=warm last_running_at=2026-09-17T13:35:03Z last_warming_at="2026-09-17T13:40:14Z"
+13:40:32.485 status=warm last_running_at=2026-09-17T13:35:03Z last_warming_at="2026-09-17T13:40:30Z"
+13:40:41.161 status=running last_running_at=2026-09-17T13:40:40Z last_warming_at=null
+13:40:52.708 status=warm last_running_at=2026-09-17T13:40:40Z last_warming_at="2026-09-17T13:40:52Z"
+13:41:08.594 status=warm last_running_at=2026-09-17T13:40:40Z last_warming_at="2026-09-17T13:41:08Z"
+13:41:24.532 status=warm last_running_at=2026-09-17T13:40:40Z last_warming_at="2026-09-17T13:41:24Z"
+13:41:40.584 status=warm last_running_at=2026-09-17T13:40:40Z last_warming_at="2026-09-17T13:41:40Z"
+13:41:56.545 status=warm last_running_at=2026-09-17T13:40:40Z last_warming_at="2026-09-17T13:41:56Z"
+#   terminal 13:39:07.056 -> archive 13:39:07.648 -> `sprite release` 13:39:07.973 -> task gone by
+#   13:39:10.130 -> pause (last_warming_at) 13:39:08Z. Same ordering as ac-52w r2.
