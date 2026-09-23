@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const SPRITES_API_URL = "https://api.sprites.dev";
 const CURL_HTTP_ERROR_EXIT_CODE = 22;
-const REQUEST_TIMEOUT_MS = 60_000;
+export const REQUEST_TIMEOUT_MS = 60_000;
 const TASK_TIMEOUT_MS = 20_000;
 export const PASEO_INSTALL_TIMEOUT_MS = 10 * 60_000;
 export const BOOTSTRAP_TIMEOUT_MS = 30 * 60_000;
@@ -19,6 +19,8 @@ export class SpritesError extends Error {
 }
 
 export class SpritesTimeoutError extends SpritesError {
+  readonly code = "sprites_timeout";
+
   constructor(body: string) {
     super(0, body);
     this.name = "SpritesTimeoutError";

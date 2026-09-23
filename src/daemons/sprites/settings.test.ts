@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import type { AuthServer } from "../../auth/server.js";
 import type { OrganizationRole } from "../../auth/organization-policy.js";
 import { createMemoryDatabase } from "../../db/memory.js";
@@ -9,6 +9,10 @@ import { SpritesSettings } from "./settings.js";
 const request = new Request("https://hub.test/o/acme/settings/sprites");
 
 describe("Sprites organization settings", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("reports an unconfigured organization", async () => {
     const { settings } = setup("owner");
     assert.deepEqual(await settings.snapshot(request, "acme"), {
@@ -71,6 +75,26 @@ describe("Sprites organization settings", () => {
       name: "SpritesTokenCheckError",
       message: /HTTP 500/u,
     });
+    assert.equal(await database.getOrganizationSpritesConfiguration("org-1"), undefined);
+  });
+
+  it("fails the save when Sprites does not answer the token check in time", async () => {
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    const requested = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => timeout(10));
+    const { database } = setup("owner");
+    const settings = new SpritesSettings(database, accountAuth(), {
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+
+    await assert.rejects(settings.save(request, "acme", { token: "t", memoryMb: 8192 }), {
+      name: "SpritesTokenCheckError",
+      message:
+        "Sprites did not answer within 60 s when Hub checked the token. The stored token is unchanged.",
+    });
+    assert.deepEqual(requested.mock.calls, [[60_000]]);
     assert.equal(await database.getOrganizationSpritesConfiguration("org-1"), undefined);
   });
 

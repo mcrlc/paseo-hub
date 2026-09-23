@@ -287,6 +287,7 @@ describe("Sprites client", () => {
       client.hold("sprite-a", "hub-hold", "60m"),
       (error: unknown) =>
         error instanceof SpritesTimeoutError &&
+        error.code === "sprites_timeout" &&
         error.message === "Sprites API 0: POST /v1/sprites/sprite-a/exec timed out after 20 s",
     );
     assert.equal(signal?.aborted, true);
