@@ -76,7 +76,7 @@ describe("sprite activation", () => {
       { call: "exec", args: [name, ["sh", "-c", "npm prefix -g"], undefined] },
       {
         call: "exec",
-        args: [name, ["sh", "-c", "npm install -g @getpaseo/cli"], { env: { PATH } }],
+        args: [name, ["sh", "-c", "npm install -g @getpaseo/cli@0.8.0"], { env: { PATH } }],
       },
       {
         call: "exec",

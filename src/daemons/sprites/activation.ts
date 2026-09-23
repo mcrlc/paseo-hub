@@ -196,7 +196,7 @@ async function provisionSprite(input: {
   step("sprite activation: install paseo");
   expectSuccess(
     "paseo install",
-    await provider.exec(name, ["sh", "-c", "npm install -g @getpaseo/cli"], {
+    await provider.exec(name, ["sh", "-c", "npm install -g @getpaseo/cli@0.8.0"], {
       env: { PATH },
     }),
     input.secrets,
