@@ -16,6 +16,7 @@ import {
   type SpritesClient,
 } from "./client.js";
 
+export const PASEO_CLI_VERSION = "0.9.1";
 const HOME = "/home/sprite";
 const PASEO_HOME = `${HOME}/.paseo`;
 const SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
@@ -38,6 +39,7 @@ export type SpriteProvider = Pick<
 const SpriteSpecsSchema = z
   .object({
     bootstrapHash: z.string(),
+    cliVersion: z.string(),
     envHash: z.string(),
     memoryMb: z.number(),
     npmPrefix: z.string(),
@@ -60,6 +62,7 @@ export function spriteOutOfDate(machine: MachineRecord, target: SpriteTarget): b
   return (
     specs.bootstrapHash !== bootstrapHash(target.bootstrap) ||
     specs.envHash !== envHash(target.env) ||
+    specs.cliVersion !== PASEO_CLI_VERSION ||
     (target.memory !== undefined && target.memory !== specs.memoryMb)
   );
 }
@@ -122,6 +125,7 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
     const memoryMb = target.memory ?? configuration.memoryMb;
     const specs = {
       bootstrapHash: bootstrapHash(target.bootstrap),
+      cliVersion: PASEO_CLI_VERSION,
       envHash: envHash(target.env),
       memoryMb,
     };
@@ -211,14 +215,7 @@ async function provisionSprite(input: {
   await input.database.setMachineSpecs(machine.id, { ...input.specs, npmPrefix });
   const PATH = `${npmPrefix}/bin:${SYSTEM_PATH}`;
   step("sprite activation: install paseo");
-  expectSuccess(
-    "paseo install",
-    await provider.exec(name, ["sh", "-c", "npm install -g @getpaseo/cli@0.9.1"], {
-      env: { PATH },
-      timeoutMs: PASEO_INSTALL_TIMEOUT_MS,
-    }),
-    input.secrets,
-  );
+  await installPaseoCli(provider, name, npmPrefix, input.secrets);
   const targetEnv = await resolveTargetEnv(target, input.resolver);
   const bootstrapEnv = { PATH, ...input.organizationEnv, ...targetEnv };
   step("sprite activation: bootstrap");
@@ -276,7 +273,13 @@ async function reconcileSprite(
   if (machine.status !== "alive") return;
   const memoryMb = target.memory ?? configuration.memoryMb;
   const nextEnvHash = envHash(target.env);
-  if (memoryMb === specs.memoryMb && nextEnvHash === specs.envHash) return;
+  const { npmPrefix } = specs;
+  const cliCurrent = specs.cliVersion === PASEO_CLI_VERSION;
+  const upgradeCli =
+    !cliCurrent &&
+    npmPrefix !== undefined &&
+    (await database.findRunningAgentExecutionsForMachine(machine.id)).length === 0;
+  if (memoryMb === specs.memoryMb && nextEnvHash === specs.envHash && !upgradeCli) return;
   if (memoryMb !== specs.memoryMb) {
     await provider.setMemory(machine.source.spriteName, memoryMb);
     logger.info(
@@ -284,7 +287,24 @@ async function reconcileSprite(
       "sprite memory updated",
     );
   }
-  if (nextEnvHash !== specs.envHash) {
+  if (upgradeCli) {
+    await installPaseoCli(
+      provider,
+      machine.source.spriteName,
+      npmPrefix,
+      Object.values(configuration.env),
+    );
+    logger.info(
+      {
+        triggerId: input.trigger.id,
+        sprite: machine.source.spriteName,
+        from: specs.cliVersion,
+        to: PASEO_CLI_VERSION,
+      },
+      "sprite cli upgraded",
+    );
+  }
+  if (upgradeCli || (cliCurrent && nextEnvHash !== specs.envHash)) {
     await rewriteSpriteService({
       provider,
       resolver: input.connectionsForProject(input.trigger.runtimeProjectId),
@@ -294,7 +314,12 @@ async function reconcileSprite(
       triggerId: input.trigger.id,
     });
   }
-  await database.setMachineSpecs(machine.id, { ...specs, memoryMb, envHash: nextEnvHash });
+  await database.setMachineSpecs(machine.id, {
+    ...specs,
+    memoryMb,
+    envHash: nextEnvHash,
+    ...(upgradeCli ? { cliVersion: PASEO_CLI_VERSION } : {}),
+  });
 }
 
 async function retireSprite(
@@ -362,6 +387,14 @@ export function createSpriteServiceRewrite(
         const machine = await database.findLiveSpriteMachine(trigger.id);
         if (machine?.status !== "alive" || machine.source.kind !== "sprite") continue;
         const sprite = machine.source.spriteName;
+        const { cliVersion } = spriteSpecs(machine);
+        if (cliVersion !== PASEO_CLI_VERSION) {
+          logger.info(
+            { triggerId: trigger.id, sprite, cliVersion },
+            "sprite service rewrite left to the cli upgrade",
+          );
+          continue;
+        }
         try {
           const revision = await database.findActiveProjectConfiguration(trigger.runtimeProjectId);
           const target = parseCompiledHubConfig(
@@ -412,6 +445,22 @@ async function resolveTargetEnv(
     );
   }
   return env;
+}
+
+async function installPaseoCli(
+  provider: Pick<SpriteProvider, "exec">,
+  name: string,
+  npmPrefix: string,
+  secrets: readonly string[],
+): Promise<void> {
+  expectSuccess(
+    "paseo install",
+    await provider.exec(name, ["sh", "-c", `npm install -g @getpaseo/cli@${PASEO_CLI_VERSION}`], {
+      env: { PATH: `${npmPrefix}/bin:${SYSTEM_PATH}` },
+      timeoutMs: PASEO_INSTALL_TIMEOUT_MS,
+    }),
+    secrets,
+  );
 }
 
 function daemonService(npmPrefix: string, env: Record<string, string>) {

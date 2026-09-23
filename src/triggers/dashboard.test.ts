@@ -126,6 +126,13 @@ describe("sprite triggers on the dashboard", () => {
     const stale = await hub.dashboard.snapshot(hub.request, "acme");
     assert.equal(stale.triggers[0]?.sprite?.stale, true);
 
+    await hub.database.setMachineSpecs(machine.machine.id, {
+      ...spriteSpecs(machine.machine),
+      cliVersion: "0.8.2",
+    });
+    const olderCli = await hub.dashboard.snapshot(hub.request, "acme");
+    assert.equal(olderCli.triggers[0]?.sprite?.stale, true);
+
     await hub.dashboard.recreateSprite(hub.request, "acme", trigger.id);
 
     const after = await hub.dashboard.snapshot(hub.request, "acme");
