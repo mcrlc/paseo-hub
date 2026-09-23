@@ -82,9 +82,9 @@ failed run left nothing behind.
 - **Event while the sprite is paused.** Hub holds the sprite, which wakes it, and defers the run until the
   daemon's socket is live. A paused sprite starts warm and turns cold within minutes, on the provider's
   schedule. From either state the daemon normally reconnects in seconds: about a second from warm, and 2 s
-  in a measured cold wake. A wake that restores the sprite and restarts its processes takes longer; the one
-  measured took 64 s. Continuation holds across a cold pause as across a warm one. The wait is bounded by
-  `max_runtime`.
+  in a measured cold wake. The one slow wake measured took 64 s, with a 30 s `git rev-parse` timeout inside
+  the daemon; its cause was not recorded. Continuation holds across a cold pause as across a warm one. The
+  wait is bounded by `max_runtime`.
 - **Event while the sprite is awake.** Hub holds it and hands off.
 - **Terminal.** Hub waits for the terminal hub action, the archive, to complete and releases the hold only
   then; the provider pauses the sprite about a second later. Releasing earlier would let the pause cut the
