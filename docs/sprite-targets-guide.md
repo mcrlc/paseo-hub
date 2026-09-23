@@ -139,7 +139,7 @@ on:
   github.pull_request_comment_created:
     connection: acme-github
     filters:
-      # The agent comments as acme-review-bot, which is not in this list.
+      # The agent comments as acme-review-bot through a GitHub connector; keep it out of this list.
       from_users: [alice, bob]
 run:
   target:
@@ -165,12 +165,28 @@ and sends the message to the same agent. An agent that closed or errored fails t
 `agent_interrupted`.
 
 The agent's own comments are events too. GitHub sends each one as `github.pull_request_comment_created`
-from the login whose token posted it, and `from_users` matches that login. If the agent posts with the
-token of someone in `from_users`, such as a fine-grained token of `alice` in the daemon environment, its
-comment passes the filter and starts another execution, which reaches the running agent as a new message.
-The trigger then re-fires on its own comments and can loop. Have the agent post as an identity that is
-not in `from_users`: a GitHub App installation token, or a dedicated machine user such as
-`acme-review-bot` above. `from_users: ["*"]` admits every login, the agent's included.
+from the login that posted it, and `from_users` matches that login. A comment posted as someone in
+`from_users` passes the filter and starts another execution, which reaches the running agent as a new
+message, so the trigger re-fires on its own comments and can loop. The agent must post as a login that is
+not in `from_users`; `from_users: ["*"]` admits every login, the agent's included.
+
+For a trigger that only reads and comments, use a Sprites GitHub connector. In the Sprites dashboard, add
+a GitHub connector and approve GitHub's consent screen signed in as a machine account, such as
+`acme-review-bot` above, not as a person in `from_users`. Grant it by the name prefix `trigger-`: Hub
+names every sprite `trigger-<trigger id>` and sets no labels, so the prefix grants the connector to every
+Hub sprite in the organization. Leave `GITHUB_TOKEN` out of the daemon environment. The credential stays
+in the Sprites organization and the sprite holds no token: calls go to
+`https://api.sprites.dev/v1/gateway/github/<connection_id>/<path>` with no `Authorization` header, and the
+gateway identifies the sprite by its Fly identity. Every sprite ships the `sprite-api-gateway` skill for
+Claude Code, Cursor, Codex, and Gemini, and the agent finds the connector with
+`GET https://api.sprites.dev/v1/gateway/list`, so a prompt that says to comment on the pull request is
+enough. The agent's comments come from the machine account, and the trigger cannot re-fire on them while
+that account is not in `from_users`.
+
+The connector proxies the GitHub REST API only, not git. A trigger that clones a private repository or
+pushes keeps a token in the daemon environment, as in [Bootstrap notes](#bootstrap-notes), and the same
+rule applies: if the agent posts with that token, the token's user must not be in `from_users`, or the
+trigger loops.
 
 ## Credentials and continuation
 
