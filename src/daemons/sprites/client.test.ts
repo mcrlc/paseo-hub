@@ -213,6 +213,7 @@ describe("Sprites client", () => {
       (error: unknown) =>
         error instanceof SpritesError &&
         error.status === 400 &&
+        error.code === "sprites_http_400" &&
         error.body === "unknown field memory_mb",
     );
 
@@ -227,6 +228,7 @@ describe("Sprites client", () => {
       (error: unknown) =>
         error instanceof SpritesError &&
         error.status === 500 &&
+        error.code === "sprites_http_500" &&
         error.body === "curl: (22) The requested URL returned error: 500",
     );
 
@@ -236,7 +238,8 @@ describe("Sprites client", () => {
     });
     await assert.rejects(
       unreachable.hold("sprite-a", "hub-hold", "60m"),
-      (error: unknown) => error instanceof SpritesError && error.status === 7,
+      (error: unknown) =>
+        error instanceof SpritesError && error.status === 7 && error.code === "sprites_http_7",
     );
   });
 });

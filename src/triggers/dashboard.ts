@@ -4,7 +4,7 @@ import type { Database, OrganizationSpriteRecord, OrganizationTriggerRecord } fr
 import { resolveRouteTenant } from "../projects/access.js";
 import { ProjectCommandError } from "../projects/command-error.js";
 import { parseCompiledHubConfig } from "../config/compiler.js";
-import { spriteSpecs } from "../daemons/sprites/activation.js";
+import { spriteOutOfDate, spriteSpecs, type SpriteTarget } from "../daemons/sprites/activation.js";
 import { projectTriggerForm } from "./configuration/editor.js";
 import { OrganizationTriggerStore } from "./store.js";
 import type { EntitlementsService } from "../entitlements/service.js";
@@ -242,18 +242,19 @@ function spriteView(
   normalizedConfiguration: unknown,
   sprite: OrganizationSpriteRecord | undefined,
 ) {
-  const targetsSprite = parseCompiledHubConfig(normalizedConfiguration).environments.some(
-    (environment) => environment.kind === "sprite",
+  const target = parseCompiledHubConfig(normalizedConfiguration).environments.find(
+    (environment): environment is SpriteTarget => environment.kind === "sprite",
   );
-  if (!targetsSprite) return null;
+  if (target === undefined) return null;
   if (sprite === undefined || sprite.machine.source.kind !== "sprite") {
-    return { status: null, name: null, memoryMb: null, lastRunAt: null };
+    return { status: null, name: null, memoryMb: null, lastRunAt: null, stale: false };
   }
   return {
     status: sprite.machine.status,
     name: sprite.machine.source.spriteName,
     memoryMb: spriteSpecs(sprite.machine).memoryMb ?? null,
     lastRunAt: sprite.lastRunAt?.toISOString() ?? null,
+    stale: sprite.machine.status !== "terminated" && spriteOutOfDate(sprite.machine, target),
   };
 }
 

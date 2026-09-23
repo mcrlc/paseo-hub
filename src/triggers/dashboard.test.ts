@@ -5,7 +5,11 @@ import { createMemoryDatabase } from "../db/memory.js";
 import { enrollTestDaemon, TEST_DAEMON_SLUG } from "../test-utils/project-configuration.js";
 import { UNLIMITED_TEMPLATE } from "../entitlements/catalog.js";
 import { EntitlementsService } from "../entitlements/service.js";
-import { createSpriteActivation, type SpriteProvider } from "../daemons/sprites/activation.js";
+import {
+  createSpriteActivation,
+  spriteSpecs,
+  type SpriteProvider,
+} from "../daemons/sprites/activation.js";
 import { projectCommandErrorCode } from "../projects/command-error.js";
 import { TriggerDashboard } from "./dashboard.js";
 import { OrganizationTriggerStore } from "./store.js";
@@ -112,7 +116,15 @@ describe("sprite triggers on the dashboard", () => {
       name: `trigger-${trigger.id}`,
       memoryMb: 16384,
       lastRunAt: null,
+      stale: false,
     });
+
+    await hub.database.setMachineSpecs(machine.machine.id, {
+      ...spriteSpecs(machine.machine),
+      envHash: "previous",
+    });
+    const stale = await hub.dashboard.snapshot(hub.request, "acme");
+    assert.equal(stale.triggers[0]?.sprite?.stale, true);
 
     await hub.dashboard.recreateSprite(hub.request, "acme", trigger.id);
 

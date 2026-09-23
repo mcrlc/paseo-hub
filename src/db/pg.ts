@@ -350,6 +350,18 @@ class PgDatabase implements Database {
     }
   }
 
+  async findLiveSpriteMachines(): Promise<MachineRecord[]> {
+    try {
+      const rows = await query<MachineRow>(
+        this.pool,
+        "select * from machines where status <> 'terminated' and source->>'kind' = 'sprite'",
+      );
+      return rows.rows.map(toMachineRecord);
+    } catch (error) {
+      throw toDatabaseError(error);
+    }
+  }
+
   async insertSpriteMachine(input: {
     orgId: string;
     source: SpriteMachineSource;
