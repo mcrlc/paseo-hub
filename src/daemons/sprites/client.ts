@@ -9,17 +9,20 @@ export const BOOTSTRAP_TIMEOUT_MS = 30 * 60_000;
 export const HUB_CONNECT_TIMEOUT_MS = 15 * 60_000;
 
 export class SpritesError extends Error {
+  readonly code: string;
+
   constructor(
     readonly status: number,
     readonly body: string,
   ) {
     super(`Sprites API ${status}: ${body}`);
     this.name = "SpritesError";
+    this.code = `sprites_http_${String(status)}`;
   }
 }
 
 export class SpritesTimeoutError extends SpritesError {
-  readonly code = "sprites_timeout";
+  override readonly code = "sprites_timeout";
 
   constructor(body: string) {
     super(0, body);

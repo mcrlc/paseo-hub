@@ -210,7 +210,15 @@ describe("Sprites organization settings", () => {
     for (const key of ["lower", "1ST", "WITH-DASH", ""]) {
       await assert.rejects(settings.setEnv(request, "acme", { key, value: "v" }), invalidName);
     }
-    for (const key of ["HOME", "PATH", "PASEO_HOME", "PASEO_PASSWORD"]) {
+    for (const key of [
+      "HOME",
+      "PATH",
+      "PASEO_HOME",
+      "PASEO_PASSWORD",
+      "PASEO_LISTEN",
+      "PASEO_RELAY_ENABLED",
+      "PASEO_WEB_UI_ENABLED",
+    ]) {
       await assert.rejects(settings.setEnv(request, "acme", { key, value: "v" }), {
         name: "SpritesEnvInputError",
         message: `Hub sets ${key} on every sprite; choose another name.`,

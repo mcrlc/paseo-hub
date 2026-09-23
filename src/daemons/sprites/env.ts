@@ -1,5 +1,13 @@
 const ENV_KEY = /^[A-Z_][A-Z0-9_]*$/u;
-const RESERVED_ENV_KEYS = new Set(["HOME", "PATH", "PASEO_HOME", "PASEO_PASSWORD"]);
+const RESERVED_ENV_KEYS = new Set([
+  "HOME",
+  "PATH",
+  "PASEO_HOME",
+  "PASEO_PASSWORD",
+  "PASEO_LISTEN",
+  "PASEO_RELAY_ENABLED",
+  "PASEO_WEB_UI_ENABLED",
+]);
 const VALUE_MAX = 8192;
 
 export function spritesEnvKeyError(key: string): string | undefined {

@@ -22,7 +22,12 @@ import type { DaemonConnection } from "../protocol.js";
 import { AgentSessions } from "../../agent-sessions/index.js";
 import { OutputExecutorRegistry } from "../../execution-capabilities/outputs.js";
 import type { AgentConnection, AgentSnapshot } from "../agents/index.js";
-import { bootstrapHash, createSpriteActivation, type SpriteActivation } from "./activation.js";
+import {
+  bootstrapHash,
+  createSpriteActivation,
+  spriteSpecs,
+  type SpriteActivation,
+} from "./activation.js";
 import { SpritesError, SpritesTimeoutError } from "./client.js";
 
 const SECRET = "sprite-dispatch-secret";
@@ -508,6 +513,47 @@ describe("sprite dispatch", () => {
     assert.equal(hub.holds(executionId), held);
   });
 
+  it("retries a reconcile that failed at save time on the tick, once the sprite is idle", async () => {
+    const hub = await setup({ spriteHoldRefreshIntervalMs: 5 });
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.database.setMachineSpecs(hub.machineId, {
+      bootstrapHash: bootstrapHash("echo ready"),
+      envHash: "before",
+      memoryMb: 8192,
+      npmPrefix: "/usr/lib/node",
+    });
+    hub.reconcile = hub.editActivation;
+    await hub.startRun();
+    await hub.claim(5);
+    const executionId = hub.dispatches[0]!.executionId;
+
+    await hub.lifecycle.recoverSprites();
+    await waitFor(() => hub.holds(executionId) >= 4);
+    assert.equal(hub.services(), 0);
+
+    hub.serviceFails = true;
+    await hub.agentFinished(executionId);
+    await hub.complete(executionId);
+    await waitFor(() => hub.services() >= 2);
+    assert.equal(
+      spriteSpecs((await hub.database.findMachineById(hub.machineId))!).envHash,
+      "before",
+    );
+
+    hub.serviceFails = false;
+    await waitFor(() => hub.services() >= 3);
+    await delay(30);
+    const machine = await hub.database.findMachineById(hub.machineId);
+    assert.ok(machine);
+    assert.notEqual(spriteSpecs(machine).envHash, "before");
+    assert.equal(machine.status, "alive");
+    const settled = hub.services();
+    await delay(30);
+    assert.equal(hub.services(), settled);
+    await hub.lifecycle.stop();
+  });
+
   it("marks a spawning sprite alive on restart when its daemon enrolled", async () => {
     const hub = await setup();
     await hub.enrollSprite();
@@ -563,7 +609,11 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
   const providerCalls: Array<{ call: string; sprite: string; task?: string; expire?: string }> = [];
   const dispatches: Array<{ executionId: string; intent: LaunchMachineIntent }> = [];
   const sequence: string[] = [];
-  const activation: SpriteActivation = async ({ trigger }) => {
+  const activation: SpriteActivation = async (input) => {
+    const { trigger } = input;
+    if ((await database.findLiveSpriteMachine(trigger.id)) !== undefined) {
+      return state.reconcile?.(input);
+    }
     state.activations += 1;
     if (state.activationFails) throw new Error("Sprites are not configured");
     state.apiKeyId = `key-${randomUUID()}`;
@@ -626,6 +676,8 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     holdFails: false,
     holdTimeouts: 0,
     releaseFails: false,
+    serviceFails: false,
+    reconcile: undefined as SpriteActivation | undefined,
     activations: 0,
     machineId: "",
     apiKeyId: "",
@@ -645,31 +697,30 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     throw new Error("an edit must not provision");
   };
   // Edits go through the real activation so a bootstrap change retires the live row.
-  const editStore = new OrganizationTriggerStore(
+  const editActivation = createSpriteActivation({
     database,
-    "org",
-    entitlements,
-    createSpriteActivation({
-      database,
-      apiKeys: {
-        create: () => {
-          throw new Error("an edit must not mint an enrollment key");
-        },
-        revoke: async () => true,
+    apiKeys: {
+      create: () => {
+        throw new Error("an edit must not mint an enrollment key");
       },
-      connectionsForProject: () => (slug, value) => `${slug}.${value}`,
-      hubOrigin: "https://hub.test",
-      provider: () => ({
-        create: unavailable,
-        exec: unavailable,
-        setMemory: unavailable,
-        async service() {},
-        async destroy(sprite) {
-          providerCalls.push({ call: "destroy", sprite });
-        },
-      }),
+      revoke: async () => true,
+    },
+    connectionsForProject: () => (slug, value) => `${slug}.${value}`,
+    hubOrigin: "https://hub.test",
+    provider: () => ({
+      create: unavailable,
+      exec: unavailable,
+      setMemory: unavailable,
+      async service(sprite) {
+        providerCalls.push({ call: "service", sprite });
+        if (state.serviceFails) throw new SpritesError(503, "unavailable");
+      },
+      async destroy(sprite) {
+        providerCalls.push({ call: "destroy", sprite });
+      },
     }),
-  );
+  });
+  const editStore = new OrganizationTriggerStore(database, "org", entitlements, editActivation);
   const agentSnapshots = new Map<string, AgentSnapshot>();
   const agents: AgentConnection = {
     async create() {
@@ -753,6 +804,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
   });
   return Object.assign(state, {
     database,
+    editActivation,
     logs,
     providerCalls,
     dispatches,
@@ -911,6 +963,9 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     holds(executionId: string) {
       return providerCalls.filter((call) => call.call === "hold" && call.task === executionId)
         .length;
+    },
+    services() {
+      return providerCalls.filter((call) => call.call === "service").length;
     },
     failures(operation: string) {
       return logs.records().filter((record) => record["operation"] === operation);

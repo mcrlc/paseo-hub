@@ -70,7 +70,14 @@ describe("sprite activation", () => {
     const password = hub.serviceEnvs[0]?.["PASEO_PASSWORD"];
     const connectScript = hub.execArgvs[3]?.[2];
     assert.match(password ?? "", /^[\w-]{43}$/u);
-    const daemonEnv = { HOME: "/home/sprite", PASEO_HOME: "/home/sprite/.paseo", PATH };
+    const daemonEnv = {
+      HOME: "/home/sprite",
+      PASEO_HOME: "/home/sprite/.paseo",
+      PATH,
+      PASEO_LISTEN: "127.0.0.1:6767",
+      PASEO_RELAY_ENABLED: "false",
+      PASEO_WEB_UI_ENABLED: "false",
+    };
     const mergedEnv = {
       ORG_ONLY: "org-value",
       ANTHROPIC_API_KEY: "resolved:anthropic.api_key",
@@ -84,7 +91,7 @@ describe("sprite activation", () => {
         call: "exec",
         args: [
           name,
-          ["sh", "-c", "npm install -g @getpaseo/cli"],
+          ["sh", "-c", "npm install -g @getpaseo/cli@0.9.1"],
           { env: { PATH }, timeoutMs: PASEO_INSTALL_TIMEOUT_MS },
         ],
       },
@@ -107,14 +114,7 @@ describe("sprite activation", () => {
           "paseo",
           {
             cmd: `${PREFIX}/bin/paseo`,
-            args: [
-              "start",
-              "--foreground",
-              "--listen",
-              "127.0.0.1:6767",
-              "--no-relay",
-              "--no-web-ui",
-            ],
+            args: ["daemon", "run", "--home", "/home/sprite/.paseo"],
             env: { ...daemonEnv, PASEO_PASSWORD: password, ...mergedEnv },
             dir: "/home/sprite",
           },
@@ -301,7 +301,7 @@ describe("sprite activation", () => {
       info.mock.calls
         .filter(([, message]) => message === "sprite service rewritten")
         .map(([fields]) => fields),
-      [{ triggerId: triggers[1]!.id, sprite: `trigger-${triggers[1]!.id}`, envKeys: 7 }],
+      [{ triggerId: triggers[1]!.id, sprite: `trigger-${triggers[1]!.id}`, envKeys: 10 }],
     );
     for (const env of hub.serviceEnvs) {
       assert.match(env["PASEO_PASSWORD"] ?? "", /^[\w-]{43}$/u);
@@ -311,6 +311,9 @@ describe("sprite activation", () => {
           HOME: "/home/sprite",
           PASEO_HOME: "/home/sprite/.paseo",
           PATH,
+          PASEO_LISTEN: "127.0.0.1:6767",
+          PASEO_RELAY_ENABLED: "false",
+          PASEO_WEB_UI_ENABLED: "false",
           PASEO_PASSWORD: undefined,
           ORG_ONLY: "org-value",
           ANTHROPIC_API_KEY: "resolved:anthropic.api_key",
