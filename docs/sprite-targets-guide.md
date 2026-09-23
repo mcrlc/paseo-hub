@@ -80,8 +80,11 @@ failed run left nothing behind.
   daemon; the daemon's first start also downloads about 1 GB of speech models, which the sprite does not
   wait for.
 - **Event while the sprite is paused.** Hub holds the sprite, which wakes it, and defers the run until the
-  daemon's socket is live. From a warm pause the daemon reconnects in about a second. A cold sprite, about
-  ten minutes after the pause, takes about a minute. The wait is bounded by `max_runtime`.
+  daemon's socket is live. A paused sprite starts warm and turns cold within minutes, on the provider's
+  schedule. From either state the daemon normally reconnects in seconds: about a second from warm, and 2 s
+  in a measured cold wake. The one slow wake measured took 64 s, with a 30 s `git rev-parse` timeout inside
+  the daemon; its cause was not recorded. Continuation holds across a cold pause as across a warm one. The
+  wait is bounded by `max_runtime`.
 - **Event while the sprite is awake.** Hub holds it and hands off.
 - **Terminal.** Hub waits for the terminal hub action, the archive, to complete and releases the hold only
   then; the provider pauses the sprite about a second later. Releasing earlier would let the pause cut the
@@ -139,6 +142,7 @@ on:
   github.pull_request_comment_created:
     connection: acme-github
     filters:
+      # The agent comments as acme-review-bot through a GitHub connector; keep it out of this list.
       from_users: [alice, bob]
 run:
   target:
@@ -162,6 +166,30 @@ When the comment arrives while the review is still running, it is sent to the ru
 message. When it arrives after the review ended, Hub holds the sprite, restores the archived workspace,
 and sends the message to the same agent. An agent that closed or errored fails the run as
 `agent_interrupted`.
+
+The agent's own comments are events too. GitHub sends each one as `github.pull_request_comment_created`
+from the login that posted it, and `from_users` matches that login. A comment posted as someone in
+`from_users` passes the filter and starts another execution, which reaches the running agent as a new
+message, so the trigger re-fires on its own comments and can loop. The agent must post as a login that is
+not in `from_users`; `from_users: ["*"]` admits every login, the agent's included.
+
+For a trigger that only reads and comments, use a Sprites GitHub connector. In the Sprites dashboard, add
+a GitHub connector and approve GitHub's consent screen signed in as a machine account, such as
+`acme-review-bot` above, not as a person in `from_users`. Grant it by the name prefix `trigger-`: Hub
+names every sprite `trigger-<trigger id>` and sets no labels, so the prefix grants the connector to every
+Hub sprite in the organization. Leave `GITHUB_TOKEN` out of the daemon environment. The credential stays
+in the Sprites organization and the sprite holds no token: calls go to
+`https://api.sprites.dev/v1/gateway/github/<connection_id>/<path>` with no `Authorization` header, and the
+gateway identifies the sprite by its Fly identity. Every sprite ships the `sprite-api-gateway` skill for
+Claude Code, Cursor, Codex, and Gemini, and the agent finds the connector with
+`GET https://api.sprites.dev/v1/gateway/list`, so a prompt that says to comment on the pull request is
+enough. The agent's comments come from the machine account, and the trigger cannot re-fire on them while
+that account is not in `from_users`.
+
+The connector proxies the GitHub REST API only, not git. A trigger that clones a private repository or
+pushes keeps a token in the daemon environment, as in [Bootstrap notes](#bootstrap-notes), and the same
+rule applies: if the agent posts with that token, the token's user must not be in `from_users`, or the
+trigger loops.
 
 ## Credentials and continuation
 
@@ -209,6 +237,11 @@ token in the daemon environment instead.
 - **Run the Claude Code postinstall yourself.** The package's postinstall does not run on a sprite, so its
   native binary is missing until you run
   `node "$(npm prefix -g)/lib/node_modules/@anthropic-ai/claude-code/install.cjs"`.
+- **Allow the install scripts a package needs.** The sprite image's npm 12 skips a package's install
+  scripts (`preinstall`, `install`, `postinstall`) unless they are allowed, and only warns, so `bootstrap`
+  succeeds without them. Allow them per package on the global install with `--allow-scripts`, for example
+  `npm install -g --allow-scripts=esbuild esbuild`. A package that ships a prebuilt linux-x64 binary works
+  without its script, as the Paseo CLI's esbuild and node-pty do; check that before relying on it.
 - **Use absolute paths when testing by hand.** Hub runs `bootstrap` with the npm global bin directory on
   `PATH`, plus the organization's daemon environment and the target's `env`, so `npm` and `paseo` work
   inside it. When you try commands yourself with `sprite exec`, the shell is non-login and its `PATH` lacks
