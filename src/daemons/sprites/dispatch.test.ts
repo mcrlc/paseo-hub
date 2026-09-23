@@ -25,6 +25,7 @@ import type { AgentConnection, AgentSnapshot } from "../agents/index.js";
 import {
   bootstrapHash,
   createSpriteActivation,
+  PASEO_CLI_VERSION,
   spriteSpecs,
   type SpriteActivation,
 } from "./activation.js";
@@ -519,6 +520,7 @@ describe("sprite dispatch", () => {
     await hub.enrollSprite();
     await hub.database.setMachineSpecs(hub.machineId, {
       bootstrapHash: bootstrapHash("echo ready"),
+      cliVersion: PASEO_CLI_VERSION,
       envHash: "before",
       memoryMb: 8192,
       npmPrefix: "/usr/lib/node",
@@ -844,6 +846,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     async editEnv() {
       await database.setMachineSpecs(state.machineId, {
         bootstrapHash: bootstrapHash("echo ready"),
+        cliVersion: PASEO_CLI_VERSION,
         envHash: "before",
         memoryMb: 8192,
         npmPrefix: "/usr/lib/node",

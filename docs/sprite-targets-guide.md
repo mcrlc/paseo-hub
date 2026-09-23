@@ -93,6 +93,9 @@ failed run left nothing behind.
 - **`env` changed.** Hub rewrites the daemon service, which restarts the daemon. The sprite, its filesystem,
   and its daemon identity are kept.
 - **`memory` changed.** Hub updates the resources policy in place.
+- **Hub upgraded to a new Paseo CLI.** Hub pins the Paseo CLI version it installs. When a Hub upgrade
+  changes the pin, the next five-minute tick installs it on every idle sprite and then rewrites the daemon
+  service; until then the trigger page says the sprite still runs the previous configuration.
 - **Trigger disabled, or switched to a daemon target.** Hub destroys the sprite. Re-enabling the trigger
   activates a new one immediately, without waiting for an event.
 - **Daemon revoked.** Hub destroys the sprite and terminates the row; the next event creates a new one.

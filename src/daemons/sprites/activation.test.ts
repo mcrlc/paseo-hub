@@ -48,6 +48,7 @@ describe("sprite activation", () => {
       bootstrapHash: createHash("sha256")
         .update("npm install -g @anthropic-ai/claude-code\n")
         .digest("hex"),
+      cliVersion: "0.9.1",
       envHash: createHash("sha256")
         .update(
           JSON.stringify([
@@ -323,6 +324,39 @@ describe("sprite activation", () => {
     }
   });
 
+  it("leaves the rewrite of a sprite on an older cli to its upgrade", async () => {
+    const info = vi.spyOn(logger, "info");
+    const hub = await setup();
+    const triggers = [];
+    for (const name of ["current", "older"]) {
+      triggers.push(
+        await hub.store.save({
+          yaml: spriteYaml().replace("name: manual-task", `name: ${name}`),
+          userId: null,
+        }),
+      );
+    }
+    await hub.settled();
+    const [current, older] = await hub.spriteMachines();
+    await hub.database.transitionMachine(current!.id, "alive");
+    await hub.database.transitionMachine(older!.id, "alive");
+    await hub.database.setMachineSpecs(older!.id, { ...spriteSpecs(older!), cliVersion: "0.8.2" });
+    hub.calls.length = 0;
+
+    await hub.rewrite("org");
+
+    assert.deepEqual(
+      hub.calls.map(({ call, args }) => [call, args[0]]),
+      [["service", `trigger-${triggers[0]!.id}`]],
+    );
+    assert.deepEqual(
+      info.mock.calls
+        .filter(([, message]) => message === "sprite service rewrite left to the cli upgrade")
+        .map(([fields]) => fields),
+      [{ triggerId: triggers[1]!.id, sprite: `trigger-${triggers[1]!.id}`, cliVersion: "0.8.2" }],
+    );
+  });
+
   it("reports and resolves when the rewrite cannot list the organization's triggers", async () => {
     const hub = await setup();
     await hub.store.save({ yaml: spriteYaml(), userId: null });
@@ -470,6 +504,90 @@ describe("sprite trigger edits", () => {
       [["service", `trigger-${trigger.id}`, "paseo"]],
     );
     assert.equal(hub.serviceEnvs[0]?.["LITERAL"], "rotated");
+  });
+
+  it("installs the pinned cli before rewriting the service of a sprite on an older one", async () => {
+    const info = vi.spyOn(logger, "info");
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const [enrolled] = await hub.spriteMachines();
+    await hub.database.setMachineSpecs(enrolled!.id, {
+      ...spriteSpecs(enrolled!),
+      cliVersion: "0.8.2",
+    });
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("Handle it", "Handle it again"),
+      userId: null,
+    });
+    await hub.settled();
+
+    const name = `trigger-${trigger.id}`;
+    assert.deepEqual(
+      hub.calls.map(({ call, args }) => [call, ...args.slice(0, 2)]),
+      [
+        ["exec", name, ["sh", "-c", "npm install -g @getpaseo/cli@0.9.1"]],
+        ["service", name, "paseo"],
+      ],
+    );
+    assert.deepEqual(hub.calls[0]?.args[2], {
+      env: { PATH },
+      timeoutMs: PASEO_INSTALL_TIMEOUT_MS,
+    });
+    const [machine] = await hub.spriteMachines();
+    assert.equal(spriteSpecs(machine!).cliVersion, "0.9.1");
+    assert.deepEqual(
+      info.mock.calls
+        .filter(([, message]) => message === "sprite cli upgraded")
+        .map(([fields]) => fields),
+      [{ triggerId: trigger.id, sprite: name, from: "0.8.2", to: "0.9.1" }],
+    );
+  });
+
+  it("leaves the provider alone when the cli, env, and memory are current", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("Handle it", "Handle it again"),
+      userId: null,
+    });
+    await hub.settled();
+
+    assert.deepEqual(hub.calls, []);
+  });
+
+  it("leaves the cli and env of a sprite with a running execution for a later reconcile", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const [enrolled] = await hub.spriteMachines();
+    await hub.database.setMachineSpecs(enrolled!.id, {
+      ...spriteSpecs(enrolled!),
+      cliVersion: "0.8.2",
+    });
+    await hub.startExecution(trigger.runtimeProjectId, enrolled!.id);
+    hub.calls.length = 0;
+
+    await hub.store.save({
+      triggerId: trigger.id,
+      yaml: spriteYaml().replace("LITERAL: plain", "LITERAL: rotated"),
+      userId: null,
+    });
+    await hub.settled();
+
+    assert.deepEqual(hub.calls, []);
+    const [machine] = await hub.spriteMachines();
+    assert.equal(spriteSpecs(machine!).cliVersion, "0.8.2");
   });
 
   it("updates the resources policy when only the memory changes", async () => {
