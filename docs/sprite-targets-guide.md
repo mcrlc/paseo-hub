@@ -59,8 +59,8 @@ run:
 targets always archive; auto_archive must be true." Hub does not control when the provider drops a
 paused sprite's memory, and only an archived workspace is guaranteed to restore.
 
-`HOME`, `PATH`, `PASEO_HOME`, and `PASEO_PASSWORD` are refused in the target's `env`, because Hub sets
-them on every sprite.
+`HOME`, `PATH`, `PASEO_HOME`, `PASEO_PASSWORD`, `PASEO_LISTEN`, `PASEO_RELAY_ENABLED`, and
+`PASEO_WEB_UI_ENABLED` are refused in the target's `env`, because Hub sets them on every sprite.
 
 There is no sprite idle setting: the provider pauses a sprite about a second after Hub releases the last
 hold on it, so a sprite never rests awake for long. `run.idle_timeout` still applies per execution, as on
@@ -165,7 +165,7 @@ Provider credentials for sprites go in **Settings → Sprites → daemon environ
 values write-only: it lists the names it holds and never shows a value again. Hub writes this environment
 into the daemon service of every sprite in the organization, and into the `bootstrap` environment, beneath
 the target's `env`; on a clash the target's value wins. Values of eight characters or more are redacted
-from Hub's logs and failure reasons. `HOME`, `PATH`, `PASEO_HOME`, and `PASEO_PASSWORD` are refused here
+from Hub's logs and failure reasons. The names refused in a target's `env` are refused here
 too. Nothing secret enters trigger YAML.
 
 Saving the daemon environment rewrites the service of every alive sprite in the organization, one at a

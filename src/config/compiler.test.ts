@@ -141,6 +141,9 @@ describe("workflow compiler", () => {
     ["PATH", /Hub sets PATH on every sprite/u],
     ["PASEO_HOME", /Hub sets PASEO_HOME on every sprite/u],
     ["PASEO_PASSWORD", /Hub sets PASEO_PASSWORD on every sprite/u],
+    ["PASEO_LISTEN", /Hub sets PASEO_LISTEN on every sprite/u],
+    ["PASEO_RELAY_ENABLED", /Hub sets PASEO_RELAY_ENABLED on every sprite/u],
+    ["PASEO_WEB_UI_ENABLED", /Hub sets PASEO_WEB_UI_ENABLED on every sprite/u],
     ["lowercase", /Use capital letters, digits, and underscores/u],
   ])("rejects sprite env key %s at its field", (key, message) => {
     assert.throws(
