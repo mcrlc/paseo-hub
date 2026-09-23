@@ -11,6 +11,7 @@ import {
   spriteSpecs,
   type SpriteActivation,
 } from "../daemons/sprites/activation.js";
+import { expressionPathsInTemplate } from "../workflows/expression.js";
 import { compileTriggerDocument, TriggerDocumentError } from "./configuration/index.js";
 
 export interface SaveTriggerInput {
@@ -195,10 +196,24 @@ function retirementOf(
   };
 }
 
+const CONTEXT_PROVIDERS = new Set(["github", "slack", "discord", "linear", "schedule"]);
+
 function validateAuthoringContract(
   trigger: ReturnType<typeof compileTriggerDocument>["authored"],
 ): void {
   const issues: Array<{ path: readonly (string | number)[]; message: string }> = [];
+  const events = Object.keys(trigger.on);
+  if (
+    !events.some((event) => CONTEXT_PROVIDERS.has(event.slice(0, event.indexOf(".")))) &&
+    expressionPathsInTemplate(trigger.run.prompt).some(
+      (path) => path.namespace === "paseo" && path.path === "context",
+    )
+  ) {
+    issues.push({
+      path: ["run", "prompt"],
+      message: `uses paseo.context, but ${events.join(", ")} provides no context; use paseo.prompt for manual input`,
+    });
+  }
   if (!trigger.run.target.cwd.startsWith("/")) {
     issues.push({ path: ["run", "target", "cwd"], message: "must be an absolute path" });
   }
