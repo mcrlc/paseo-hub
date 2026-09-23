@@ -10,6 +10,7 @@ import { logger } from "../../logger.js";
 import { createSpritesClient, type ExecResult, type SpritesClient } from "./client.js";
 
 const HOME = "/home/sprite";
+const PASEO_HOME = `${HOME}/.paseo`;
 const SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 const DAEMON_LISTEN = "127.0.0.1:6767";
 const CONNECT_SCRIPT = `for i in $(seq 600); do
@@ -205,7 +206,7 @@ async function provisionSprite(input: {
   step("sprite activation: install paseo");
   expectSuccess(
     "paseo install",
-    await provider.exec(name, ["sh", "-c", "npm install -g @getpaseo/cli"], {
+    await provider.exec(name, ["sh", "-c", "npm install -g @getpaseo/cli@0.9.1"], {
       env: { PATH },
     }),
     input.secrets,
@@ -407,15 +408,18 @@ async function resolveTargetEnv(
 function daemonService(npmPrefix: string, env: Record<string, string>) {
   const daemonEnv = {
     HOME,
-    PASEO_HOME: `${HOME}/.paseo`,
+    PASEO_HOME,
     PATH: `${npmPrefix}/bin:${SYSTEM_PATH}`,
+    PASEO_LISTEN: DAEMON_LISTEN,
+    PASEO_RELAY_ENABLED: "false",
+    PASEO_WEB_UI_ENABLED: "false",
     PASEO_PASSWORD: randomBytes(32).toString("base64url"),
   };
   return {
     daemonEnv,
     definition: {
       cmd: `${npmPrefix}/bin/paseo`,
-      args: ["start", "--foreground", "--listen", DAEMON_LISTEN, "--no-relay", "--no-web-ui"],
+      args: ["daemon", "run", "--home", PASEO_HOME],
       env: { ...daemonEnv, ...env },
       dir: HOME,
     },
