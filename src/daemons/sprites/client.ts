@@ -2,6 +2,11 @@ import { z } from "zod";
 
 const SPRITES_API_URL = "https://api.sprites.dev";
 const CURL_HTTP_ERROR_EXIT_CODE = 22;
+const REQUEST_TIMEOUT_MS = 60_000;
+const TASK_TIMEOUT_MS = 20_000;
+export const PASEO_INSTALL_TIMEOUT_MS = 10 * 60_000;
+export const BOOTSTRAP_TIMEOUT_MS = 30 * 60_000;
+export const HUB_CONNECT_TIMEOUT_MS = 15 * 60_000;
 
 export class SpritesError extends Error {
   constructor(
@@ -10,6 +15,13 @@ export class SpritesError extends Error {
   ) {
     super(`Sprites API ${status}: ${body}`);
     this.name = "SpritesError";
+  }
+}
+
+export class SpritesTimeoutError extends SpritesError {
+  constructor(body: string) {
+    super(0, body);
+    this.name = "SpritesTimeoutError";
   }
 }
 
@@ -23,6 +35,7 @@ export interface ExecOptions {
   env?: Record<string, string>;
   dir?: string;
   stdin?: string;
+  timeoutMs?: number;
 }
 
 export interface ServiceDefinition {
@@ -62,21 +75,33 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
   async function request(
     method: string,
     path: string,
-    init: { body?: string; json?: unknown; allowNotFound?: boolean } = {},
-  ): Promise<Response> {
+    init: { body?: string; json?: unknown; allowNotFound?: boolean; timeoutMs?: number } = {},
+  ): Promise<{ status: number; body: Uint8Array }> {
     const headers: Record<string, string> = { Authorization: `Bearer ${options.token}` };
     let body = init.body;
     if (init.json !== undefined) {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(init.json);
     }
-    const response = await fetchImpl(`${SPRITES_API_URL}${path}`, {
-      method,
-      headers,
-      ...(body === undefined ? {} : { body }),
-    });
-    if (response.ok || (init.allowNotFound === true && response.status === 404)) return response;
-    throw new SpritesError(response.status, await response.text());
+    const timeoutMs = init.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    const signal = AbortSignal.timeout(timeoutMs);
+    try {
+      const response = await fetchImpl(`${SPRITES_API_URL}${path}`, {
+        method,
+        headers,
+        signal,
+        ...(body === undefined ? {} : { body }),
+      });
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (response.ok || (init.allowNotFound === true && response.status === 404)) {
+        return { status: response.status, body: bytes };
+      }
+      throw new SpritesError(response.status, new TextDecoder().decode(bytes));
+    } catch (error) {
+      if (!signal.aborted) throw error;
+      const { pathname } = new URL(path, SPRITES_API_URL);
+      throw new SpritesTimeoutError(`${method} ${pathname} timed out after ${timeoutMs / 1000} s`);
+    }
   }
 
   async function execRequest(
@@ -84,7 +109,7 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     argv: string[],
     execOptions: ExecOptions,
     allowNotFound: boolean,
-  ): Promise<Response> {
+  ) {
     const query = new URLSearchParams();
     for (const arg of argv) query.append("cmd", arg);
     for (const [key, value] of Object.entries(execOptions.env ?? {})) {
@@ -95,20 +120,20 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     return request("POST", `${spritePath(name)}/exec?${query}`, {
       ...(execOptions.stdin === undefined ? {} : { body: execOptions.stdin }),
       allowNotFound,
+      ...(execOptions.timeoutMs === undefined ? {} : { timeoutMs: execOptions.timeoutMs }),
     });
   }
 
   async function exec(name: string, argv: string[], execOptions: ExecOptions = {}) {
-    const response = await execRequest(name, argv, execOptions, false);
-    return decodeExec(new Uint8Array(await response.arrayBuffer()));
+    return decodeExec((await execRequest(name, argv, execOptions, false)).body);
   }
 
   async function taskRequest(name: string, curlArgs: string[], allowNotFound = false) {
     const argv = ["sprite-env", "curl", "-s", ...curlArgs];
-    const response = await execRequest(name, argv, {}, allowNotFound);
+    const response = await execRequest(name, argv, { timeoutMs: TASK_TIMEOUT_MS }, allowNotFound);
     // A destroyed sprite answers 404 here, which for a release is the same as a missing task.
     if (response.status === 404) return;
-    const result = decodeExec(new Uint8Array(await response.arrayBuffer()));
+    const result = decodeExec(response.body);
     if (result.exitCode === 0) return;
     if (
       allowNotFound &&
@@ -133,7 +158,7 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
   return {
     async create(input: { name: string; memoryMb: number }): Promise<string> {
       const response = await request("POST", "/v1/sprites", { json: { name: input.name } });
-      const { id } = CreatedSpriteSchema.parse(await response.json());
+      const { id } = CreatedSpriteSchema.parse(JSON.parse(new TextDecoder().decode(response.body)));
       await setMemory(input.name, input.memoryMb);
       return id;
     },
@@ -146,7 +171,7 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
       const path = `${spritePath(name)}/services/${encodeURIComponent(service)}`;
       await request("DELETE", path, { allowNotFound: true });
       const response = await request("PUT", path, { json: definition });
-      const events = await response.text();
+      const events = new TextDecoder().decode(response.body);
       if (!/"type":\s*"complete"/u.test(events)) throw new SpritesError(response.status, events);
     },
 

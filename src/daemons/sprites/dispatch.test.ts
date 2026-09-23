@@ -23,9 +23,10 @@ import { AgentSessions } from "../../agent-sessions/index.js";
 import { OutputExecutorRegistry } from "../../execution-capabilities/outputs.js";
 import type { AgentConnection, AgentSnapshot } from "../agents/index.js";
 import { bootstrapHash, createSpriteActivation, type SpriteActivation } from "./activation.js";
-import { SpritesError } from "./client.js";
+import { SpritesError, SpritesTimeoutError } from "./client.js";
 
 const SECRET = "sprite-dispatch-secret";
+const HOLD_DEADLINE_MS = 50;
 
 describe("sprite dispatch", () => {
   it("holds an awake sprite before handing off", async () => {
@@ -46,6 +47,42 @@ describe("sprite dispatch", () => {
     assert.equal(environment.machineId, hub.machineId);
     assert.equal(environment.daemonId, hub.daemonId);
     assert.equal(await hub.runStatus(runId), "running");
+  });
+
+  it("defers a run whose hold times out, keeps the sprite alive, and moves on to the next run", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.startRun();
+    hub.holdTimeouts = 1;
+
+    const started = Date.now();
+    await hub.claim(1);
+    const elapsedMs = Date.now() - started;
+
+    const [stalled, next] = hub.providerCalls.map((call) => call.task);
+    assert.deepEqual(
+      hub.dispatches.map(({ executionId }) => executionId),
+      [next],
+    );
+    assert.ok(elapsedMs < HOLD_DEADLINE_MS + 1_000);
+    assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "alive");
+    assert.deepEqual(hub.failures("sprites.hold"), []);
+    const warnings = hub.logs
+      .records()
+      .filter((record) => record["msg"] === "sprite hold timed out");
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0]!["executionId"], stalled);
+    assert.equal(warnings[0]!["sprite"], hub.spriteName);
+    assert.ok(Number(warnings[0]!["elapsedMs"]) >= HOLD_DEADLINE_MS - 5);
+
+    await hub.claim(1);
+
+    assert.deepEqual(
+      hub.dispatches.map(({ executionId }) => executionId),
+      [next, stalled],
+    );
   });
 
   it("holds, defers while the socket is closed, and hands off once the daemon reconnects", async () => {
@@ -561,6 +598,11 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
         return {
           async hold(sprite, task, expire) {
             providerCalls.push({ call: "hold", sprite, task, expire });
+            if (state.holdTimeouts > 0) {
+              state.holdTimeouts -= 1;
+              await delay(HOLD_DEADLINE_MS);
+              throw new SpritesTimeoutError(`POST /v1/sprites/${sprite}/exec timed out`);
+            }
             if (state.holdFails) throw new SpritesError(503, "unavailable");
             sequence.push(`hold:${task}`);
           },
@@ -582,6 +624,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     socketOpen: false,
     activationFails: false,
     holdFails: false,
+    holdTimeouts: 0,
     releaseFails: false,
     activations: 0,
     machineId: "",

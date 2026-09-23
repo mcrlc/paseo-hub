@@ -175,7 +175,7 @@ The hold in step 3 is issued once per execution attempt, not once per claim. A d
 
 `startup_timeout` keeps its meaning and still starts when the daemon is connected. Measured dispatch-to-reply on a woken sprite was about 6 s, so authors need nothing special.
 
-Provider errors from `hold` or `create` mark the row `terminated` with the provider message as `shutdownReason`. A new failure reason `sprite_unavailable` is raised at deferral time when the row is `terminated` and recreation also failed, so authors do not wait two hours to learn about a bad bootstrap.
+Provider errors from `hold` or `create` mark the row `terminated` with the provider message as `shutdownReason`. A `hold` that times out after 20 s is not an error of the sprite: the row stays `alive`, Hub logs a warning, and the run defers so the next visit holds again. A new failure reason `sprite_unavailable` is raised at deferral time when the row is `terminated` and recreation also failed, so authors do not wait two hours to learn about a bad bootstrap.
 
 On Hub restart, a recovery scan reconciles every `spawning` sprite against provider state and re-holds every sprite with an active execution, like `recoverWorkflowDeadlines` does for runs.
 

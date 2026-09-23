@@ -7,7 +7,14 @@ import type { ConnectionResolver } from "../../config/connections.js";
 import type { Database, MachineRecord, OrganizationTriggerRecord } from "../../db/types.js";
 import { reportFailure } from "../../failures/index.js";
 import { logger } from "../../logger.js";
-import { createSpritesClient, type ExecResult, type SpritesClient } from "./client.js";
+import {
+  BOOTSTRAP_TIMEOUT_MS,
+  createSpritesClient,
+  HUB_CONNECT_TIMEOUT_MS,
+  PASEO_INSTALL_TIMEOUT_MS,
+  type ExecResult,
+  type SpritesClient,
+} from "./client.js";
 
 const HOME = "/home/sprite";
 const SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
@@ -198,6 +205,7 @@ async function provisionSprite(input: {
     "paseo install",
     await provider.exec(name, ["sh", "-c", "npm install -g @getpaseo/cli"], {
       env: { PATH },
+      timeoutMs: PASEO_INSTALL_TIMEOUT_MS,
     }),
     input.secrets,
   );
@@ -209,6 +217,7 @@ async function provisionSprite(input: {
     await provider.exec(name, ["sh", "-s"], {
       env: bootstrapEnv,
       stdin: target.bootstrap,
+      timeoutMs: BOOTSTRAP_TIMEOUT_MS,
     }),
     input.secrets,
   );
@@ -220,7 +229,7 @@ async function provisionSprite(input: {
   const connected = await provider.exec(
     name,
     ["sh", "-c", CONNECT_SCRIPT, "sh", input.hubOrigin, input.apiKey],
-    { env: service.daemonEnv },
+    { env: service.daemonEnv, timeoutMs: HUB_CONNECT_TIMEOUT_MS },
   );
   logger.info(
     { machineId: machine.id, sprite: name, output: scrub(connected.stdout, input.secrets) },

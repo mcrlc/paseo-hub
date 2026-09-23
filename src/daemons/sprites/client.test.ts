@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { describe, it } from "vitest";
-import { createSpritesClient, decodeExec, SpritesError } from "./client.js";
+import { afterEach, describe, it, vi } from "vitest";
+import { createSpritesClient, decodeExec, SpritesError, SpritesTimeoutError } from "./client.js";
 
 describe("decodeExec", () => {
   it("decodes a zero exit", () => {
@@ -46,6 +46,10 @@ describe("decodeExec", () => {
 });
 
 describe("Sprites client", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("builds the exec query with repeated cmd and env and sends stdin only when given", async () => {
     const stub = stubFetch(() => execResponse(0));
     const client = createSpritesClient({ token: "token", fetch: stub.fetch });
@@ -237,6 +241,76 @@ describe("Sprites client", () => {
     await assert.rejects(
       unreachable.hold("sprite-a", "hub-hold", "60m"),
       (error: unknown) => error instanceof SpritesError && error.status === 7,
+    );
+  });
+
+  it("gives hold and release the task budget and an exec its own", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const client = createSpritesClient({
+      token: "token",
+      fetch: stubFetch((request) => {
+        if (request.url.includes("/exec")) return execResponse(0);
+        if (request.method === "PUT") return new Response('{"type":"complete"}\n');
+        if (request.url.endsWith("/v1/sprites")) return Response.json({ id: "sprite-id" });
+        return new Response(null, { status: 204 });
+      }).fetch,
+    });
+
+    await client.create({ name: "sprite-a", memoryMb: 4096 });
+    await client.service("sprite-a", "paseo", { cmd: "/bin/sh", args: [], env: {}, dir: "/" });
+    await client.hold("sprite-a", "hub-hold", "60m");
+    await client.release("sprite-a", "hub-hold");
+    await client.destroy("sprite-a");
+    await client.exec("sprite-a", ["true"]);
+    await client.exec("sprite-a", ["true"], { timeoutMs: 900_000 });
+
+    assert.deepEqual(
+      timeout.mock.calls.map(([ms]) => ms),
+      [60_000, 60_000, 60_000, 60_000, 20_000, 20_000, 60_000, 60_000, 900_000],
+    );
+  });
+
+  it("times out a hold whose exec never answers, naming the call and its budget", async () => {
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(() => timeout(10));
+    let signal: AbortSignal | undefined;
+    const client = createSpritesClient({
+      token: "token",
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          signal = init?.signal ?? undefined;
+          signal?.addEventListener("abort", () => reject(signal?.reason));
+        }),
+    });
+
+    await assert.rejects(
+      client.hold("sprite-a", "hub-hold", "60m"),
+      (error: unknown) =>
+        error instanceof SpritesTimeoutError &&
+        error.message === "Sprites API 0: POST /v1/sprites/sprite-a/exec timed out after 20 s",
+    );
+    assert.equal(signal?.aborted, true);
+  });
+
+  it("times out an exec whose output stream stops before the exit frame", async () => {
+    const client = createSpritesClient({
+      token: "token",
+      fetch: async (_input, init) => {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1, 0x68, 0x69]));
+            init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason));
+          },
+        });
+        return new Response(body);
+      },
+    });
+
+    await assert.rejects(
+      client.exec("sprite-a", ["sh", "-c", "true"], { timeoutMs: 10 }),
+      (error: unknown) =>
+        error instanceof SpritesTimeoutError &&
+        error.message === "Sprites API 0: POST /v1/sprites/sprite-a/exec timed out after 0.01 s",
     );
   });
 });

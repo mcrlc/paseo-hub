@@ -31,7 +31,7 @@ import {
   type SpriteActivation,
   type SpriteTarget,
 } from "./sprites/activation.js";
-import { createSpritesClient, type SpritesClient } from "./sprites/client.js";
+import { createSpritesClient, SpritesTimeoutError, type SpritesClient } from "./sprites/client.js";
 import { logger as defaultLogger } from "../logger.js";
 import { reportFailure } from "../failures/index.js";
 import type { TriggerProvider } from "../triggers/index.js";
@@ -273,6 +273,7 @@ export class DaemonDispatchLifecycle {
     const daemon = await database.findDaemonByMachineId(machine.id);
     if (daemon === undefined) return { status: "deferred" };
     if (!this.heldSpriteExecutions.has(input.executionId)) {
+      const startedAt = this.now();
       try {
         const provider = await this.spriteProviderFor(machine.orgId);
         await provider.hold(machine.source.spriteName, input.executionId, "60m");
@@ -286,6 +287,17 @@ export class DaemonDispatchLifecycle {
           "sprite hold",
         );
       } catch (error) {
+        if (error instanceof SpritesTimeoutError) {
+          this.logger.warn(
+            {
+              executionId: input.executionId,
+              sprite: machine.source.spriteName,
+              elapsedMs: this.now() - startedAt,
+            },
+            "sprite hold timed out",
+          );
+          return { status: "deferred" };
+        }
         this.report(error, "sprites.hold", { executionId: input.executionId });
         await database.transitionMachine(machine.id, "terminated", {
           reason: error instanceof Error ? error.message : String(error),
