@@ -169,7 +169,7 @@ Measured: a paused sprite keeps its outbound socket open, so `canDispatchToDaemo
 4. If the socket is not live yet, defer as today. The engine's 250 ms re-claim picks it up the moment the daemon connects. The wait stays bounded by the trigger's `max_runtime`, exactly as an offline daemon target is today.
 5. Hand off.
 
-Measured from a warm pause: the daemon reconnects 0.4 to 1.4 s after the hold and the handoff follows within 1.5 s. From a cold sprite (about 10 minutes after the pause) a wake took 64 s to a daemon reconnect, with a 30 s `git rev-parse` timeout in the daemon, so a dispatch from cold defers about a minute. The deferral is bounded by the trigger's `max_runtime`, so authors need nothing. Pause to Hub marking the daemon offline varied from 5 s to 125 s across runs, so both the open-socket and the closed-socket case occur in practice and the lifecycle handles both.
+Measured from a warm pause: the daemon reconnects 0.4 to 1.4 s after the hold and the handoff follows within 1.5 s. From a cold sprite (about 10 minutes after the pause) a wake took 64 s to a daemon reconnect, with a 30 s `git rev-parse` timeout in the daemon, so a dispatch from cold defers about a minute. The 2026-09-23 beta revised that reading (9): the 64 s wake was a restore that restarted processes, and a plain cold wake reconnected in 2 s. The deferral is bounded by the trigger's `max_runtime`, so authors need nothing. Pause to Hub marking the daemon offline varied from 5 s to 125 s across runs, so both the open-socket and the closed-socket case occur in practice and the lifecycle handles both.
 
 The hold in step 3 is issued once per execution attempt, not once per claim. A deferred run is re-claimed every 250 ms, and the engine's claim loop must not reach the provider on each pass: the lifecycle keeps an in-memory set of execution ids it has already held and skips step 3 when the id is present. The set is cleared when the execution reaches terminal; the refresh tick (5.8) re-issues the same idempotent call on its own schedule.
 
@@ -260,7 +260,7 @@ Per `docs/design.md`: state through `StatusPill`, never a badge.
 - **Fixed shape.** 8 vCPU on a 16 GB host, memory limit adjustable, no CPU or region choice. A trigger that needs more is a Fly Machines target, which this interface does not yet have.
 - **One hour per hold.** The refresh tick is load-bearing. A Hub outage longer than the remaining expiry on a hold lets the sprite pause mid-turn; the turn resumes on the next hold.
 - **One Hub instance per database.** Restart recovery treats every `spawning` sprite row as its own; a second instance starting would retire the first's in-flight bootstraps.
-- **First boot is about a minute.** Bootstrap installs in about 25 s and the daemon's first start pulls about 1 GB of speech models. A warm wake is about a second; a cold wake measured 64 s to a daemon reconnect, so an arrival on a cold sprite defers about a minute.
+- **First boot is about a minute.** Bootstrap installs in about 25 s and the daemon's first start pulls about 1 GB of speech models. A warm wake is about a second and a cold wake a few seconds (2 s in the beta); a wake that restores the sprite and restarts its processes measured 64 s to a daemon reconnect, so an arrival that meets one defers about a minute.
 - **Org credential changes are serial.** A Sprites settings save rewrites every live sprite's service one at a time, about 6.7 s each, and the save waits for all of them.
 - **Clone is the bootstrap's job.** Hub-driven clone waits on a machine-scoped credential lease.
 - **Legacy bundles cannot target sprites.**
@@ -276,7 +276,7 @@ Per `docs/design.md`: state through `StatusPill`, never a badge.
 
 ## 9. Open questions
 
-- **Cold semantics.** The docs say cold drops memory; the one natural cold wake measured kept it. Treat cold as memory-dropping in the design and enjoy it when it is not.
+- **Cold semantics.** Answered for timing and continuation by the 2026-09-23 beta. A paused sprite reached `cold` about 8 minutes after its pause in one case and about a minute after it in others. A run fired 15 minutes after the previous pause was a cold wake: the daemon reconnected in 2 s and the session restored. The one slow wake measured, 64 s in the spike (5.5), came from a restore that restarted processes, not from cold itself. The provider's docs say cold drops memory and the spike's one natural cold wake kept it; the design still treats cold as memory-dropping, and continuation holds across it because sprite targets always archive (5.1).
 - **Tasks across a provider restart.** Not measured whether a held task survives a cold restart. 5.8 handles a 404 on refresh either way.
 - **Slug rename after enrollment.** Cosmetic; drop it if the Daemons page reads fine with suffixed hostnames.
 - **Second provider.** Fly Machines with a volume for triggers that need shape or region. Not committed.
