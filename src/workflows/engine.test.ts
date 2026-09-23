@@ -28,6 +28,11 @@ import { createDurableWorkflowHandler } from "./engine.js";
 import { currentProjectConfigurationFiles } from "../test-utils/current-project-configuration.js";
 import { createLogger } from "../logger.js";
 import { assertOneFailure, FailureLogStream } from "../test-utils/failure-logs.js";
+import { createActiveProjectConfiguration } from "../test-utils/project-configuration.js";
+import { createUnlimitedEntitlementsService } from "../entitlements/test-utils.js";
+import { createManualRunProvider } from "../triggers/manual/provider.js";
+import { createGitHubTriggerProvider } from "../triggers/github/provider.js";
+import type { NormalizedGitHubEvent } from "../auth/github-events.js";
 
 describe("durable multi-step workflow engine", () => {
   it.each(["github", "discord"] as const)(
@@ -162,6 +167,31 @@ describe("durable multi-step workflow engine", () => {
     assert.equal((await fixture.database.findTriggerRunById(run.id))?.status, "failed");
     assert.equal(steps[0]?.status, "failed");
     assert.equal(steps[0]?.failureReason, "trigger_context_materializer_unavailable");
+  });
+
+  it("renders paseo.context empty on a manual-only trigger's manual run", async () => {
+    const fixture = await triggerContextFixture(["manual.run"]);
+
+    assert.deepEqual(await fixture.dispatch(fixture.manual("review", "check #211 only")), {
+      failures: [null],
+      prompts: ["Context: []\nPrompt: check #211 only"],
+    });
+  });
+
+  it("renders paseo.context empty on a mixed trigger's manual run and keeps GitHub context", async () => {
+    const fixture = await triggerContextFixture(["github.issue_comment", "manual.run"]);
+
+    assert.deepEqual(await fixture.dispatch(fixture.manual("review-event-2", "check #211 only")), {
+      failures: [null],
+      prompts: ["Context: []\nPrompt: check #211 only"],
+    });
+    const github = await fixture.dispatch(fixture.github("hello @paseo"));
+    assert.deepEqual(github.failures, [null]);
+    assert.equal(github.prompts.length, 1);
+    assert.match(
+      github.prompts[0]!,
+      /^Context: \[\{"github":\{"delivery_id":"github-delivery-1","event_name":"issue_comment",.+\}\]\nPrompt: hello @paseo$/su,
+    );
   });
 
   it("carries provider options and startup timeout into persisted and dispatched launch intent", async () => {
@@ -1747,6 +1777,94 @@ function engineFor(
       };
     },
   });
+}
+
+async function triggerContextFixture(events: readonly string[]) {
+  const database = createMemoryDatabase();
+  const { project, revision, store } = await createActiveProjectConfiguration(database, {
+    environments: [{ name: "runner", kind: "daemon", daemon: "runner", cwd: "/workspace" }],
+    triggers: events.map((on, index) => ({
+      name: index === 0 ? "review" : `review-event-${String(index + 1)}`,
+      on,
+      max_runtime: "1h",
+      filters:
+        on === "manual.run"
+          ? { from_users: ["*"] }
+          : { repo: "boudra/faro", from_users: ["boudra"] },
+      steps: [
+        {
+          id: "review",
+          environment: "runner",
+          max_runtime: "10m",
+          idle_timeout: "1m",
+          agent: { provider: "codex" },
+          prompt: [{ text: "Context: [${{ paseo.context }}]\nPrompt: ${{ paseo.prompt }}" }],
+        },
+      ],
+    })),
+  });
+  const prompts: string[] = [];
+  const { handler, engine } = createDurableWorkflowHandler({
+    database,
+    entitlements: createUnlimitedEntitlementsService(),
+    providers: [
+      createManualRunProvider(() => store),
+      createGitHubTriggerProvider({
+        configurationStoreForProject: () => store,
+        reactions: { createReaction: async () => ({ id: 1 }), deleteReaction: async () => {} },
+      }),
+    ],
+    dispatchLaunchMachineIntent: async (intent) => {
+      prompts.push(intent.prompt);
+      const execution = await database.findAgentExecutionByWorkflowStepRunId(
+        intent.workflowStepRunId!,
+      );
+      assert.ok(execution);
+      return { execution };
+    },
+  });
+  const event = (source: string, payload: unknown): DurableProviderEvent => ({
+    providerEventReceiptId: randomUUID(),
+    organizationId: "org_1",
+    projectId: project.id,
+    configurationRevisionId: revision.id,
+    source,
+    deliveryId: randomUUID(),
+    receivedAt: new Date(),
+    payload,
+    connectionId: null,
+    resourceId: null,
+  });
+  return {
+    manual: (trigger: string, input: string) =>
+      event("manual.run", { trigger, actor: "operator", input }),
+    github: (body: string) =>
+      event("github.issue_comment", {
+        id: "github-delivery-1",
+        type: "issue_comment",
+        repo: "boudra/faro",
+        repositoryId: 7,
+        installationId: 42,
+        payload: {
+          issue: { number: 211, title: "smoke", body: "issue body", user: { login: "author" } },
+          comment: { id: 123, body, user: { login: "boudra" } },
+          sender: { login: "boudra" },
+        },
+        createdAt: "2026-05-19T00:00:00.000Z",
+      } satisfies NormalizedGitHubEvent),
+    async dispatch(trigger: DurableProviderEvent) {
+      const dispatched = prompts.length;
+      await handler(trigger);
+      await engine.processAvailable();
+      const runs = await database.findTriggerRunsByProviderEventReceiptId(
+        trigger.providerEventReceiptId,
+      );
+      return {
+        failures: runs.map((run) => (run.outcome === "accepted" ? run.failureReason : run.outcome)),
+        prompts: prompts.slice(dispatched),
+      };
+    },
+  };
 }
 
 function deadlineConfiguration(options: { idleTimeout?: string } = {}): Record<string, unknown> {

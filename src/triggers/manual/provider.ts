@@ -120,5 +120,8 @@ export function createManualRunProvider(
       };
       return [match];
     },
+    async materializeContext() {
+      return "";
+    },
   };
 }

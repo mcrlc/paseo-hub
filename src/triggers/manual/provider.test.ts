@@ -102,4 +102,27 @@ describe("manual invocation provider", () => {
     assert.equal(matches.length, 1);
     assert.equal(matches[0]!.invocation.status, "rejected");
   });
+
+  it("materializes an empty context", async () => {
+    const provider = createManualRunProvider(() => {
+      throw new Error("configuration store unused");
+    });
+
+    assert.equal(
+      await provider.materializeContext?.({
+        executionId: "11111111-1111-4111-8111-111111111124",
+        organizationId: "org-1",
+        projectId: "project-1",
+        providerEventReceiptId: "11111111-1111-4111-8111-111111111125",
+        triggerContext: {
+          provider: "manual",
+          deliveryId: "manual-1",
+          event: {
+            manual: { actor: "operator", input: "review", trigger: "t", delivery_id: "manual-1" },
+          },
+        },
+      }),
+      "",
+    );
+  });
 });
