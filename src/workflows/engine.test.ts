@@ -248,6 +248,83 @@ describe("durable multi-step workflow engine", () => {
     }
   });
 
+  it("warns once while a wakeup is still processing and stays quiet for a fast one", async () => {
+    vi.useFakeTimers();
+    const stream = new FailureLogStream();
+    const fixture = await workflowFixture();
+    let block = false;
+    let markBlocked!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      markBlocked = resolve;
+    });
+    let releaseBlocked!: () => void;
+    const released = new Promise<void>((resolve) => {
+      releaseBlocked = resolve;
+    });
+    const { handler, engine } = createDurableWorkflowHandler({
+      database: fixture.database,
+      entitlements: fixture.entitlements,
+      providers: [providerMatch(fixture.configuration, fixture.revisionId)],
+      logger: createLogger(stream),
+      dispatchLaunchMachineIntent: async (intent) => {
+        if (block) {
+          markBlocked();
+          await released;
+        }
+        const execution = await fixture.database.findAgentExecutionByWorkflowStepRunId(
+          intent.workflowStepRunId!,
+        );
+        if (execution === undefined) throw new Error("workflow execution was not persisted");
+        return { execution };
+      },
+    });
+    const stuck = () =>
+      stream.records().filter((record) => record["msg"] === "workflow wakeup still processing");
+    try {
+      await handler(fixture.trigger("fast"));
+      await engine.processAvailable();
+      await vi.advanceTimersByTimeAsync(20_000);
+      assert.deepEqual(stuck(), []);
+
+      const receipt = await fixture.database.persistManualEvent({
+        organizationId: "org-1",
+        projectId: fixture.projectId,
+        deliveryId: randomUUID(),
+        source: "manual.run",
+        payload: {},
+        receivedAt: new Date(),
+      });
+      if (receipt.status !== "accepted") throw new Error("second receipt was not accepted");
+      await handler({
+        ...fixture.trigger("slow"),
+        providerEventReceiptId: receipt.event.providerEventReceiptId,
+        deliveryId: receipt.event.deliveryId,
+      });
+      const [slowRun] = await fixture.database.findTriggerRunsByProviderEventReceiptId(
+        receipt.event.providerEventReceiptId,
+      );
+      assert.ok(slowRun);
+      block = true;
+      const processing = engine.processAvailable();
+      await blocked;
+      await vi.advanceTimersByTimeAsync(9_999);
+      assert.deepEqual(stuck(), []);
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      assert.deepEqual(
+        stuck().map((record) => [record["level"], record["triggerRunId"], record["elapsedMs"]]),
+        [[40, slowRun.id, 10_000]],
+      );
+      releaseBlocked();
+      await processing;
+    } finally {
+      releaseBlocked();
+      await engine.stop();
+      vi.useRealTimers();
+    }
+  });
+
   it.each([
     ["succeeded", "succeeded"],
     ["failed", "failed"],
