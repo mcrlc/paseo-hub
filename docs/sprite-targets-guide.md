@@ -66,6 +66,12 @@ There is no sprite idle setting: the provider pauses a sprite about a second aft
 hold on it, so a sprite never rests awake for long. `run.idle_timeout` still applies per execution, as on
 any target.
 
+An execution is idle once the agent's turn ends without a call to `finish_execution`; a foreground
+command, however long, counts as active. Hub cannot see background commands, and one that outlives the
+idle timeout is stopped when the execution fails. When the conversation continues, the next run's agent
+receives the interrupted task and the provider's notice about the unfinished command, so do not assume a
+failed run left nothing behind.
+
 ## Lifecycle
 
 - **Activation.** Saving the trigger creates the sprite, installs the Paseo CLI, runs `bootstrap`, writes

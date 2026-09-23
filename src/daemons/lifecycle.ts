@@ -82,7 +82,7 @@ interface HubExecutionEnv {
 
 const DEFAULT_DISPATCH_TIMEOUT_MS = 30_000;
 const DEFAULT_AGENT_EXECUTION_TIMEOUT_MS = 60 * 60_000;
-const DEFAULT_AGENT_IDLE_TIMEOUT_MS = 5 * 60_000;
+const DEFAULT_AGENT_IDLE_TIMEOUT_MS = 10 * 60_000;
 const SPRITE_HOLD_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 type AgentStatus = Extract<DaemonEvent, { type: "agent_update" }>["agent"]["status"];

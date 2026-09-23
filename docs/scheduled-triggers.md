@@ -45,6 +45,13 @@ run:
   idle_timeout: 10m
 ```
 
+`idle_timeout` starts only when the agent's turn ends without a call to `finish_execution`. A
+foreground command, however long, keeps the execution active, and only `max_runtime` bounds it.
+Hub cannot see background commands, so a background job still running when the idle timeout
+elapses is stopped when the execution fails. With continuation, the next run's agent receives the
+interrupted task and the provider's notice about the unfinished command, so do not assume a failed
+run left nothing behind.
+
 The persisted recurrence has three fields: `start` is a quoted local date-time with seconds and
 no offset; `timezone` gives that clock's IANA timezone; `rule` is one RFC 5545 RRULE value, without
 the `RRULE:` prefix. The anchor determines interval alignment and omitted calendar/time fields.
