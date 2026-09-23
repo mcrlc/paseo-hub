@@ -101,6 +101,26 @@ describe("organization trigger store", () => {
 
     await assert.rejects(store.save({ yaml, userId: null }), expected);
   });
+
+  it("refuses paseo.context unless one of the trigger's events provides context", async () => {
+    const database = await databaseWithDaemon();
+    const store = new OrganizationTriggerStore(database, "org");
+    const manual = triggerYaml(true).replace("Handle it", '"Handle ${{ paseo.context }}"');
+    const github = "  github.issue_comment_created: { filters: { from_users: [alice] } }\n";
+
+    await assert.rejects(store.save({ yaml: manual, userId: null }), {
+      issues: [
+        {
+          path: ["run", "prompt"],
+          message:
+            "uses paseo.context, but manual.run provides no context; use paseo.prompt for manual input",
+        },
+      ],
+    });
+    assert.equal((await store.list()).length, 0);
+    await assert.doesNotReject(store.validate(manual.replace("  manual.run: {}\n", github)));
+    await assert.doesNotReject(store.validate(manual.replace("run:\n", `${github}run:\n`)));
+  });
 });
 
 function triggerYaml(enabled: boolean): string {
