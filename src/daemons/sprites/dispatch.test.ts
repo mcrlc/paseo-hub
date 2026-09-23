@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { describe, it } from "vitest";
+import { describe, it, vi } from "vitest";
 import {
   deriveAgentExecutionCompletionToken,
   hashAgentExecutionCompletionToken,
@@ -17,7 +17,11 @@ import { OrganizationTriggerStore } from "../../triggers/store.js";
 import { parseInvocation } from "../../triggers/invocation.js";
 import type { AcceptedTriggerProviderMatch, TriggerProvider } from "../../triggers/index.js";
 import { createDurableWorkflowHandler } from "../../workflows/engine.js";
-import { createDaemonDispatchLifecycle, type DaemonDispatchLifecycle } from "../lifecycle.js";
+import {
+  createDaemonDispatchLifecycle,
+  isRetryableSpriteHoldFailure,
+  type DaemonDispatchLifecycle,
+} from "../lifecycle.js";
 import type { DaemonConnection } from "../protocol.js";
 import { AgentSessions } from "../../agent-sessions/index.js";
 import { OutputExecutorRegistry } from "../../execution-capabilities/outputs.js";
@@ -54,7 +58,48 @@ describe("sprite dispatch", () => {
     assert.equal(await hub.runStatus(runId), "running");
   });
 
-  it("defers a run whose hold times out, keeps the sprite alive, and moves on to the next run", async () => {
+  it("dispatches a second run while the first run's hold is still pending", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.startRun();
+    let releaseSlowHold!: () => void;
+    const slowHold = new Promise<void>((resolve) => {
+      releaseSlowHold = resolve;
+    });
+    const passes = vi.spyOn(hub.database, "recoverWorkflowWakeups");
+    let passesBeforeSlowHold = 0;
+    hub.holdGate = (task) => {
+      if (task !== hub.providerCalls[0]!.task) return undefined;
+      passesBeforeSlowHold = passes.mock.calls.length;
+      return slowHold;
+    };
+    const worker = setInterval(() => void hub.engine.processAvailable(), 5);
+    try {
+      await waitFor(() => hub.dispatches.length === 1);
+      const [slow, fast] = hub.providerCalls.map(({ task }) => task);
+      assert.deepEqual(
+        hub.dispatches.map(({ executionId }) => executionId),
+        [fast],
+      );
+      assert.equal(hub.holds(slow!), 1);
+      assert.ok(passes.mock.calls.length - passesBeforeSlowHold > 0);
+
+      releaseSlowHold();
+      await waitFor(() => hub.dispatches.length === 2);
+
+      assert.deepEqual(
+        hub.dispatches.map(({ executionId }) => executionId),
+        [fast, slow],
+      );
+      assert.equal(hub.holds(slow!), 1);
+    } finally {
+      clearInterval(worker);
+    }
+  });
+
+  it("defers a run whose hold times out, keeps the sprite alive, and holds again on a later visit", async () => {
     const hub = await setup();
     hub.socketOpen = true;
     await hub.enrollSprite();
@@ -62,32 +107,78 @@ describe("sprite dispatch", () => {
     await hub.startRun();
     hub.holdTimeouts = 1;
 
-    const started = Date.now();
-    await hub.claim(1);
-    const elapsedMs = Date.now() - started;
+    await hub.claim(2);
 
     const [stalled, next] = hub.providerCalls.map((call) => call.task);
     assert.deepEqual(
       hub.dispatches.map(({ executionId }) => executionId),
       [next],
     );
-    assert.ok(elapsedMs < HOLD_DEADLINE_MS + 1_000);
+    assert.equal(hub.holds(stalled!), 1);
+    await waitFor(() => hub.deferredHolds().length === 1);
     assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "alive");
     assert.deepEqual(hub.failures("sprites.hold"), []);
-    const warnings = hub.logs
-      .records()
-      .filter((record) => record["msg"] === "sprite hold timed out");
-    assert.equal(warnings.length, 1);
-    assert.equal(warnings[0]!["executionId"], stalled);
-    assert.equal(warnings[0]!["sprite"], hub.spriteName);
-    assert.ok(Number(warnings[0]!["elapsedMs"]) >= HOLD_DEADLINE_MS - 5);
+    const [warning] = hub.deferredHolds();
+    assert.equal(warning!["executionId"], stalled);
+    assert.equal(warning!["sprite"], hub.spriteName);
+    assert.equal(warning!["status"], 0);
+    assert.equal(warning!["errorCode"], "sprites_timeout");
+    assert.ok(Number(warning!["elapsedMs"]) >= HOLD_DEADLINE_MS - 5);
 
-    await hub.claim(1);
+    await hub.claim(2);
 
+    assert.equal(hub.holds(stalled!), 2);
     assert.deepEqual(
       hub.dispatches.map(({ executionId }) => executionId),
       [next, stalled],
     );
+  });
+
+  it("keeps the sprite alive when a hold answers 503 and holds again on a later visit", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    hub.holdFailure = new SpritesError(503, "unavailable");
+    await hub.startRun();
+
+    await hub.claim(2);
+
+    const executionId = hub.providerCalls[0]!.task!;
+    assert.equal(hub.holds(executionId), 2);
+    assert.equal(hub.dispatches.length, 0);
+    assert.equal((await hub.database.findMachineById(hub.machineId))?.status, "alive");
+    assert.deepEqual(hub.failures("sprites.hold"), []);
+    assert.deepEqual(
+      hub.deferredHolds().map((record) => [record["executionId"], record["status"]]),
+      [
+        [executionId, 503],
+        [executionId, 503],
+      ],
+    );
+
+    hub.holdFailure = undefined;
+    await hub.claim(2);
+
+    assert.equal(hub.holds(executionId), 3);
+    assert.deepEqual(
+      hub.dispatches.map((dispatched) => dispatched.executionId),
+      [executionId],
+    );
+  });
+
+  it.each([
+    ["a timeout", true, new SpritesTimeoutError("POST /v1/sprites/s/exec timed out after 20 s")],
+    ["an exec with no exit code", true, new SpritesError(0, "")],
+    ["a curl exit code", true, new SpritesError(7, "Failed to connect")],
+    ["a 500", true, new SpritesError(500, "internal")],
+    ["a 503", true, new SpritesError(503, "unavailable")],
+    ["a 404", false, new SpritesError(404, "sprite not found")],
+    ["a 401", false, new SpritesError(401, "unauthorized")],
+    ["a 403", false, new SpritesError(403, "forbidden")],
+    ["a 409", false, new SpritesError(409, "conflict")],
+    ["a non-Sprites error", false, new Error("Sprites are not configured")],
+  ])("classifies a hold failure from %s as retryable: %s", (_label, retries, error) => {
+    assert.equal(isRetryableSpriteHoldFailure(error), retries);
   });
 
   it("holds, defers while the socket is closed, and hands off once the daemon reconnects", async () => {
@@ -180,17 +271,18 @@ describe("sprite dispatch", () => {
     assert.equal(hub.dispatches.length, 0);
   });
 
-  it("terminates the machine and defers when hold fails, so the next claim recreates", async () => {
+  it("terminates the machine and defers when the hold answers 404, so the next claim recreates", async () => {
     const hub = await setup();
     hub.socketOpen = true;
     await hub.enrollSprite();
-    hub.holdFails = true;
+    hub.holdFailure = new SpritesError(404, "sprite not found");
     await hub.startRun();
 
     await hub.claim(1);
     const machine = await hub.database.findMachineById(hub.machineId);
     assert.equal(machine?.status, "terminated");
-    assert.equal(machine?.shutdownReason, "Sprites API 503: unavailable");
+    assert.equal(machine?.shutdownReason, "Sprites API 404: sprite not found");
+    assert.equal(hub.failures("sprites.hold").length, 1);
     assert.equal(hub.dispatches.length, 0);
 
     await hub.claim(1);
@@ -296,7 +388,7 @@ describe("sprite dispatch", () => {
     const control = hub.connectDaemon();
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
     await hub.agentFinished(executionId);
 
@@ -320,7 +412,7 @@ describe("sprite dispatch", () => {
     hub.socketOpen = true;
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
     await hub.agentFinished(executionId);
 
@@ -338,7 +430,7 @@ describe("sprite dispatch", () => {
     control.resolve();
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
     await hub.agentFinished(executionId);
 
@@ -388,7 +480,7 @@ describe("sprite dispatch", () => {
     hub.releaseFails = true;
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
 
     await hub.lifecycle.failPendingExecutionsForDisconnectedMachine(
@@ -409,7 +501,7 @@ describe("sprite dispatch", () => {
     hub.socketOpen = true;
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
 
     await hub.lifecycle.recoverSprites();
@@ -429,13 +521,13 @@ describe("sprite dispatch", () => {
     hub.socketOpen = true;
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
 
-    hub.holdFails = true;
+    hub.holdFailure = new SpritesError(503, "unavailable");
     await hub.lifecycle.recoverSprites();
     await waitFor(() => hub.failures("sprites.hold-refresh").length >= 1);
-    hub.holdFails = false;
+    hub.holdFailure = undefined;
     const attempted = hub.holds(executionId);
     await waitFor(() => hub.heldTimes(executionId) >= 2);
 
@@ -449,7 +541,7 @@ describe("sprite dispatch", () => {
     hub.socketOpen = true;
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
     assert.equal(hub.holds(executionId), 1);
 
@@ -475,7 +567,7 @@ describe("sprite dispatch", () => {
     hub.socketOpen = true;
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const { environment, ...intent } = hub.dispatches[0]!.intent;
     const { machineId: _machineId, ...unmachined } = environment;
     await hub.database.insertAgentExecution({
@@ -501,7 +593,7 @@ describe("sprite dispatch", () => {
     hub.socketOpen = true;
     await hub.enrollSprite();
     await hub.startRun();
-    await hub.claim(1);
+    await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
     await hub.lifecycle.recoverSprites();
     await waitFor(() => hub.holds(executionId) >= 3);
@@ -653,7 +745,8 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
               await delay(HOLD_DEADLINE_MS);
               throw new SpritesTimeoutError(`POST /v1/sprites/${sprite}/exec timed out`);
             }
-            if (state.holdFails) throw new SpritesError(503, "unavailable");
+            await state.holdGate?.(task);
+            if (state.holdFailure !== undefined) throw state.holdFailure;
             sequence.push(`hold:${task}`);
           },
           async release(sprite, task) {
@@ -673,7 +766,8 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
   const state = {
     socketOpen: false,
     activationFails: false,
-    holdFails: false,
+    holdFailure: undefined as SpritesError | undefined,
+    holdGate: undefined as ((task: string) => Promise<void> | undefined) | undefined,
     holdTimeouts: 0,
     releaseFails: false,
     serviceFails: false,
@@ -804,6 +898,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
   });
   return Object.assign(state, {
     database,
+    engine,
     editActivation,
     logs,
     providerCalls,
@@ -970,6 +1065,9 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     failures(operation: string) {
       return logs.records().filter((record) => record["operation"] === operation);
     },
+    deferredHolds() {
+      return logs.records().filter((record) => record["msg"] === "sprite hold deferred");
+    },
     prepareSpriteDispatch(executionId: string) {
       const target = configuration.environments.find(
         (environment) => environment.kind === "sprite",
@@ -1021,7 +1119,10 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
       return run.id;
     },
     async claim(times: number) {
-      for (let index = 0; index < times; index += 1) await engine.processAvailable();
+      for (let index = 0; index < times; index += 1) {
+        await engine.processAvailable();
+        await delay(0);
+      }
     },
     async runStatus(runId: string) {
       return (await database.findTriggerRunById(runId))?.status;

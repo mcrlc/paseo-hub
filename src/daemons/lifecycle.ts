@@ -14,6 +14,7 @@ import type {
   Database,
   DaemonRecord,
   HubAction,
+  MachineRecord,
   TransitionAgentExecutionFields,
   TransitionAgentExecutionResult,
   AcceptedTriggerRunRecord,
@@ -31,7 +32,7 @@ import {
   type SpriteActivation,
   type SpriteTarget,
 } from "./sprites/activation.js";
-import { createSpritesClient, SpritesTimeoutError, type SpritesClient } from "./sprites/client.js";
+import { createSpritesClient, SpritesError, type SpritesClient } from "./sprites/client.js";
 import { logger as defaultLogger } from "../logger.js";
 import { reportFailure } from "../failures/index.js";
 import type { TriggerProvider } from "../triggers/index.js";
@@ -172,6 +173,7 @@ export class DaemonDispatchLifecycle {
   private readonly daemonRecoveries = new Set<Promise<void>>();
   private readonly executionSubscriptions = new Map<string, () => void>();
   private readonly heldSpriteExecutions = new Set<string>();
+  private readonly pendingHolds = new Map<string, Promise<void>>();
   private readonly recreatedSpriteExecutions = new Set<string>();
   private clearSpriteHoldRefresh: (() => void) | undefined;
   private stopping = false;
@@ -201,6 +203,7 @@ export class DaemonDispatchLifecycle {
       ...this.reconcilingHubActions.values(),
       ...this.pendingStreamHandlersByExecution.values(),
       ...this.activeExecutionDispatches.values(),
+      ...this.pendingHolds.values(),
     ]);
   }
 
@@ -273,39 +276,49 @@ export class DaemonDispatchLifecycle {
     const daemon = await database.findDaemonByMachineId(machine.id);
     if (daemon === undefined) return { status: "deferred" };
     if (!this.heldSpriteExecutions.has(input.executionId)) {
-      const startedAt = this.now();
-      try {
-        const provider = await this.spriteProviderFor(machine.orgId);
-        await provider.hold(machine.source.spriteName, input.executionId, "60m");
-        this.heldSpriteExecutions.add(input.executionId);
-        this.logger.info(
-          {
-            executionId: input.executionId,
-            sprite: machine.source.spriteName,
-            task: input.executionId,
-          },
-          "sprite hold",
-        );
-      } catch (error) {
-        if (error instanceof SpritesTimeoutError) {
-          this.logger.warn(
-            {
-              executionId: input.executionId,
-              sprite: machine.source.spriteName,
-              elapsedMs: this.now() - startedAt,
-            },
-            "sprite hold timed out",
-          );
-          return { status: "deferred" };
-        }
-        this.report(error, "sprites.hold", { executionId: input.executionId });
-        await database.transitionMachine(machine.id, "terminated", {
-          reason: error instanceof Error ? error.message : String(error),
-        });
-        return { status: "deferred" };
+      if (!this.pendingHolds.has(input.executionId)) {
+        const hold = this.holdSprite(input.executionId, machine, machine.source.spriteName)
+          .catch((error: unknown) => {
+            this.report(error, "sprites.hold", { executionId: input.executionId });
+          })
+          .finally(() => this.pendingHolds.delete(input.executionId));
+        this.pendingHolds.set(input.executionId, hold);
       }
+      return { status: "deferred" };
     }
     return { status: "ready", machineId: machine.id, daemonId: daemon.id };
+  }
+
+  private async holdSprite(
+    executionId: string,
+    machine: MachineRecord,
+    sprite: string,
+  ): Promise<void> {
+    const startedAt = this.now();
+    try {
+      const provider = await this.spriteProviderFor(machine.orgId);
+      await provider.hold(sprite, executionId, "60m");
+      this.heldSpriteExecutions.add(executionId);
+      this.logger.info({ executionId, sprite, task: executionId }, "sprite hold");
+    } catch (error) {
+      if (isRetryableSpriteHoldFailure(error)) {
+        this.logger.warn(
+          {
+            executionId,
+            sprite,
+            status: error.status,
+            errorCode: error.code,
+            elapsedMs: this.now() - startedAt,
+          },
+          "sprite hold deferred",
+        );
+        return;
+      }
+      this.report(error, "sprites.hold", { executionId });
+      await this.options.database.transitionMachine(machine.id, "terminated", {
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   async notifyWorkflowRunAccepted(
@@ -2083,6 +2096,10 @@ export function createDaemonDispatchLifecycle(
   options: DaemonDispatchLifecycleOptions,
 ): DaemonDispatchLifecycle {
   return new DaemonDispatchLifecycle(options);
+}
+
+export function isRetryableSpriteHoldFailure(error: unknown): error is SpritesError {
+  return error instanceof SpritesError && (error.status < 100 || error.status >= 500);
 }
 
 function isTerminalExecutionStatus(status: AgentExecutionRecord["status"]): boolean {

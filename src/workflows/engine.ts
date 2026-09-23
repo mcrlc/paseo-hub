@@ -49,6 +49,7 @@ import type { Logger } from "pino";
 
 const DEFAULT_WAKEUP_LEASE_MS = 30_000;
 const DEFAULT_WORKER_INTERVAL_MS = 250;
+const STUCK_WAKEUP_WARNING_MS = 10_000;
 
 type AcceptedWorkflowRun = Extract<
   Awaited<ReturnType<Database["findTriggerRunById"]>>,
@@ -246,10 +247,23 @@ export class DurableWorkflowEngine {
     while (!this.stopped) {
       const wakeup = await database.claimWorkflowWakeup(this.now(), this.leaseMs, visited);
       if (wakeup === undefined) return;
+      const startedAt = this.now();
+      const stuck = setTimeout(() => {
+        this.logger.warn(
+          {
+            triggerRunId: wakeup.triggerRunId,
+            elapsedMs: this.now().getTime() - startedAt.getTime(),
+          },
+          "workflow wakeup still processing",
+        );
+      }, STUCK_WAKEUP_WARNING_MS);
+      stuck.unref();
       try {
         if ((await this.processWakeup(wakeup)) === "deferred") visited.push(wakeup.triggerRunId);
       } catch (error) {
         this.report(error, "workflow.wakeup.process", { triggerRunId: wakeup.triggerRunId });
+      } finally {
+        clearTimeout(stuck);
       }
     }
   }
