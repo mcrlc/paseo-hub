@@ -207,7 +207,8 @@ describe("execution capability MCP boundary", () => {
         [
           {
             name: "finish_execution",
-            description: "Completes this execution and records the configured structured output.",
+            description:
+              "Completes this execution and records the configured structured output. Call it when the work is done, and only then. While your turn is running, including during a long foreground command, the execution counts as active. Once your turn ends without this call, Hub counts the execution as idle, fails it after the trigger's idle timeout, and stops anything still running in the background. If you start a background command, wait for it inside your turn rather than ending the turn, then call this tool.",
           },
           {
             name: "reply",
@@ -218,7 +219,7 @@ describe("execution capability MCP boundary", () => {
       );
       assert.equal(
         exposedTools.tools.find((tool) => tool.name === "finish_execution")?.description,
-        "Completes this execution and records the configured structured output.",
+        "Completes this execution and records the configured structured output. Call it when the work is done, and only then. While your turn is running, including during a long foreground command, the execution counts as active. Once your turn ends without this call, Hub counts the execution as idle, fails it after the trigger's idle timeout, and stops anything still running in the background. If you start a background command, wait for it inside your turn rather than ending the turn, then call this tool.",
       );
       assert.deepEqual(
         exposedTools.tools.find((tool) => tool.name === "finish_execution")?.inputSchema,
