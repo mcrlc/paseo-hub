@@ -88,11 +88,18 @@ describe("Sprites client", () => {
     );
     const client = createSpritesClient({ token: "token", fetch: stub.fetch });
 
-    assert.equal(await client.create({ name: "sprite-a", memoryMb: 16384 }), "sprite-id");
+    assert.equal(
+      await client.create({ name: "sprite-a", labels: ["paseo-hub", "org:org"], memoryMb: 16384 }),
+      "sprite-id",
+    );
     assert.deepEqual(
       stub.requests.map(({ method, url, body }) => [method, url, body]),
       [
-        ["POST", "https://api.sprites.dev/v1/sprites", '{"name":"sprite-a"}'],
+        [
+          "POST",
+          "https://api.sprites.dev/v1/sprites",
+          '{"name":"sprite-a","labels":["paseo-hub","org:org"]}',
+        ],
         [
           "POST",
           "https://api.sprites.dev/v1/sprites/sprite-a/policy/resources",
@@ -213,7 +220,7 @@ describe("Sprites client", () => {
     });
 
     await assert.rejects(
-      client.create({ name: "sprite-a", memoryMb: 1 }),
+      client.create({ name: "sprite-a", labels: [], memoryMb: 1 }),
       (error: unknown) =>
         error instanceof SpritesError &&
         error.status === 400 &&
@@ -259,7 +266,7 @@ describe("Sprites client", () => {
       }).fetch,
     });
 
-    await client.create({ name: "sprite-a", memoryMb: 4096 });
+    await client.create({ name: "sprite-a", labels: [], memoryMb: 4096 });
     await client.service("sprite-a", "paseo", { cmd: "/bin/sh", args: [], env: {}, dir: "/" });
     await client.hold("sprite-a", "hub-hold", "60m");
     await client.release("sprite-a", "hub-hold");

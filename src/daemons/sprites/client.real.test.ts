@@ -10,7 +10,7 @@ describe.skipIf(TOKEN === undefined)("Sprites client against a real sprite", () 
     const client = createSpritesClient({ token: TOKEN! });
     const name = `hub-it-${randomBytes(3).toString("hex")}`;
     try {
-      assert.ok(await client.create({ name, memoryMb: 16384 }));
+      assert.ok(await client.create({ name, labels: [], memoryMb: 16384 }));
 
       assert.deepEqual(await client.exec(name, ["sh", "-c", "echo out; echo err >&2; exit 3"]), {
         stdout: "out\n",

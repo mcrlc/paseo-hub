@@ -86,7 +86,10 @@ describe("sprite activation", () => {
     };
     assert.deepEqual(hub.calls, [
       { call: "destroy", args: [name] },
-      { call: "create", args: [{ name, memoryMb: 16384 }] },
+      {
+        call: "create",
+        args: [{ name, labels: ["paseo-hub", "org:org", "trigger:manual-task"], memoryMb: 16384 }],
+      },
       { call: "exec", args: [name, ["sh", "-c", "npm prefix -g"], undefined] },
       {
         call: "exec",

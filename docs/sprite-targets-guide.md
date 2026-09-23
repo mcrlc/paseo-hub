@@ -175,9 +175,13 @@ not in `from_users`; `from_users: ["*"]` admits every login, the agent's include
 
 For a trigger that only reads and comments, use a Sprites GitHub connector. In the Sprites dashboard, add
 a GitHub connector and approve GitHub's consent screen signed in as a machine account, such as
-`acme-review-bot` above, not as a person in `from_users`. Grant it by the name prefix `trigger-`: Hub
-names every sprite `trigger-<trigger id>` and sets no labels, so the prefix grants the connector to every
-Hub sprite in the organization. Leave `GITHUB_TOKEN` out of the daemon environment. The credential stays
+`acme-review-bot` above, not as a person in `from_users`. Hub names every sprite `trigger-<trigger id>`
+and creates it with the labels `paseo-hub`, `org:<organization id>`, and `trigger:<trigger name>`. The name
+prefix `trigger-` or the label `paseo-hub` grants the connector to every Hub sprite in the Sprites
+organization. The label `org:<organization id>` narrows it to one Hub organization's sprites, and the
+labels `org:<organization id>` and `trigger:<trigger name>` together narrow it to one trigger's sprite.
+Labels are set at create, so renaming a trigger keeps its old label until the sprite is recreated. Leave
+`GITHUB_TOKEN` out of the daemon environment. The credential stays
 in the Sprites organization and the sprite holds no token: calls go to
 `https://api.sprites.dev/v1/gateway/github/<connection_id>/<path>` with no `Authorization` header, and the
 gateway identifies the sprite by its Fly identity. Every sprite ships the `sprite-api-gateway` skill for

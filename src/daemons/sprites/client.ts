@@ -161,8 +161,10 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
   }
 
   return {
-    async create(input: { name: string; memoryMb: number }): Promise<string> {
-      const response = await request("POST", "/v1/sprites", { json: { name: input.name } });
+    async create(input: { name: string; labels: string[]; memoryMb: number }): Promise<string> {
+      const response = await request("POST", "/v1/sprites", {
+        json: { name: input.name, labels: input.labels },
+      });
       const { id } = CreatedSpriteSchema.parse(JSON.parse(new TextDecoder().decode(response.body)));
       await setMemory(input.name, input.memoryMb);
       return id;

@@ -155,6 +155,7 @@ export function createSpriteActivation(options: SpriteActivationOptions): Sprite
           hubOrigin: options.hubOrigin,
           machine,
           target,
+          labels: ["paseo-hub", `org:${trigger.organizationId}`, `trigger:${trigger.name}`],
           specs,
           apiKey: key.secret,
           organizationEnv: configuration.env,
@@ -193,6 +194,7 @@ async function provisionSprite(input: {
   hubOrigin: string;
   machine: MachineRecord;
   target: SpriteTarget;
+  labels: string[];
   specs: SpriteSpecs & { memoryMb: number };
   apiKey: string;
   organizationEnv: Record<string, string>;
@@ -206,7 +208,7 @@ async function provisionSprite(input: {
   step("sprite activation: destroy leftover");
   await destroyBestEffort(provider, machine);
   step("sprite activation: create");
-  await provider.create({ name, memoryMb: input.specs.memoryMb });
+  await provider.create({ name, labels: input.labels, memoryMb: input.specs.memoryMb });
   step("sprite activation: npm prefix");
   const prefixResult = await provider.exec(name, ["sh", "-c", "npm prefix -g"]);
   expectSuccess("npm prefix -g", prefixResult, input.secrets);
