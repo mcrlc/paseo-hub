@@ -3,6 +3,7 @@ import { capabilitiesFor } from "../../auth/organization-policy.js";
 import type { Database } from "../../db/types.js";
 import { resolveRouteTenant } from "../../projects/access.js";
 import { ProjectCommandError } from "../../projects/command-error.js";
+import { REQUEST_TIMEOUT_MS } from "./client.js";
 import { spritesEnvKeyError, spritesEnvValueError } from "./env.js";
 
 export class SpritesTokenRejectedError extends Error {
@@ -15,10 +16,8 @@ export class SpritesTokenRejectedError extends Error {
 }
 
 export class SpritesTokenCheckError extends Error {
-  constructor(httpStatus: number) {
-    super(
-      `Sprites answered HTTP ${httpStatus} when Hub checked the token. The stored token is unchanged.`,
-    );
+  constructor(problem: string) {
+    super(`${problem} when Hub checked the token. The stored token is unchanged.`);
     this.name = "SpritesTokenCheckError";
   }
 }
@@ -75,12 +74,22 @@ export class SpritesSettings {
     input: { token: string; memoryMb: number },
   ) {
     const { account, tenant } = await this.manager(request, organizationSlug);
-    const response = await this.fetch("https://api.sprites.dev/v1/sprites", {
-      headers: { Authorization: `Bearer ${input.token}` },
-    });
+    const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await this.fetch("https://api.sprites.dev/v1/sprites", {
+        headers: { Authorization: `Bearer ${input.token}` },
+        signal,
+      });
+    } catch (error) {
+      if (!signal.aborted) throw error;
+      throw new SpritesTokenCheckError(
+        `Sprites did not answer within ${REQUEST_TIMEOUT_MS / 1000} s`,
+      );
+    }
     await response.body?.cancel();
     if (response.status === 401 || response.status === 403) throw new SpritesTokenRejectedError();
-    if (!response.ok) throw new SpritesTokenCheckError(response.status);
+    if (!response.ok) throw new SpritesTokenCheckError(`Sprites answered HTTP ${response.status}`);
     await this.database.upsertOrganizationSpritesConfiguration({
       organizationId: tenant.organization.id,
       token: input.token,

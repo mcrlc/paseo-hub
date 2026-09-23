@@ -14,7 +14,13 @@ import {
   type SpriteActivation,
   type SpriteProvider,
 } from "./activation.js";
-import { SpritesError, type ExecResult } from "./client.js";
+import {
+  BOOTSTRAP_TIMEOUT_MS,
+  HUB_CONNECT_TIMEOUT_MS,
+  PASEO_INSTALL_TIMEOUT_MS,
+  SpritesError,
+  type ExecResult,
+} from "./client.js";
 
 const PREFIX = "/opt/node-v99";
 const PATH = `${PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
@@ -83,14 +89,22 @@ describe("sprite activation", () => {
       { call: "exec", args: [name, ["sh", "-c", "npm prefix -g"], undefined] },
       {
         call: "exec",
-        args: [name, ["sh", "-c", "npm install -g @getpaseo/cli@0.9.1"], { env: { PATH } }],
+        args: [
+          name,
+          ["sh", "-c", "npm install -g @getpaseo/cli@0.9.1"],
+          { env: { PATH }, timeoutMs: PASEO_INSTALL_TIMEOUT_MS },
+        ],
       },
       {
         call: "exec",
         args: [
           name,
           ["sh", "-s"],
-          { env: { PATH, ...mergedEnv }, stdin: "npm install -g @anthropic-ai/claude-code\n" },
+          {
+            env: { PATH, ...mergedEnv },
+            stdin: "npm install -g @anthropic-ai/claude-code\n",
+            timeoutMs: BOOTSTRAP_TIMEOUT_MS,
+          },
         ],
       },
       {
@@ -111,7 +125,7 @@ describe("sprite activation", () => {
         args: [
           name,
           ["sh", "-c", connectScript, "sh", "https://hub.test", "secret-1"],
-          { env: { ...daemonEnv, PASEO_PASSWORD: password } },
+          { env: { ...daemonEnv, PASEO_PASSWORD: password }, timeoutMs: HUB_CONNECT_TIMEOUT_MS },
         ],
       },
     ]);
