@@ -1332,6 +1332,7 @@ export interface Database {
     triggerRunIds: readonly string[],
   ): Promise<{ triggerRunId: string; status: MachineStatus }[]>;
   findSpawningSpriteMachines(): Promise<MachineRecord[]>;
+  findLiveSpriteMachines(): Promise<MachineRecord[]>;
   /** Resolves undefined when a non-terminated sprite machine already exists for the trigger. */
   insertSpriteMachine(input: {
     orgId: string;

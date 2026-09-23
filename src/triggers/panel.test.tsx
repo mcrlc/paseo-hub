@@ -8,6 +8,7 @@ const LIVE: TriggerSprite = {
   name: "trigger-9f2",
   memoryMb: 16384,
   lastRunAt: "2026-09-17T09:00:00.000Z",
+  stale: false,
 };
 
 const ignore = () => undefined;
@@ -36,10 +37,21 @@ describe("trigger sprite section", () => {
   });
 
   it("says the sprite has not been created and offers nothing to recreate", () => {
-    const html = section({ status: null, name: null, memoryMb: null, lastRunAt: null });
+    const html = section({
+      status: null,
+      name: null,
+      memoryMb: null,
+      lastRunAt: null,
+      stale: false,
+    });
 
     assert.match(html, />Not created</u);
     assert.doesNotMatch(html, /aria-label="Sprite actions"/u);
+  });
+
+  it("says the sprite still runs the previous configuration while it is stale", () => {
+    assert.match(section({ ...LIVE, stale: true }), /previous configuration/u);
+    assert.doesNotMatch(section(LIVE), /previous configuration/u);
   });
 
   it("keeps a retired sprite on the page without an action", () => {

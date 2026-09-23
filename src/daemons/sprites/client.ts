@@ -4,12 +4,15 @@ const SPRITES_API_URL = "https://api.sprites.dev";
 const CURL_HTTP_ERROR_EXIT_CODE = 22;
 
 export class SpritesError extends Error {
+  readonly code: string;
+
   constructor(
     readonly status: number,
     readonly body: string,
   ) {
     super(`Sprites API ${status}: ${body}`);
     this.name = "SpritesError";
+    this.code = `sprites_http_${String(status)}`;
   }
 }
 

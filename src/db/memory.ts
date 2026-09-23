@@ -1379,6 +1379,12 @@ class MemoryDatabase implements Database {
     );
   }
 
+  async findLiveSpriteMachines(): Promise<MachineRecord[]> {
+    return Array.from(this.machines.values()).filter(
+      (machine) => machine.status !== "terminated" && machine.source.kind === "sprite",
+    );
+  }
+
   async insertSpriteMachine(input: {
     orgId: string;
     source: SpriteMachineSource;

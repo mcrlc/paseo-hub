@@ -47,6 +47,15 @@ export function bootstrapHash(bootstrap: string): string {
   return createHash("sha256").update(bootstrap).digest("hex");
 }
 
+export function spriteOutOfDate(machine: MachineRecord, target: SpriteTarget): boolean {
+  const specs = spriteSpecs(machine);
+  return (
+    specs.bootstrapHash !== bootstrapHash(target.bootstrap) ||
+    specs.envHash !== envHash(target.env) ||
+    (target.memory !== undefined && target.memory !== specs.memoryMb)
+  );
+}
+
 function envHash(env: SpriteTarget["env"]): string {
   return createHash("sha256")
     .update(JSON.stringify(Object.entries(env ?? {}).sort(([a], [b]) => a.localeCompare(b))))

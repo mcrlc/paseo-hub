@@ -54,7 +54,7 @@ import {
   type DaemonCreateAgentOptions,
   type DaemonEvent,
 } from "./protocol.js";
-import type { JsonValue } from "../config/compiler.js";
+import { parseCompiledHubConfig, type JsonValue } from "../config/compiler.js";
 import { compileJsonSchema, formatJsonSchemaErrors } from "../workflows/json-schema.js";
 import type { Logger } from "pino";
 import { isHubFinishExecutionToolName } from "../hub/protocol.js";
@@ -1042,10 +1042,40 @@ export class DaemonDispatchLifecycle {
     }
   }
 
+  private async reconcileLiveSprites(): Promise<void> {
+    const activation = this.options.spriteActivation;
+    if (activation == null) return;
+    const { database } = this.options;
+    for (const machine of await database.findLiveSpriteMachines()) {
+      if (machine.source.kind !== "sprite") continue;
+      const { triggerId } = machine.source;
+      try {
+        if ((await database.findRunningAgentExecutionsForMachine(machine.id)).length > 0) continue;
+        const trigger = (await database.listOrganizationTriggers(machine.orgId)).find(
+          (candidate) => candidate.id === triggerId,
+        );
+        if (trigger === undefined) continue;
+        const revision = await database.findOrganizationTriggerRevision(
+          trigger.id,
+          trigger.activeRevisionId,
+        );
+        const target = parseCompiledHubConfig(revision?.normalizedConfiguration).environments.find(
+          (environment): environment is SpriteTarget => environment.kind === "sprite",
+        );
+        await activation({ trigger, target: trigger.enabled ? target : undefined, userId: null });
+      } catch (error) {
+        this.report(error, "sprites.reconcile-tick", { machineId: machine.id });
+      }
+    }
+  }
+
   private scheduleSpriteHoldRefresh(): void {
     this.clearSpriteHoldRefresh = this.scheduleDeadline(async () => {
       try {
-        if (!this.stopping) await this.refreshSpriteHolds();
+        if (!this.stopping) {
+          await this.refreshSpriteHolds();
+          await this.reconcileLiveSprites();
+        }
       } finally {
         if (!this.stopping) this.scheduleSpriteHoldRefresh();
       }

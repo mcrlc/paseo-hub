@@ -1088,6 +1088,12 @@ export function SpriteSection({
       {retired ? (
         <NoticeAlert tone="success">Sprite retired. The next run creates a new one.</NoticeAlert>
       ) : null}
+      {sprite.stale ? (
+        <NoticeAlert tone="neutral">
+          The sprite still runs the previous configuration. Hub applies the latest one within five
+          minutes, once the sprite is idle.
+        </NoticeAlert>
+      ) : null}
       <SummaryPanel
         label="Sprite"
         rows={[
