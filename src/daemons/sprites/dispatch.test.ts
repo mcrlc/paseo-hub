@@ -33,7 +33,7 @@ import {
   spriteSpecs,
   type SpriteActivation,
 } from "./activation.js";
-import { SpritesError, SpritesTimeoutError } from "./client.js";
+import { createSpritesClient, SpritesError, SpritesTimeoutError } from "./client.js";
 
 const SECRET = "sprite-dispatch-secret";
 const HOLD_DEADLINE_MS = 50;
@@ -133,6 +133,38 @@ describe("sprite dispatch", () => {
       hub.dispatches.map(({ executionId }) => executionId),
       [next, stalled],
     );
+  });
+
+  it("hands off once a cold boot answers the hold after 20 s but inside its deadline", async () => {
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    const scaled = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => timeout(ms / 1_000));
+    const sprites = createSpritesClient({
+      token: "sprites-token",
+      fetch: (_input, init) =>
+        new Promise((resolve, reject) => {
+          const booted = setTimeout(() => resolve(new Response(new Uint8Array([3, 0]))), 39);
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(booted);
+            reject(init.signal?.reason);
+          });
+        }),
+    });
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    await hub.startRun();
+    hub.holdGate = (task) => sprites.hold(hub.spriteName, task, "60m");
+    const worker = setInterval(() => void hub.engine.processAvailable(), 5);
+    try {
+      await waitFor(() => hub.dispatches.length === 1);
+    } finally {
+      clearInterval(worker);
+      scaled.mockRestore();
+    }
+
+    const executionId = hub.dispatches[0]!.executionId;
+    assert.equal(hub.holds(executionId), 1);
+    assert.deepEqual(hub.deferredHolds(), []);
   });
 
   it("keeps the sprite alive when a hold answers 503 and holds again on a later visit", async () => {
