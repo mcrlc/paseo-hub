@@ -224,7 +224,9 @@ too. Nothing secret enters trigger YAML.
 Saving the daemon environment rewrites the service of every alive sprite in the organization, one at a
 time and about six seconds each, waking a paused sprite to do it, and the save waits for all of them.
 Each rewrite restarts that sprite's daemon, which reconnects on its own. Rotating a credential is
-therefore a settings save, not a recreation.
+therefore a settings save, not a recreation. A daemon environment edit is applied to a busy sprite by the
+five-minute tick once it has no running execution, and the trigger page shows the sprite as stale until
+then.
 
 The target's `env` holds only per-trigger, non-secret values. A `${{ paseo.connections.<slug>.<value> }}`
 template there cannot be used today: activation fails either way. A GitHub connection fails with
