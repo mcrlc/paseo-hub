@@ -93,8 +93,10 @@ failed run left nothing behind.
   next event creates a new sprite and, because the daemon identity is new, a fresh conversation; the run
   records the session reset. The filesystem, including the checkout and the agent's history, does not carry
   over.
-- **`env` changed.** Hub rewrites the daemon service, which restarts the daemon. The sprite, its filesystem,
-  and its daemon identity are kept.
+- **`env` changed.** Hub rewrites the daemon service, which restarts the daemon with the new environment.
+  While the sprite has a running execution the rewrite waits: the five-minute tick applies it once the
+  sprite has none, and until then the trigger page says the sprite still runs the previous configuration.
+  The sprite, its filesystem, and its daemon identity are kept.
 - **`memory` changed.** Hub updates the resources policy in place.
 - **Hub upgraded to a new Paseo CLI.** Hub pins the Paseo CLI version it installs. When a Hub upgrade
   changes the pin, the next five-minute tick installs it on every idle sprite and then rewrites the daemon
@@ -109,9 +111,11 @@ and switching its target are refused the same way. Edits that keep the sprite, `
 
 Neither an `env` nor a `memory` edit recreates the sprite or ends a conversation. A sprite target's
 continuation compatibility covers its `bootstrap`, `cwd`, and `worktree` only, so the next event
-continues the same agent: after an `env` edit the daemon restarts with the new environment, interrupting
-an agent mid-turn, which then resumes from its persisted state, and a `memory` edit lands in place. Only a
-`bootstrap` change recreates the sprite, and that starts a fresh conversation.
+continues the same conversation. An `env` edit saved while an execution runs is applied by the
+five-minute tick once the sprite has no running execution, and until then the trigger page shows the
+sprite as stale; when it is applied the daemon restarts with the new environment and keeps the sprite,
+its filesystem, and its daemon identity. A `memory` edit lands in place. Only a `bootstrap` change
+recreates the sprite, and that starts a fresh conversation.
 
 The trigger page has a Sprite section showing the machine's state, with a Recreate action that destroys
 the sprite so the next run builds a new one; it is refused while the sprite has running executions.

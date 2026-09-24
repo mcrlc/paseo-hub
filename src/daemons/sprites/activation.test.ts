@@ -593,6 +593,39 @@ describe("sprite trigger edits", () => {
     assert.equal(spriteSpecs(machine!).cliVersion, "0.8.2");
   });
 
+  it("defers an env rewrite while an execution runs and applies it once the sprite is idle", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const [enrolled] = await hub.spriteMachines();
+    await hub.startExecution(trigger.runtimeProjectId, enrolled!.id);
+    hub.calls.length = 0;
+    hub.serviceEnvs.length = 0;
+    const edited = spriteYaml().replace("LITERAL: plain", "LITERAL: rotated");
+
+    await hub.store.save({ triggerId: trigger.id, yaml: edited, userId: null });
+    await hub.settled();
+
+    assert.deepEqual(hub.calls, []);
+    const [busy] = await hub.spriteMachines();
+    assert.deepEqual(busy!.specs, enrolled!.specs);
+
+    for (const execution of await hub.database.findRunningAgentExecutionsForMachine(enrolled!.id)) {
+      await hub.database.transitionAgentExecution(execution.id, "succeeded");
+    }
+    await hub.store.save({ triggerId: trigger.id, yaml: edited, userId: null });
+    await hub.settled();
+
+    assert.deepEqual(
+      hub.calls.map(({ call, args }) => [call, args[0], args[1]]),
+      [["service", `trigger-${trigger.id}`, "paseo"]],
+    );
+    assert.equal(hub.serviceEnvs[0]?.["LITERAL"], "rotated");
+    const [idle] = await hub.spriteMachines();
+    assert.notEqual(spriteSpecs(idle!).envHash, spriteSpecs(enrolled!).envHash);
+  });
+
   it("updates the resources policy when only the memory changes", async () => {
     const hub = await setup();
     const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
