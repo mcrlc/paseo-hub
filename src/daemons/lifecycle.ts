@@ -1060,6 +1060,13 @@ export class DaemonDispatchLifecycle {
         if (machine?.status !== "alive" || machine.source.kind !== "sprite") continue;
         const provider = await this.spriteProviderFor(machine.orgId);
         await provider.hold(machine.source.spriteName, execution.id, "60m");
+        const current = await this.options.database.findAgentExecutionById(execution.id);
+        if (current !== undefined && isTerminalExecutionStatus(current.status)) {
+          if (current.hubAction === null || current.hubActionCompletedAt !== null) {
+            await this.releaseSpriteHold(current);
+          }
+          continue;
+        }
         this.heldSpriteExecutions.add(execution.id);
       } catch (error) {
         this.report(error, "sprites.hold-refresh", { executionId: execution.id });

@@ -517,6 +517,32 @@ describe("sprite dispatch", () => {
     await hub.lifecycle.stop();
   });
 
+  it("releases a refresh hold that lands after its execution terminated", async () => {
+    const hub = await setup();
+    const control = hub.connectDaemon();
+    control.resolve();
+    await hub.enrollSprite();
+    await hub.startRun();
+    await hub.claim(2);
+    const executionId = hub.dispatches[0]!.executionId;
+    let landHold!: () => void;
+    const lateHold = new Promise<void>((resolve) => {
+      landHold = resolve;
+    });
+    hub.holdGate = () => lateHold;
+    const refresh = hub.lifecycle.recoverSprites();
+    await waitFor(() => hub.holds(executionId) === 2);
+
+    await hub.agentFinished(executionId);
+    await hub.complete(executionId);
+    landHold();
+    await refresh;
+
+    assert.equal(hub.sequence.at(-1), `release:${executionId}`);
+    assert.equal((await hub.prepareSpriteDispatch(executionId)).status, "deferred");
+    await hub.lifecycle.stop();
+  });
+
   it("reports a failed refresh and refreshes again on the next tick", async () => {
     const hub = await setup({ spriteHoldRefreshIntervalMs: 5 });
     hub.socketOpen = true;
