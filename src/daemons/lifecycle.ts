@@ -306,7 +306,10 @@ export class DaemonDispatchLifecycle {
       const provider = await this.spriteProviderFor(machine.orgId);
       await provider.hold(sprite, executionId, "60m");
       this.heldSpriteExecutions.set(executionId, machine);
-      this.logger.info({ executionId, sprite, task: executionId }, "sprite hold");
+      this.logger.info(
+        { executionId, sprite, task: executionId, elapsedMs: this.now() - startedAt },
+        "sprite hold",
+      );
     } catch (error) {
       if (isRetryableSpriteHoldFailure(error)) {
         this.logger.warn(

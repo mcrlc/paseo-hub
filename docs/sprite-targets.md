@@ -240,19 +240,19 @@ Per `docs/design.md`: state through `StatusPill`, never a badge.
 
 ## 6. Lifecycle summary
 
-| Event                                | Sprite action                                                                               |
-| ------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Trigger activated with sprite target | create machine row, provider `create`, bootstrap, enroll, write service; provider pauses it |
-| Arrival while paused                 | `hold`, which wakes it; engine defers until the socket is live; dispatch                    |
-| Arrival while awake                  | `hold`, dispatch                                                                            |
-| Execution terminal                   | `release` after the terminal hub action; provider pauses within about 1 s (first run: 20 s) |
-| Every tick (5 min)                   | re-issue every active hold                                                                  |
-| `bootstrap` changed                  | `destroy` after in-flight executions, recreate on next arrival                              |
-| `env` changed                        | rewrite service; waits while an execution runs, tick applies it once idle; daemon restarts  |
-| `memory` changed                     | update resources policy                                                                     |
-| Trigger deleted                      | `destroy`                                                                                   |
-| Provider reports sprite lost         | mark `terminated`, next arrival recreates, sessions reset                                   |
-| Daemon revoked                       | existing path marks `terminated`; `destroy`; next arrival recreates                         |
+| Event                                | Sprite action                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Trigger activated with sprite target | create machine row, provider `create`, bootstrap, enroll, write service; provider pauses it       |
+| Arrival while paused                 | `hold`, which wakes it; engine defers until the socket is live; dispatch                          |
+| Arrival while awake                  | `hold`, dispatch                                                                                  |
+| Execution terminal                   | `release` after the terminal hub action; provider pauses within about 1 s (first run: 20 to 30 s) |
+| Every tick (5 min)                   | re-issue every active hold                                                                        |
+| `bootstrap` changed                  | `destroy` after in-flight executions, recreate on next arrival                                    |
+| `env` changed                        | rewrite service; waits while an execution runs, tick applies it once idle; daemon restarts        |
+| `memory` changed                     | update resources policy                                                                           |
+| Trigger deleted                      | `destroy`                                                                                         |
+| Provider reports sprite lost         | mark `terminated`, next arrival recreates, sessions reset                                         |
+| Daemon revoked                       | existing path marks `terminated`; `destroy`; next arrival recreates                               |
 
 ## 7. Ceilings
 

@@ -165,6 +165,8 @@ describe("sprite dispatch", () => {
     const executionId = hub.dispatches[0]!.executionId;
     assert.equal(hub.holds(executionId), 1);
     assert.deepEqual(hub.deferredHolds(), []);
+    const hold = hub.logs.records().find((record) => record["msg"] === "sprite hold");
+    assert.equal(typeof hold?.["elapsedMs"], "number");
   });
 
   it("keeps the sprite alive when a hold answers 503 and holds again on a later visit", async () => {

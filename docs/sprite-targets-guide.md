@@ -64,7 +64,7 @@ paused sprite's memory, and only an archived workspace is guaranteed to restore.
 
 There is no sprite idle setting: the provider pauses a sprite about a second after Hub releases the last
 hold on it, so a sprite never rests awake for long. After the first run following activation, the sprite
-paused about 20 s after release, which matches the end of the daemon's first-start speech-model download.
+paused 20 to 30 s after release, which matches the end of the daemon's first-start speech-model download.
 `run.idle_timeout` still applies per execution, as on any target.
 
 An execution is idle once the agent's turn ends without a call to `finish_execution`; a foreground
@@ -89,7 +89,7 @@ wakes. When the conversation continues, the next run's agent is not told about i
   as across a warm one. The wait is bounded by `max_runtime`.
 - **Event while the sprite is awake.** Hub holds it and hands off.
 - **Terminal.** Hub waits for the terminal hub action, the archive, to complete and releases the hold only
-  then; the provider pauses the sprite about a second later, or about 20 s later on the first run after
+  then; the provider pauses the sprite about a second later, or 20 to 30 s later on the first run after
   activation. Releasing earlier would let the pause cut the
   archive short. Each execution holds the sprite under its own name, so a sibling execution keeps it awake.
 - **`bootstrap` changed.** Hub destroys the sprite, revokes its daemon, and terminates its machine row. The
@@ -98,8 +98,8 @@ wakes. When the conversation continues, the next run's agent is not told about i
   over.
 - **`env` changed.** Hub rewrites the daemon service, which restarts the daemon with the new environment.
   While the sprite has a running execution the rewrite waits: the five-minute tick applies it once the
-  sprite has none, and until then the trigger page says the sprite still runs the previous configuration.
-  The sprite, its filesystem, and its daemon identity are kept.
+  sprite has none, waking the sprite if it has paused, and until then the trigger page says the sprite
+  still runs the previous configuration. The sprite, its filesystem, and its daemon identity are kept.
 - **`memory` changed.** Hub updates the resources policy in place.
 - **Hub upgraded to a new Paseo CLI.** Hub pins the Paseo CLI version it installs. When a Hub upgrade
   changes the pin, the next five-minute tick installs it on every idle sprite and then rewrites the daemon
