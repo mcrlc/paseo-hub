@@ -82,6 +82,7 @@ export interface DurableWorkflowEngineOptions {
   prepareSpriteDispatch?: (input: {
     organizationId: string;
     projectId: string;
+    triggerRunId: string;
     executionId: string;
     target: SpriteEnvironment;
   }) => Promise<SpriteDispatchReadiness>;
@@ -597,6 +598,7 @@ export class DurableWorkflowEngine {
     return this.options.prepareSpriteDispatch({
       organizationId: run.organizationId,
       projectId: run.projectId,
+      triggerRunId: run.id,
       executionId,
       target,
     });

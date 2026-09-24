@@ -554,7 +554,7 @@ describe("sprite dispatch", () => {
     const control = hub.connectDaemon();
     control.resolve();
     await hub.enrollSprite();
-    await hub.startRun();
+    const runId = await hub.startRun();
     await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
     let landHold!: () => void;
@@ -571,7 +571,48 @@ describe("sprite dispatch", () => {
     await refresh;
 
     assert.equal(hub.sequence.at(-1), `release:${executionId}`);
-    assert.equal((await hub.prepareSpriteDispatch(executionId)).status, "deferred");
+    assert.equal((await hub.prepareSpriteDispatch(executionId, runId)).status, "deferred");
+    await hub.lifecycle.stop();
+  });
+
+  it("releases a dispatch hold that lands after its run ended", async () => {
+    const hub = await setup();
+    hub.socketOpen = true;
+    await hub.enrollSprite();
+    const runId = await hub.startRun();
+    let landHold!: () => void;
+    const lateHold = new Promise<void>((resolve) => {
+      landHold = resolve;
+    });
+    hub.holdGate = () => lateHold;
+    await hub.claim(1);
+    await waitFor(() => hub.providerCalls.length === 1);
+    const executionId = hub.providerCalls[0]!.task!;
+
+    await hub.database.failWorkflowRun(runId, "failed", "run_failed");
+    hub.holdGate = undefined;
+    landHold();
+    await waitFor(() => hub.sequence.at(-1) === `release:${executionId}`);
+
+    assert.equal((await hub.prepareSpriteDispatch(executionId, runId)).status, "deferred");
+    await hub.lifecycle.stop();
+  });
+
+  it("releases a landed dispatch hold when its run ends before the execution exists", async () => {
+    const hub = await setup();
+    await hub.enrollSprite();
+    const runId = await hub.startRun();
+    await hub.claim(1);
+    await waitFor(() => hub.providerCalls.length === 1);
+    const executionId = hub.providerCalls[0]!.task!;
+    await waitFor(() => hub.heldTimes(executionId) === 1);
+    assert.equal((await hub.prepareSpriteDispatch(executionId, runId)).status, "ready");
+    assert.equal(await hub.database.findAgentExecutionById(executionId), undefined);
+
+    await hub.database.failWorkflowRun(runId, "failed", "run_failed");
+    await hub.claim(1);
+
+    await waitFor(() => hub.sequence.at(-1) === `release:${executionId}`);
     await hub.lifecycle.stop();
   });
 
@@ -599,7 +640,7 @@ describe("sprite dispatch", () => {
     const hub = await setup();
     hub.socketOpen = true;
     await hub.enrollSprite();
-    await hub.startRun();
+    const runId = await hub.startRun();
     await hub.claim(2);
     const executionId = hub.dispatches[0]!.executionId;
     assert.equal(hub.holds(executionId), 1);
@@ -614,7 +655,7 @@ describe("sprite dispatch", () => {
     });
     assert.equal(hub.holds(executionId), 2);
 
-    const readiness = await hub.prepareSpriteDispatch(executionId);
+    const readiness = await hub.prepareSpriteDispatch(executionId, runId);
 
     assert.equal(readiness.status, "ready");
     assert.equal(hub.holds(executionId), 2);
@@ -938,6 +979,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     providers: [provider],
     canDispatchToDaemon: () => state.socketOpen,
     prepareSpriteDispatch: (input) => state.lifecycle.prepareSpriteDispatch(input),
+    onWorkflowRunTerminal: (run) => state.lifecycle.notifyWorkflowRunTerminal(run),
     dispatchLaunchMachineIntent: async (intent) => {
       const execution = await database.findAgentExecutionByWorkflowStepRunId(
         intent.workflowStepRunId!,
@@ -1129,7 +1171,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
     deferredHolds() {
       return logs.records().filter((record) => record["msg"] === "sprite hold deferred");
     },
-    prepareSpriteDispatch(executionId: string) {
+    prepareSpriteDispatch(executionId: string, triggerRunId: string) {
       const target = configuration.environments.find(
         (environment) => environment.kind === "sprite",
       );
@@ -1137,6 +1179,7 @@ async function setup(test: { spriteHoldRefreshIntervalMs?: number } = {}) {
       return state.lifecycle.prepareSpriteDispatch({
         organizationId: "org",
         projectId: trigger.runtimeProjectId,
+        triggerRunId,
         executionId,
         target,
       });
