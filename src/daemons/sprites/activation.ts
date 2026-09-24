@@ -274,13 +274,14 @@ async function reconcileSprite(
   }
   if (machine.status !== "alive") return;
   const memoryMb = target.memory ?? configuration.memoryMb;
-  const nextEnvHash = envHash(target.env);
   const { npmPrefix } = specs;
   const cliCurrent = specs.cliVersion === PASEO_CLI_VERSION;
-  const upgradeCli =
-    !cliCurrent &&
-    npmPrefix !== undefined &&
-    (await database.findRunningAgentExecutionsForMachine(machine.id)).length === 0;
+  const idle = (await database.findRunningAgentExecutionsForMachine(machine.id)).length === 0;
+  const upgradeCli = !cliCurrent && npmPrefix !== undefined && idle;
+  const nextEnvHash = envHashToApply(specs, target, idle, {
+    triggerId: input.trigger.id,
+    sprite: machine.source.spriteName,
+  });
   if (memoryMb === specs.memoryMb && nextEnvHash === specs.envHash && !upgradeCli) return;
   if (memoryMb !== specs.memoryMb) {
     await provider.setMemory(machine.source.spriteName, memoryMb);
@@ -322,6 +323,18 @@ async function reconcileSprite(
     envHash: nextEnvHash,
     ...(upgradeCli ? { cliVersion: PASEO_CLI_VERSION } : {}),
   });
+}
+
+function envHashToApply(
+  specs: SpriteSpecs,
+  target: SpriteTarget,
+  idle: boolean,
+  fields: { triggerId: string; sprite: string },
+): string | undefined {
+  const next = envHash(target.env);
+  if (idle || next === specs.envHash) return next;
+  logger.info(fields, "sprite env rewrite deferred until idle");
+  return specs.envHash;
 }
 
 async function retireSprite(
