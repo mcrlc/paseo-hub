@@ -63,14 +63,14 @@ paused sprite's memory, and only an archived workspace is guaranteed to restore.
 `PASEO_WEB_UI_ENABLED` are refused in the target's `env`, because Hub sets them on every sprite.
 
 There is no sprite idle setting: the provider pauses a sprite about a second after Hub releases the last
-hold on it, so a sprite never rests awake for long. `run.idle_timeout` still applies per execution, as on
-any target.
+hold on it, so a sprite never rests awake for long. After the first run following activation, the sprite
+paused about 20 s after release, which matches the end of the daemon's first-start speech-model download.
+`run.idle_timeout` still applies per execution, as on any target.
 
 An execution is idle once the agent's turn ends without a call to `finish_execution`; a foreground
-command, however long, counts as active. Hub cannot see background commands, and one that outlives the
-idle timeout is stopped when the execution fails. When the conversation continues, the next run's agent
-receives the interrupted task and the provider's notice about the unfinished command, so do not assume a
-failed run left nothing behind.
+command, however long, counts as active. Hub cannot see background commands. One that outlives the idle
+timeout keeps running after the execution fails, is frozen when the sprite pauses, and resumes when it
+wakes. When the conversation continues, the next run's agent is not told about it.
 
 ## Lifecycle
 
@@ -83,11 +83,14 @@ failed run left nothing behind.
   daemon's socket is live. A paused sprite starts warm and turns cold within minutes, on the provider's
   schedule. From either state the daemon normally reconnects in seconds: about a second from warm, and 2 s
   in a measured cold wake. The one slow wake measured took 64 s, with a 30 s `git rev-parse` timeout inside
-  the daemon; its cause was not recorded. Continuation holds across a cold pause as across a warm one. The
+  the daemon; its cause was not recorded. A sprite whose memory was dropped takes about 40 s to boot, and
+  one such wake did not complete within `max_runtime`: every hold on it hit Hub's 20 s deadline, and the
+  run timed out. Continuation holds across a cold pause as across a warm one. The
   wait is bounded by `max_runtime`.
 - **Event while the sprite is awake.** Hub holds it and hands off.
 - **Terminal.** Hub waits for the terminal hub action, the archive, to complete and releases the hold only
-  then; the provider pauses the sprite about a second later. Releasing earlier would let the pause cut the
+  then; the provider pauses the sprite about a second later, or about 20 s later on the first run after
+  activation. Releasing earlier would let the pause cut the
   archive short. Each execution holds the sprite under its own name, so a sibling execution keeps it awake.
 - **`bootstrap` changed.** Hub destroys the sprite, revokes its daemon, and terminates its machine row. The
   next event creates a new sprite and, because the daemon identity is new, a fresh conversation; the run
@@ -160,7 +163,9 @@ run:
 ```
 
 Both events on one pull request derive the same conversation key, so they land on the same agent. As two
-triggers they would be two agents, and the comment would reach one that never saw the review.
+triggers they would be two agents, and the comment would reach one that never saw the review. Hub records
+runs fired by the trigger's second event under the name `<trigger>-event-2`, here `pr-reviewer-event-2`,
+so a filter on the trigger name alone misses them.
 
 When the comment arrives while the review is still running, it is sent to the running agent as a new
 message. When it arrives after the review ended, Hub holds the sprite, restores the archived workspace,
@@ -175,7 +180,10 @@ not in `from_users`; `from_users: ["*"]` admits every login, the agent's include
 
 For a trigger that only reads and comments, use a Sprites GitHub connector. In the Sprites dashboard, add
 a GitHub connector and approve GitHub's consent screen signed in as a machine account, such as
-`acme-review-bot` above, not as a person in `from_users`. Hub names every sprite `trigger-<trigger id>`
+`acme-review-bot` above, not as a person in `from_users`. The native Sprites GitHub connector authorises a
+GitHub user account, so the machine account is a second GitHub user; the beta used one. Posting as a
+GitHub App identity instead needs a custom connector that sends an installation token, which expires
+after an hour. Hub names every sprite `trigger-<trigger id>`
 and creates it with the labels `paseo-hub`, `org:<organization id>`, and `trigger:<trigger name>`. The name
 prefix `trigger-` or the label `paseo-hub` grants the connector to every Hub sprite in the Sprites
 organization. The label `org:<organization id>` narrows it to one Hub organization's sprites, and the

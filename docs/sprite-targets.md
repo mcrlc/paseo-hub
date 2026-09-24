@@ -245,7 +245,7 @@ Per `docs/design.md`: state through `StatusPill`, never a badge.
 | Trigger activated with sprite target | create machine row, provider `create`, bootstrap, enroll, write service; provider pauses it |
 | Arrival while paused                 | `hold`, which wakes it; engine defers until the socket is live; dispatch                    |
 | Arrival while awake                  | `hold`, dispatch                                                                            |
-| Execution terminal                   | `release` after the terminal hub action; provider pauses within about 1 s                   |
+| Execution terminal                   | `release` after the terminal hub action; provider pauses within about 1 s (first run: 20 s) |
 | Every tick (5 min)                   | re-issue every active hold                                                                  |
 | `bootstrap` changed                  | `destroy` after in-flight executions, recreate on next arrival                              |
 | `env` changed                        | rewrite service; daemon restarts and reconnects                                             |
