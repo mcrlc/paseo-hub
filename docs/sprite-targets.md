@@ -248,7 +248,7 @@ Per `docs/design.md`: state through `StatusPill`, never a badge.
 | Execution terminal                   | `release` after the terminal hub action; provider pauses within about 1 s (first run: 20 s) |
 | Every tick (5 min)                   | re-issue every active hold                                                                  |
 | `bootstrap` changed                  | `destroy` after in-flight executions, recreate on next arrival                              |
-| `env` changed                        | rewrite service; daemon restarts and reconnects                                             |
+| `env` changed                        | rewrite service; waits while an execution runs, tick applies it once idle; daemon restarts  |
 | `memory` changed                     | update resources policy                                                                     |
 | Trigger deleted                      | `destroy`                                                                                   |
 | Provider reports sprite lost         | mark `terminated`, next arrival recreates, sessions reset                                   |
