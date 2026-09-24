@@ -172,7 +172,7 @@ export class DaemonDispatchLifecycle {
   private readonly reconcilingHubActions = new Map<string, Promise<void>>();
   private readonly daemonRecoveries = new Set<Promise<void>>();
   private readonly executionSubscriptions = new Map<string, () => void>();
-  private readonly heldSpriteExecutions = new Set<string>();
+  private readonly heldSpriteExecutions = new Map<string, MachineRecord>();
   private readonly pendingHolds = new Map<string, Promise<void>>();
   private readonly recreatedSpriteExecutions = new Set<string>();
   private clearSpriteHoldRefresh: (() => void) | undefined;
@@ -244,6 +244,7 @@ export class DaemonDispatchLifecycle {
   async prepareSpriteDispatch(input: {
     organizationId: string;
     projectId: string;
+    triggerRunId: string;
     executionId: string;
     target: SpriteTarget;
   }): Promise<SpriteDispatchReadiness> {
@@ -277,7 +278,12 @@ export class DaemonDispatchLifecycle {
     if (daemon === undefined) return { status: "deferred" };
     if (!this.heldSpriteExecutions.has(input.executionId)) {
       if (!this.pendingHolds.has(input.executionId)) {
-        const hold = this.holdSprite(input.executionId, machine, machine.source.spriteName)
+        const hold = this.holdSprite(
+          input.executionId,
+          input.triggerRunId,
+          machine,
+          machine.source.spriteName,
+        )
           .catch((error: unknown) => {
             this.report(error, "sprites.hold", { executionId: input.executionId });
           })
@@ -291,6 +297,7 @@ export class DaemonDispatchLifecycle {
 
   private async holdSprite(
     executionId: string,
+    triggerRunId: string,
     machine: MachineRecord,
     sprite: string,
   ): Promise<void> {
@@ -298,7 +305,7 @@ export class DaemonDispatchLifecycle {
     try {
       const provider = await this.spriteProviderFor(machine.orgId);
       await provider.hold(sprite, executionId, "60m");
-      this.heldSpriteExecutions.add(executionId);
+      this.heldSpriteExecutions.set(executionId, machine);
       this.logger.info({ executionId, sprite, task: executionId }, "sprite hold");
     } catch (error) {
       if (isRetryableSpriteHoldFailure(error)) {
@@ -318,6 +325,9 @@ export class DaemonDispatchLifecycle {
       await this.options.database.transitionMachine(machine.id, "terminated", {
         reason: error instanceof Error ? error.message : String(error),
       });
+    }
+    if ((await this.options.database.findTriggerRunById(triggerRunId))?.status !== "running") {
+      await this.releaseHeldSprite(executionId);
     }
   }
 
@@ -349,6 +359,17 @@ export class DaemonDispatchLifecycle {
 
   async notifyWorkflowRunTerminal(run: TriggerRunRecord): Promise<TriggerProviderReactionState> {
     if (run.outcome !== "accepted" || run.status === "running") return null;
+    for (const step of await this.options.database.listWorkflowStepRunsForTriggerRun(run.id)) {
+      if (step.agentExecutionId !== null) continue;
+      await this.releaseHeldSprite(
+        durableExecutionId({
+          triggerRunId: run.id,
+          configurationRevisionId: run.configurationRevisionId,
+          triggerName: run.configuredTriggerName,
+          workflowStepRunId: step.id,
+        }),
+      );
+    }
     const provider = this.findProviderForTriggerContext(run.triggerContext);
     if (provider === undefined) return run.reactionState;
     if (run.status === "succeeded") {
@@ -1067,7 +1088,7 @@ export class DaemonDispatchLifecycle {
           }
           continue;
         }
-        this.heldSpriteExecutions.add(execution.id);
+        this.heldSpriteExecutions.set(execution.id, machine);
       } catch (error) {
         this.report(error, "sprites.hold-refresh", { executionId: execution.id });
       }
@@ -1587,6 +1608,22 @@ export class DaemonDispatchLifecycle {
       );
     } catch (error) {
       this.report(error, "sprites.release", { executionId: execution.id });
+    }
+  }
+
+  private async releaseHeldSprite(executionId: string): Promise<void> {
+    const machine = this.heldSpriteExecutions.get(executionId);
+    if (machine?.source.kind !== "sprite") return;
+    this.forgetSpriteExecution(executionId);
+    try {
+      const provider = await this.spriteProviderFor(machine.orgId);
+      await provider.release(machine.source.spriteName, executionId);
+      this.logger.info(
+        { executionId, sprite: machine.source.spriteName, task: executionId },
+        "sprite release",
+      );
+    } catch (error) {
+      this.report(error, "sprites.release", { executionId });
     }
   }
 
