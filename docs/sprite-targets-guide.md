@@ -85,8 +85,8 @@ wakes. When the conversation continues, the next run's agent is not told about i
   in a measured cold wake. The one slow wake measured took 64 s, with a 30 s `git rev-parse` timeout inside
   the daemon; its cause was not recorded. A sprite whose memory was dropped takes about 40 s to boot, and
   one such wake did not complete within `max_runtime`: every hold on it hit Hub's 20 s deadline, and the
-  run timed out. Continuation holds across a cold pause as across a warm one. The
-  wait is bounded by `max_runtime`.
+  run timed out; the hold deadline has since been raised to 90 s. Continuation holds across a cold pause
+  as across a warm one. The wait is bounded by `max_runtime`.
 - **Event while the sprite is awake.** Hub holds it and hands off.
 - **Terminal.** Hub waits for the terminal hub action, the archive, to complete and releases the hold only
   then; the provider pauses the sprite about a second later, or about 20 s later on the first run after
