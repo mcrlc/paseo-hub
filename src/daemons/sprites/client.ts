@@ -4,6 +4,7 @@ const SPRITES_API_URL = "https://api.sprites.dev";
 const CURL_HTTP_ERROR_EXIT_CODE = 22;
 export const REQUEST_TIMEOUT_MS = 60_000;
 const TASK_TIMEOUT_MS = 20_000;
+const HOLD_TIMEOUT_MS = 90_000;
 export const PASEO_INSTALL_TIMEOUT_MS = 10 * 60_000;
 export const BOOTSTRAP_TIMEOUT_MS = 30 * 60_000;
 export const HUB_CONNECT_TIMEOUT_MS = 15 * 60_000;
@@ -133,9 +134,14 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
     return decodeExec((await execRequest(name, argv, execOptions, false)).body);
   }
 
-  async function taskRequest(name: string, curlArgs: string[], allowNotFound = false) {
+  async function taskRequest(
+    name: string,
+    curlArgs: string[],
+    timeoutMs: number,
+    allowNotFound = false,
+  ) {
     const argv = ["sprite-env", "curl", "-s", ...curlArgs];
-    const response = await execRequest(name, argv, { timeoutMs: TASK_TIMEOUT_MS }, allowNotFound);
+    const response = await execRequest(name, argv, { timeoutMs }, allowNotFound);
     // A destroyed sprite answers 404 here, which for a release is the same as a missing task.
     if (response.status === 404) return;
     const result = decodeExec(response.body);
@@ -184,11 +190,11 @@ export function createSpritesClient(options: { token: string; fetch?: typeof fet
 
     async hold(name: string, task: string, expire: string): Promise<void> {
       const body = JSON.stringify({ name: task, expire });
-      await taskRequest(name, ["-X", "PUT", taskPath(task), "-d", body]);
+      await taskRequest(name, ["-X", "PUT", taskPath(task), "-d", body], HOLD_TIMEOUT_MS);
     },
 
     async release(name: string, task: string): Promise<void> {
-      await taskRequest(name, ["-X", "DELETE", taskPath(task)], true);
+      await taskRequest(name, ["-X", "DELETE", taskPath(task)], TASK_TIMEOUT_MS, true);
     },
 
     async destroy(name: string): Promise<void> {

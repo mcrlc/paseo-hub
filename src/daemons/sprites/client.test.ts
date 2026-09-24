@@ -254,7 +254,7 @@ describe("Sprites client", () => {
     );
   });
 
-  it("gives hold and release the task budget and an exec its own", async () => {
+  it("gives hold a cold-boot deadline, release the task budget, and an exec its own", async () => {
     const timeout = vi.spyOn(AbortSignal, "timeout");
     const client = createSpritesClient({
       token: "token",
@@ -276,7 +276,7 @@ describe("Sprites client", () => {
 
     assert.deepEqual(
       timeout.mock.calls.map(([ms]) => ms),
-      [60_000, 60_000, 60_000, 60_000, 20_000, 20_000, 60_000, 60_000, 900_000],
+      [60_000, 60_000, 60_000, 60_000, 90_000, 20_000, 60_000, 60_000, 900_000],
     );
   });
 
@@ -298,7 +298,7 @@ describe("Sprites client", () => {
       (error: unknown) =>
         error instanceof SpritesTimeoutError &&
         error.code === "sprites_timeout" &&
-        error.message === "Sprites API 0: POST /v1/sprites/sprite-a/exec timed out after 20 s",
+        error.message === "Sprites API 0: POST /v1/sprites/sprite-a/exec timed out after 90 s",
     );
     assert.equal(signal?.aborted, true);
   });
