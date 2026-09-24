@@ -360,6 +360,42 @@ describe("sprite activation", () => {
     );
   });
 
+  it("defers an organization env rewrite while an execution runs and applies it once the sprite is idle", async () => {
+    const hub = await setup();
+    const trigger = await hub.store.save({ yaml: spriteYaml(), userId: null });
+    await hub.settled();
+    await hub.enrollSprite();
+    const [enrolled] = await hub.spriteMachines();
+    await hub.startExecution(trigger.runtimeProjectId, enrolled!.id);
+    await hub.database.setOrganizationSpritesEnv({
+      organizationId: "org",
+      key: "ORG_ONLY",
+      value: "rotated",
+    });
+    hub.calls.length = 0;
+    hub.serviceEnvs.length = 0;
+
+    await hub.rewrite("org");
+
+    assert.deepEqual(hub.calls, []);
+    const [busy] = await hub.spriteMachines();
+    assert.equal(spriteSpecs(busy!).envHash, undefined);
+
+    for (const execution of await hub.database.findRunningAgentExecutionsForMachine(enrolled!.id)) {
+      await hub.database.transitionAgentExecution(execution.id, "succeeded");
+    }
+    await hub.store.save({ triggerId: trigger.id, yaml: spriteYaml(), userId: null });
+    await hub.settled();
+
+    assert.deepEqual(
+      hub.calls.map(({ call, args }) => [call, args[0], args[1]]),
+      [["service", `trigger-${trigger.id}`, "paseo"]],
+    );
+    assert.equal(hub.serviceEnvs[0]?.["ORG_ONLY"], "rotated");
+    const [idle] = await hub.spriteMachines();
+    assert.equal(spriteSpecs(idle!).envHash, spriteSpecs(enrolled!).envHash);
+  });
+
   it("reports and resolves when the rewrite cannot list the organization's triggers", async () => {
     const hub = await setup();
     await hub.store.save({ yaml: spriteYaml(), userId: null });

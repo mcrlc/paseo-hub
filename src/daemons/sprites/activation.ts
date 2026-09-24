@@ -418,6 +418,17 @@ export function createSpriteServiceRewrite(
             (environment): environment is SpriteTarget => environment.kind === "sprite",
           );
           if (target === undefined) continue;
+          if ((await database.findRunningAgentExecutionsForMachine(machine.id)).length > 0) {
+            await database.setMachineSpecs(machine.id, {
+              ...spriteSpecs(machine),
+              envHash: undefined,
+            });
+            logger.info(
+              { triggerId: trigger.id, sprite },
+              "sprite service rewrite deferred until idle",
+            );
+            continue;
+          }
           await rewriteSpriteService({
             provider,
             resolver: options.connectionsForProject(trigger.runtimeProjectId),
